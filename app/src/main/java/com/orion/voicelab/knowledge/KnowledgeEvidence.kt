@@ -42,7 +42,8 @@ enum class KnowledgeVerdict {
     STALE,
     CONFLICTING,
     NO_EVIDENCE,
-    INVALID_TIMESTAMP
+    INVALID_TIMESTAMP,
+    AGE_UNCONFIRMED
 }
 
 data class KnowledgeEvidence(
@@ -78,7 +79,8 @@ object KnowledgeVerifier {
         domain: KnowledgeDomain,
         nowMs: Long,
         maxAgeMs: Long,
-        conflictDetected: Boolean = false
+        conflictDetected: Boolean = false,
+        requiresPublishedDate: Boolean = false
     ): KnowledgeVerification {
         val relevant = evidence.filter { it.domain == domain && it.canonicalUrl.isNotBlank() }
         val publishers = relevant.map { it.publisherId.trim().lowercase() }
@@ -95,7 +97,7 @@ object KnowledgeVerifier {
             it.authority == EvidenceAuthority.OFFICIAL_PRIMARY ||
                 it.authority == EvidenceAuthority.PRIMARY_TECHNICAL
         }
-        val newest = relevant.maxOfOrNull { it.retrievedAtMs }
+        val newest = relevant.maxOfOrNull { it.publishedAtMs ?: it.retrievedAtMs }
         val base = KnowledgeVerification(
             verdict = KnowledgeVerdict.NO_EVIDENCE,
             evidenceCount = relevant.size,
@@ -119,6 +121,10 @@ object KnowledgeVerifier {
             conflictDetected -> {
                 verdict = KnowledgeVerdict.CONFLICTING
                 reason = "Las fuentes recuperadas presentan información contradictoria."
+            }
+            requiresPublishedDate && relevant.any { it.publishedAtMs == null } -> {
+                verdict = KnowledgeVerdict.AGE_UNCONFIRMED
+                reason = "La página se ha consultado ahora, pero no aporta fecha de publicación o actualización verificable; no se puede afirmar que su contenido siga vigente."
             }
             maxAgeMs >= 0L && newest != null && nowMs - newest > maxAgeMs -> {
                 verdict = KnowledgeVerdict.STALE
