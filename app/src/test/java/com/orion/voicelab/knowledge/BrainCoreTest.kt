@@ -82,6 +82,9 @@ class BrainCoreTest {
     fun webSearchRequiresAnExplicitUserRequest() {
         assertEquals(true, WebSearchIntentPolicy.requiresWebSearch("Busca en internet las últimas novedades de Kotlin"))
         assertEquals(false, WebSearchIntentPolicy.requiresWebSearch("Explícame cómo funciona Kotlin"))
+        val safeQuery = WebSearchIntentPolicy.searchTerms("Busca en internet documentación sobre Kotlin, contacto test@example.com teléfono +34 600 123 456")
+        assertEquals(false, safeQuery.orEmpty().contains("test@example.com"))
+        assertEquals(false, safeQuery.orEmpty().contains("+34 600 123 456"))
     }
 
     @Test
