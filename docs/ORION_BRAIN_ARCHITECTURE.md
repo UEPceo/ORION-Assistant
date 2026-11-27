@@ -1,6 +1,6 @@
 # ORION — Arquitectura del cerebro autónomo y conocimiento verificable
 
-Estado: núcleo modular implementado e integrado en el contexto de cada turno; conectores de fuentes externas e ingesta avanzada pendientes.
+Estado: núcleo modular local implementado e integrado en el contexto de cada turno; fuentes externas y proveedores multimedia requieren configuración e integración.
 
 ## Objetivo
 
@@ -103,3 +103,18 @@ Las respuestas distinguen:
 ## Criterios de aceptación
 
 ORION no se considerará listo por responder con fluidez. Debe demostrar en pruebas que no inventa fuentes, enlaces ni resultados de ejecución; reconoce información caducada, insuficiente o contradictoria; prioriza fuentes oficiales para normativa y seguridad; separa conocimiento público, memoria personal y contenido privado; mantiene capacidades locales cuando fallan Internet o los conectores; y puede investigar, generar código y validar resultados con herramientas autorizadas.
+
+
+## Módulos creativos y multimedia
+
+El cerebro incluye dominios CREATIVE_DESIGN, SOCIAL_MEDIA e IMAGE_VIDEO. El enrutador creativo activa módulos de diseño, branding, copywriting, storyboard, estrategia social, analítica, generación o comprensión de imagen/vídeo. Sus instrucciones se añaden al contexto conversacional y pueden especializarse según el rol del co-worker.
+
+La dirección visual por defecto es ORION Editorial (navy #080D1A, cian #16C7E8 y blanco), con composición editorial tecnológica, alto contraste y legibilidad móvil. El motor social planifica por plataforma, público, objetivo y formato; mide retención, finalización, guardados, compartidos, comentarios cualificados, acciones de perfil y conversiones. No pretende conocer pesos privados de algoritmos ni garantiza viralidad.
+
+Los contratos MediaUnderstandingProvider, ImageGenerationProvider y VideoGenerationProvider permiten integrar modelos locales, servicios remotos o aplicaciones externas. OrionMediaRuntime declara disponibilidad real y rechaza tareas si no hay proveedor configurado. El modelo Qwen2.5 1.5B actual es textual; no se debe describir como modelo de visión ni generador multimedia.
+
+## Fuentes externas y aprendizaje
+
+OrionBrainRuntime acepta KnowledgeSource externos inyectables además del corpus local. En la configuración actual del runtime de la app solo se registra el corpus local; no hay todavía un motor general de búsqueda web activo. El aprendizaje persiste documentos con procedencia y hash, pero no modifica automáticamente los pesos del modelo. Los proveedores de búsqueda, indexación y actualización deben registrarse y someterse a los mismos controles de autoridad, frescura, contradicción y seguridad.
+
+Detalle creativo/multimedia y pendientes: [ORION_CREATIVE_MULTIMODAL_ARCHITECTURE.md](ORION_CREATIVE_MULTIMODAL_ARCHITECTURE.md).
