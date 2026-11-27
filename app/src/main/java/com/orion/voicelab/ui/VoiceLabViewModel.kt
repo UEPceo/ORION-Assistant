@@ -85,12 +85,9 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         private const val METRICS_TICK_MS = 15_000L
         private const val CALL_TIMER_TICK_MS = 1_000L
         private const val MAX_RECENT_ERRORS = 8
-        private const val PREFS_NAME = "orion_voice_prefs"
-        private const val KEY_INITIAL_DOWNLOADS_DONE = "initial_models_auto_download_done"
     }
 
     private val appContext = application.applicationContext
-    private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val database = OrionDatabase.getInstance(appContext)
     private val conversationRepository = ConversationRepository(database.conversationDao())
     private val memoryRepository = MemoryRepository(database.memoryDao())
@@ -585,10 +582,6 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val ttsReady = ModelManager.isTtsInstalled(appContext.filesDir)
         val llmReady = ModelManager.isLlmInstalled(appContext.filesDir)
         if (asrReady && ttsReady && llmReady) {
-            prefs.edit().putBoolean(KEY_INITIAL_DOWNLOADS_DONE, true).apply()
-            return
-        }
-        if (prefs.getBoolean(KEY_INITIAL_DOWNLOADS_DONE, false)) {
             return
         }
         startInitialAutoDownloads()
@@ -628,7 +621,6 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                     ModelManager.isTtsInstalled(appContext.filesDir) &&
                     ModelManager.isLlmInstalled(appContext.filesDir)
                 if (allReady) {
-                    prefs.edit().putBoolean(KEY_INITIAL_DOWNLOADS_DONE, true).apply()
                 }
                 _uiState.update {
                     it.copy(
