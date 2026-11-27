@@ -121,8 +121,8 @@ class KnowledgeSemanticIndex(context: Context) {
 
     private companion object {
         val CONCEPTS = mapOf(
-            "authentication" to setOf("login", "signin", "credential", "password", "contrasena", "autenticacion", "identidad", "clave", "acceso", "credencial", "pin"),
-            "security" to setOf("seguridad", "proteccion", "defensa", "vulnerabilidad", "amenaza", "ataque", "ciberseguridad"),
+            "authentication" to setOf("login", "signin", "credential", "password", "contrasena", "contrasenas", "autenticacion", "identidad", "clave", "acceso", "credencial", "credenciales", "pin"),
+            "security" to setOf("seguridad", "proteccion", "proteger", "defensa", "vulnerabilidad", "amenaza", "ataque", "ciberseguridad"),
             "emergency" to setOf("emergencia", "urgencia", "auxilio", "112", "socorro", "accidente"),
             "law" to setOf("ley", "normativa", "legislacion", "reglamento", "decreto", "legal", "juridico"),
             "fishing" to setOf("pesca", "pescador", "captura", "anzuelo", "cebo", "surfcasting", "licencia"),
