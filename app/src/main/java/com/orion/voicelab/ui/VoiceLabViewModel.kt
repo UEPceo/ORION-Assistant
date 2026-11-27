@@ -111,6 +111,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private val persistenceMutex = Mutex()
     private val asrDownloadMutex = Mutex()
     private val ttsDownloadMutex = Mutex()
+    private val voiceDownloadMutex = Mutex()
     private val llmDownloadMutex = Mutex()
 
     @Volatile
@@ -1031,6 +1032,64 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     fun interruptCall() {
         cancelDelayedVoiceConfirmJob(clearPending = false)
         conversationEngine.interruptSpeaking()
+    }
+
+    fun downloadVoicePack(voiceId: String) {
+        val voice = speechSynthesizer.availableVoices().firstOrNull { it.id == voiceId } ?: return
+        val url = voice.downloadUrl ?: return
+        if (voice.isInstalled || _uiState.value.voiceDownloadingId != null) return
+        viewModelScope.launch(Dispatchers.IO) {
+            voiceDownloadMutex.withLock {
+                _uiState.update { it.copy(
+                    voiceDownloadingId = voiceId,
+                    voiceDownloadProgressPercent = 0,
+                    voiceDownloadStatus = "Preparando descarga…",
+                    voiceDownloadError = null
+                ) }
+                try {
+                    ModelManager.downloadAndInstallTtsVoice(
+                        filesDir = appContext.filesDir,
+                        directoryName = voice.modelDirectoryName,
+                        archiveName = "${voice.modelDirectoryName}.tar.bz2",
+                        modelFileName = voice.modelFileName,
+                        url = url,
+                        onProgress = { percent, downloadedMb, totalMb ->
+                            _uiState.update { it.copy(
+                                voiceDownloadProgressPercent = percent,
+                                voiceDownloadStatus = if (totalMb > 0L) "Descargando $downloadedMb / $totalMb MB" else "Descargando paquete de voz…"
+                            ) }
+                        },
+                        onExtracting = {
+                            _uiState.update { it.copy(
+                                voiceDownloadProgressPercent = 100,
+                                voiceDownloadStatus = "Verificando e instalando la voz…"
+                            ) }
+                        }
+                    )
+                    _uiState.update { it.copy(
+                        availableVoices = speechSynthesizer.availableVoices(),
+                        voiceDownloadingId = null,
+                        voiceDownloadStatus = "Voz instalada. Ya puedes seleccionarla.",
+                        voiceDownloadProgressPercent = 100,
+                        voiceDownloadError = null
+                    ) }
+                } catch (cancelled: CancellationException) {
+                    _uiState.update { it.copy(
+                        voiceDownloadingId = null,
+                        voiceDownloadStatus = "Descarga interrumpida. Puedes volver a intentarlo.",
+                        voiceDownloadProgressPercent = 0
+                    ) }
+                    throw cancelled
+                } catch (error: Exception) {
+                    _uiState.update { it.copy(
+                        voiceDownloadingId = null,
+                        voiceDownloadError = error.message ?: "No se pudo instalar la voz.",
+                        voiceDownloadStatus = null,
+                        availableVoices = speechSynthesizer.availableVoices()
+                    ) }
+                }
+            }
+        }
     }
 
     fun selectVoice(voiceId: String) {
