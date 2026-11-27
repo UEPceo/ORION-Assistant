@@ -54,6 +54,8 @@ import com.orion.voicelab.llm.ModelProfilePromptComposer
 import com.orion.voicelab.knowledge.OrionBrainRuntime
 import com.orion.voicelab.brain.PlanningPromptComposer
 import com.orion.voicelab.brain.OrionPlan
+import com.orion.voicelab.brain.PlanProposalParser
+import com.orion.voicelab.brain.PlanProposalParseResult
 import com.orion.voicelab.brain.PlanExecutionEntity
 import com.orion.voicelab.brain.PlanExecutionRepository
 import com.orion.voicelab.brain.PersistentPlanExecutionService
@@ -96,6 +98,7 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 class VoiceLabViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -322,6 +325,17 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     /** Stores a validated plan locally before any step is allowed to execute. */
     fun savePlanExecution(plan: OrionPlan): Job = viewModelScope.launch(Dispatchers.IO) {
         planExecutionService.create(plan)
+    }
+
+    /** Parses a structured model proposal and stores it for user review; never executes it. */
+    fun acceptStructuredPlanProposal(rawJson: String): PlanProposalParseResult {
+        return when (val parsed = PlanProposalParser.parse(rawJson, UUID.randomUUID().toString())) {
+            is PlanProposalParseResult.Valid -> {
+                savePlanExecution(parsed.plan)
+                parsed
+            }
+            is PlanProposalParseResult.Invalid -> parsed
+        }
     }
 
     /** Each invocation requires fresh approval for every unfinished protected step. */
