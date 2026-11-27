@@ -1,5 +1,7 @@
 package com.orion.voicelab.knowledge
 
+import kotlinx.coroutines.CancellationException
+
 /**
  * Retrieval pipeline: domain filter -> jurisdiction preference -> relevance ordering ->
  * evidence verification -> bounded context. It never upgrades model output into evidence.
@@ -11,9 +13,17 @@ class BrainRetrievalEngine(
     private val maxExcerptChars: Int = 1_800
 ) {
     suspend fun retrieve(query: BrainQuery): BrainContext {
-        val candidates = sources.flatMap { source ->
-            runCatching { source.search(query, maxDocuments) }.getOrDefault(emptyList())
-        }.filter { document ->
+        val retrieved = mutableListOf<KnowledgeDocument>()
+        for (source in sources) {
+            try {
+                retrieved.addAll(source.search(query, maxDocuments))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // A failed optional source must not prevent other sources from answering.
+            }
+        }
+        val candidates = retrieved.filter { document ->
             document.evidence.domain == query.domain &&
                 document.evidence.canonicalUrl.startsWith("https://") &&
                 document.evidence.content.isNotBlank()
