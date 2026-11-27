@@ -101,50 +101,57 @@ fun ConnectorsSectionScreen(
                         scope.launch {
                             githubBusy = true
                             githubUserCode = null
-                            githubStatus = "Solicitando código seguro a GitHub…"
-                            val authorization = githubAuth.requestAuthorization()
-                            if (authorization.isFailure) {
-                                githubStatus = authorization.exceptionOrNull()?.message
-                                    ?: "No se pudo iniciar la autorización."
+                            try {
+                                githubStatus = "Solicitando código seguro a GitHub…"
+                                val authorization = githubAuth.requestAuthorization()
+                                if (authorization.isFailure) {
+                                    githubStatus = authorization.exceptionOrNull()?.message
+                                        ?: "No se pudo iniciar la autorización."
+                                    return@launch
+                                }
+
+                                val deviceAuthorization = authorization.getOrThrow()
+                                githubUserCode = deviceAuthorization.userCode
+                                githubStatus = "Introduce el código en GitHub para autorizar ORION."
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(
+                                            Intent.ACTION_VIEW,
+                                            Uri.parse(deviceAuthorization.verificationUri)
+                                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                }.onFailure {
+                                    githubStatus = "Abre github.com/login/device e introduce el código."
+                                }
+
+                                when (val result = githubAuth.awaitAuthorization(deviceAuthorization)) {
+                                    is GitHubDeviceAuthorizationResult.Authorized -> {
+                                        githubCredentials.save(result)
+                                        githubConnected = true
+                                        githubStatus = "GitHub conectado. Acceso inicial: repositorios públicos."
+                                        githubUserCode = null
+                                    }
+                                    GitHubDeviceAuthorizationResult.AccessDenied -> {
+                                        githubStatus = "Autorización rechazada en GitHub."
+                                        githubUserCode = null
+                                    }
+                                    GitHubDeviceAuthorizationResult.Expired -> {
+                                        githubStatus = "El código ha caducado. Puedes iniciar otra conexión."
+                                        githubUserCode = null
+                                    }
+                                    is GitHubDeviceAuthorizationResult.Failed -> {
+                                        githubStatus = result.message
+                                        githubUserCode = null
+                                    }
+                                }
+                            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                githubStatus = "No se pudo completar la conexión. Comprueba Internet e inténtalo de nuevo."
+                                githubUserCode = null
+                            } finally {
                                 githubBusy = false
-                                return@launch
                             }
-
-                            val deviceAuthorization = authorization.getOrThrow()
-                            githubUserCode = deviceAuthorization.userCode
-                            githubStatus = "Introduce el código en GitHub para autorizar ORION."
-                            runCatching {
-                                context.startActivity(
-                                    Intent(
-                                        Intent.ACTION_VIEW,
-                                        Uri.parse(deviceAuthorization.verificationUri)
-                                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                )
-                            }.onFailure {
-                                githubStatus = "Abre github.com/login/device e introduce el código."
-                            }
-
-                            when (val result = githubAuth.awaitAuthorization(deviceAuthorization)) {
-                                is GitHubDeviceAuthorizationResult.Authorized -> {
-                                    githubCredentials.save(result)
-                                    githubConnected = true
-                                    githubStatus = "GitHub conectado. Acceso inicial: repositorios públicos."
-                                    githubUserCode = null
-                                }
-                                GitHubDeviceAuthorizationResult.AccessDenied -> {
-                                    githubStatus = "Autorización rechazada en GitHub."
-                                    githubUserCode = null
-                                }
-                                GitHubDeviceAuthorizationResult.Expired -> {
-                                    githubStatus = "El código ha caducado. Puedes iniciar otra conexión."
-                                    githubUserCode = null
-                                }
-                                is GitHubDeviceAuthorizationResult.Failed -> {
-                                    githubStatus = result.message
-                                    githubUserCode = null
-                                }
-                            }
-                            githubBusy = false
                         }
                     },
                     onDisconnect = {
