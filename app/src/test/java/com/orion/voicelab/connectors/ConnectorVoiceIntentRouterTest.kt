@@ -27,6 +27,13 @@ class ConnectorVoiceIntentRouterTest {
     }
 
     @Test
+    fun latestEmailRequestRoutesToReadLatestMessage() {
+        val routed = ConnectorVoiceIntentRouter.route("Lee mi último correo de Amazon")
+        assertEquals("read_latest_message", routed?.action?.operation)
+        assertEquals("newer_than:30d from:Amazon", routed?.action?.arguments?.get("query"))
+    }
+
+    @Test
     fun senderSearchDoesNotRequireMentioningGmail() {
         val routed = ConnectorVoiceIntentRouter.route("Busca un correo de Amazon")
         assertEquals(ConnectorId.GMAIL, routed?.action?.connectorId)
