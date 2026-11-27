@@ -276,7 +276,7 @@ Esta actualización incorpora las primeras implementaciones de los seis frentes 
 
 ### 6. Evaluación continua
 - Evaluador ponderado por áreas con puntuación 0–10, brechas y criterio global: todas las áreas deben llegar a 8/10.
-- Línea base conservadora calculada desde capacidades realmente implementadas: conocimiento 6/10; planificación 4/10; conocimiento offline 4/10; razonamiento/modelo 4/10; herramientas 4/10; multimedia 4/10; fiabilidad/seguridad 6/10. Mínimo global: **4/10**; media aproximada: **4,6/10**.
+- Línea base conservadora calculada desde capacidades realmente implementadas: conocimiento 6/10; planificación 4/10; conocimiento offline 4/10; razonamiento/modelo 4/10; herramientas 4/10; multimedia 4/10; fiabilidad/seguridad 4/10 (CI de esta revisión pendiente). Mínimo global: **4/10**; media aproximada: **4,3/10**.
 - Esta puntuación es una línea base de ingeniería basada en criterios explícitos, no una prueba independiente de inteligencia. Se recalculará cuando haya pruebas automatizadas y resultados de ejecución.
 - La meta 8/10 no está alcanzada. El mayor déficit está en contenido offline real, ejecución multipaso conectada, motores avanzados y multimedia operativa.
 
