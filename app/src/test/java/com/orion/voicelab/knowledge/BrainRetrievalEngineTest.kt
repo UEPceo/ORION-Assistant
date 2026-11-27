@@ -31,6 +31,41 @@ class BrainRetrievalEngineTest {
     }
 
     @Test
+    fun explicitlyLinkedConflictingSourcesAreNotPresentedAsVerified() = runBlocking {
+        val first = KnowledgeEvidence(
+            id = "source-a",
+            title = "Fuente A",
+            canonicalUrl = "https://example.org/a",
+            publisherId = "publisher-a",
+            domain = KnowledgeDomain.GENERAL,
+            authority = EvidenceAuthority.REPUTABLE_SECONDARY,
+            retrievedAtMs = 1_000_000L,
+            content = "Dato A"
+        )
+        val second = KnowledgeEvidence(
+            id = "source-b",
+            title = "Fuente B",
+            canonicalUrl = "https://example.net/b",
+            publisherId = "publisher-b",
+            domain = KnowledgeDomain.GENERAL,
+            authority = EvidenceAuthority.REPUTABLE_SECONDARY,
+            retrievedAtMs = 1_000_000L,
+            content = "Dato B"
+        )
+        val source = object : KnowledgeSource {
+            override val sourceId = "conflict-test"
+            override suspend fun search(query: BrainQuery, limit: Int) = listOf(
+                KnowledgeDocument(first, conflictsWithIds = setOf("source-b")),
+                KnowledgeDocument(second)
+            )
+        }
+        val context = BrainRetrievalEngine(listOf(source), now = { 1_000_000L })
+            .retrieve(BrainQueryRouter.route("información general"))
+        assertEquals(BrainPresentation.UNVERIFIED, context.presentation)
+        assertEquals(KnowledgeVerdict.CONFLICTING, context.verification.verdict)
+    }
+
+    @Test
     fun noSourceNeverProducesVerifiedContext() = runBlocking {
         val context = BrainRetrievalEngine(emptyList(), now = { 10_000L })
             .retrieve(BrainQueryRouter.route("¿Qué tiempo hace en el mar?"))
