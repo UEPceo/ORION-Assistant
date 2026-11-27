@@ -35,7 +35,7 @@ object ConnectorVoiceIntentRouter {
                 .trim()
             val recentOnly = normalized.contains("últimos correos") || normalized.contains("ultimos correos") ||
                 normalized.contains("correos recientes")
-            val recentTail = Regex("""^(?:los\\s+)?(?:últimos|ultimos|recientes)\\s+correos(?:\\s+de)?\\s*""", RegexOption.IGNORE_CASE)
+            val recentTail = Regex("""^(?:los\s+)?(?:últimos|ultimos|recientes)\s+correos(?:\s+de)?\s*""", RegexOption.IGNORE_CASE)
                 .find(query)?.let { query.drop(it.value.length).trim() }
             val effectiveQuery = if (recentOnly && recentTail != null) {
                 if (recentTail.isBlank()) "" else "from:$recentTail"
