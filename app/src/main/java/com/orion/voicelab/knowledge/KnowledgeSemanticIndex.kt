@@ -28,6 +28,10 @@ class KnowledgeSemanticIndex(context: Context) {
         persist()
     }
 
+    fun hasDocument(documentId: String): Boolean = synchronized(lock) {
+        allVectors().keys.any { it.startsWith(documentId + "::") || it == documentId }
+    }
+
     fun score(documentId: String, query: String): Double = synchronized(lock) {
         cosine(buildVector(query), allVectors()[documentId].orEmpty())
     }
@@ -109,7 +113,7 @@ class KnowledgeSemanticIndex(context: Context) {
 
     private companion object {
         val CONCEPTS = mapOf(
-            "authentication" to setOf("login", "signin", "credential", "password", "contrasena", "autenticacion", "identidad"),
+            "authentication" to setOf("login", "signin", "credential", "password", "contrasena", "autenticacion", "identidad", "clave", "acceso", "credencial", "pin"),
             "security" to setOf("seguridad", "proteccion", "defensa", "vulnerabilidad", "amenaza", "ataque", "ciberseguridad"),
             "emergency" to setOf("emergencia", "urgencia", "auxilio", "112", "socorro", "accidente"),
             "law" to setOf("ley", "normativa", "legislacion", "reglamento", "decreto", "legal", "juridico"),
