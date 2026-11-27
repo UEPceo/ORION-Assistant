@@ -1473,6 +1473,11 @@ class VoiceLabUnitTest {
         assertEquals(android.media.AudioManager.MODE_IN_COMMUNICATION, modeNow)
         assertEquals(OutputDeviceKind.BLUETOOTH, selectedDevices.last())
 
+        assertEquals("Altavoz", controller.setSpeakerEnabled(true))
+        assertEquals(OutputDeviceKind.SPEAKER, selectedDevices.last())
+        assertEquals("Bluetooth", controller.setSpeakerEnabled(false))
+        assertEquals(OutputDeviceKind.BLUETOOTH, selectedDevices.last())
+
         // Plugging wired headset overrides Bluetooth
         availableOutputs.add(OutputDeviceKind.WIRED_HEADSET)
         val staleCb = registeredCb!!
