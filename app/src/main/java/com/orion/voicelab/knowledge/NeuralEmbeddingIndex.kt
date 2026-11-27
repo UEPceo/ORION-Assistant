@@ -46,6 +46,11 @@ class NeuralEmbeddingIndex(context: Context) {
         allDocuments()[documentId]?.vectors?.maxOfOrNull { cosine(queryVector, it) } ?: 0.0
     }
 
+    fun bestChunkIndex(documentId: String, queryVector: FloatArray): Int = synchronized(lock) {
+        allDocuments()[documentId]?.vectors?.mapIndexed { index, vector -> index to cosine(queryVector, vector) }
+            ?.maxByOrNull { it.second }?.first ?: 0
+    }
+
     fun remove(documentId: String) = synchronized(lock) {
         allDocuments().remove(documentId)
         persist()
@@ -105,12 +110,6 @@ class NeuralEmbeddingIndex(context: Context) {
         val rightNorm = kotlin.math.sqrt(right.sumOf { it.toDouble() * it.toDouble() })
         if (leftNorm == 0.0 || rightNorm == 0.0) return 0.0
         return (dot / (leftNorm * rightNorm)).coerceIn(-1.0, 1.0)
-    }
-
-    private fun fingerprint(chunks: List<String>): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        chunks.forEach { digest.update(it.toByteArray(Charsets.UTF_8)); digest.update(0) }
-        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private data class StoredDocument(val contentHash: String, val vectors: List<FloatArray>)
