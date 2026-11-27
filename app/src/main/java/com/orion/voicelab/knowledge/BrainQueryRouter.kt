@@ -8,19 +8,19 @@ object BrainQueryRouter {
         val normalized = text.trim().lowercase(Locale.ROOT)
             .replace(Regex("\\s+"), " ")
         val domain = when {
-            containsAny(normalized, "normativa", "talla mínima", "veda", "licencia", "ley", "reglamento", "boe") ->
+            containsAny(normalized, "normativa", "talla mínima", "veda", "licencia", "ley", "reglamento", "decreto", "real decreto", "boe") ->
                 KnowledgeDomain.LAW_AND_REGULATION
-            containsAny(normalized, "salud", "médico", "medicina", "síntoma", "seguridad", "emergencia") ->
+            containsAny(normalized, "salud", "médico", "medicina", "síntoma", "seguridad", "emergencia", "112") ->
                 KnowledgeDomain.HEALTH_AND_SAFETY
             containsAny(normalized, "surfcasting", "surf casting", "aparejo", "cebo", "lubina", "sargo") ->
                 KnowledgeDomain.SURFCASTING
-            containsAny(normalized, "pesca", "pesca recreativa", "normativa pesquera", "licencia de pesca", "talla mínima") ->
+            containsAny(normalized, "pesca", "pesca recreativa", "normativa pesquera", "licencia de pesca", "talla mínima", "pescarec", "pesca-rec") ->
                 KnowledgeDomain.FISHING
             containsAny(normalized, "meteorología", "tiempo", "viento", "oleaje", "marejada", "corriente", "temporal", "mar de fondo", "marea") ->
                 KnowledgeDomain.MARINE_WEATHER
-            containsAny(normalized, "ciberseguridad", "malware", "phishing", "vulnerabilidad", "ransomware") ->
+            containsAny(normalized, "ciberseguridad", "malware", "phishing", "vulnerabilidad", "ransomware", "contraseña", "contraseñas", "autenticación", "doble factor", "mfa", "owasp", "incibe") ->
                 KnowledgeDomain.CYBERSECURITY
-            containsAny(normalized, "programar", "programación", "kotlin", "python", "java", "código", "compilar", "api", "github") ->
+            containsAny(normalized, "programar", "programación", "kotlin", "python", "java", "código", "compilar", "api", "github", "android", "coroutine", "coroutines", "activity", "jetpack compose") ->
                 KnowledgeDomain.PROGRAMMING
             containsAny(normalized, "internet", "web", "navegador", "http", "dns", "red") ->
                 KnowledgeDomain.INTERNET
