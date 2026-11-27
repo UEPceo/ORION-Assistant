@@ -27,6 +27,13 @@ class ConnectorVoiceIntentRouterTest {
     }
 
     @Test
+    fun senderSearchDoesNotRequireMentioningGmail() {
+        val routed = ConnectorVoiceIntentRouter.route("Busca un correo de Amazon")
+        assertEquals(ConnectorId.GMAIL, routed?.action?.connectorId)
+        assertEquals("from:Amazon", routed?.action?.arguments?.get("query"))
+    }
+
+    @Test
     fun recentMailRequestUsesGmailDateOperator() {
         val routed = ConnectorVoiceIntentRouter.route("Enséñame los últimos correos de Gmail")
         assertEquals("newer_than:7d", routed?.action?.arguments?.get("query"))
