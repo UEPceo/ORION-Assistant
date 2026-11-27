@@ -52,8 +52,8 @@ interface PlanExecutionDao {
         lastError: String
     )
 
-    @Query("DELETE FROM plan_executions WHERE id = :id")
-    suspend fun deleteById(id: String)
+    @Query("DELETE FROM plan_executions WHERE id = :id AND status != 'RUNNING'")
+    suspend fun deleteById(id: String): Int
 }
 
 data class PersistedPlanExecution(
