@@ -21,7 +21,7 @@ object ConnectorCatalog {
         ConnectorDescriptor(
             id = ConnectorId.GITHUB,
             displayName = "GitHub",
-            description = "Consultar repositorios, archivos, incidencias y pull requests; proponer cambios y comentarios.",
+            description = "Consultar repositorios, archivos, incidencias, commits y estado de GitHub Actions (solo lectura).",
             capabilities = setOf(
                 ConnectorCapability.SEARCH,
                 ConnectorCapability.READ,
