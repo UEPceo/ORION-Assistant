@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.orion.voicelab.BuildConfig
 import com.orion.voicelab.asr.MoonshineSpeechRecognitionEngine
 import com.orion.voicelab.audio.AudioRoutingController
 import com.orion.voicelab.conversation.ConversationEngine
@@ -2749,6 +2750,20 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         refreshMetrics()
     }
 
+    /**
+     * Writes the diagnostic snapshot to a user-selected document using Android's Storage Access Framework.
+     * The export deliberately excludes conversation contents, transcripts, contact names and phone numbers.
+     */
+    fun writeReport(uri: Uri): Boolean = runCatching {
+        appContext.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter(Charsets.UTF_8)?.use {
+            it.write(buildReport())
+        } ?: error("No se pudo abrir el destino de exportación")
+    }.onFailure { error ->
+        _uiState.update { current ->
+            current.copy(recentErrors = (current.recentErrors + "Exportación de diagnóstico: ${error.message ?: error.javaClass.simpleName}").takeLast(MAX_RECENT_ERRORS))
+        }
+    }.isSuccess
+
     fun buildReport(): String {
         val state = _uiState.value
         val now = DeviceMetrics.snapshot(appContext, appContext.filesDir)
@@ -2757,7 +2772,10 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val callTel = state.callTelemetry
         val hw = state.audioHardwareStatus
         return buildString {
-            appendLine("ORION Voice Lab 0.7.0 — informe de diagnóstico")
+            appendLine("ORION Voice Lab ${BuildConfig.VERSION_NAME} — informe técnico de diagnóstico")
+            appendLine("Generado: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())}")
+            appendLine("Formato: texto UTF-8 · exportación local solicitada por el usuario")
+            appendLine("Privacidad: no se incluyen mensajes, transcripciones, nombres de contactos ni números de teléfono.")
             appendLine(DeviceMetrics.deviceSummary())
             appendLine(
                 "Telefonía local: soporte=${state.isTelephonySupported} · permisoContactos=${state.hasContactsPermission} · " +
@@ -2772,16 +2790,28 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                     "recordatorios=$activeRemCount · permisoNotificaciones=${state.hasNotificationsPermission}"
             )
             appendLine(
-                "Memoria local: conversaciones=${state.conversations.size} (activa: ${state.activeConversationTitle}) · " +
-                    "recuerdos=${state.memories.size} · memoria=${if (state.assistantIdentity.memoryEnabled) "activa" else "desactivada"} · " +
-                    "identidad=${state.assistantIdentity.assistantName} (${state.assistantIdentity.formality.displayName})"
+                "Memoria local: conversaciones=${state.conversations.size} · recuerdos=${state.memories.size} · " +
+                    "memoria=${if (state.assistantIdentity.memoryEnabled) "activa" else "desactivada"}"
             )
             val crashLog = java.io.File(appContext.filesDir, "orion_diagnostics.log")
             if (crashLog.exists()) {
                 appendLine("Diagnóstico de cierres y presión de memoria (registro local):")
-                appendLine(crashLog.readText().takeLast(12_000))
+                appendLine(crashLog.readText().takeLast(256 * 1024))
             } else {
                 appendLine("Diagnóstico de cierres: sin eventos registrados todavía")
+            }
+            appendLine(
+                "Descarga automática inicial: activa=${state.isAutoDownloadingInitialModels} · " +
+                    "error=${state.autoDownloadError ?: "ninguno"}"
+            )
+            appendLine(
+                "Estado módulos: ASR=${state.modelState} · LLM=${state.llmModelState} · TTS=${state.ttsModelState}"
+            )
+            appendLine(
+                "Estado aplicación: escucha=${state.listeningState} · conversación=${state.conversationState} · " +
+                    "llamadaORION=${state.isCallActive} · ocupado=${state.isBusy}"
+            )
+            appendLine("Errores recientes en memoria: ${state.recentErrors.size}")
             }
             appendLine("Ahora:")
             appendLine(DeviceMetrics.describe(now))
