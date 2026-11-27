@@ -1742,7 +1742,7 @@ private fun CompactVoiceLabLayout(
                 TelemetryPanel(state = state)
             }
             item(key = "diagnostics") {
-                DiagnosticsPanel(state = state)
+                OrionDiagnosticsPanel(state = state)
             }
             item(key = "transcripts_header") {
                 SectionLabel(text = stringResource(R.string.section_transcripts))
@@ -1807,7 +1807,7 @@ private fun WideVoiceLabLayout(
                 onClearClick = onClearClick
             )
             TelemetryPanel(state = state)
-            DiagnosticsPanel(state = state)
+            OrionDiagnosticsPanel(state = state)
         }
 
         Column(
