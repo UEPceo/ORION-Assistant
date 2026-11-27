@@ -52,7 +52,7 @@ object OrionCrashDiagnostics {
                     }
                 })
                 if (file.length() > MAX_LOG_BYTES) {
-                    val tail = file.readText().takeLast(MAX_LOG_BYTES / 2)
+                    val tail = file.readText().takeLast((MAX_LOG_BYTES / 2).toInt())
                     file.writeText(tail)
                 }
             }
