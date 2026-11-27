@@ -266,7 +266,6 @@ class PersistentPlanExecutionService(
         runner: PlanStepRunner,
         retryStepIds: Set<String> = emptySet()
     ): PlanExecutionReport {
-        repository.recoverInterruptedExecutions()
         val saved = repository.load(planId)
             ?: return PlanExecutionReport(planId, PlanStatus.FAILED, emptyMap(), "No existe la ejecución guardada.")
         val validation = PlanValidator.validate(saved.plan)
