@@ -11,9 +11,9 @@ import com.orion.voicelab.ui.VoiceLabViewModel
 import com.orion.voicelab.ui.theme.OrionTheme
 
 /**
- * ORION Voice Lab 0.5.0
+ * ORION Voice Lab 0.6.0
  * Núcleo conversacional offline en español (Silero VAD + Moonshine Base ES + llama.cpp Qwen2.5 + Piper TTS)
- * con persistencia local (Room), memoria controlada, identidad configurable y diagnóstico en dispositivo.
+ * con memoria persistente (Room), agenda de Co-workers e integración telefónica real bajo autorización explícita.
  */
 class MainActivity : ComponentActivity() {
 

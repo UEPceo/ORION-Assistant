@@ -24,6 +24,7 @@ import com.orion.voicelab.conversation.ConversationSession
 import com.orion.voicelab.conversation.SpeechSentenceChunker
 import com.orion.voicelab.data.AsrStats
 import com.orion.voicelab.data.AssistantIdentity
+import com.orion.voicelab.data.CallIntentAction
 import com.orion.voicelab.data.CallTelemetry
 import com.orion.voicelab.data.ChatMessage
 import com.orion.voicelab.data.ChatRole
@@ -32,8 +33,13 @@ import com.orion.voicelab.data.ConversationState
 import com.orion.voicelab.data.ConversationTurn
 import com.orion.voicelab.data.DeviceMetrics
 import com.orion.voicelab.data.FormalityLevel
+import com.orion.voicelab.data.HistoryQueryType
 import com.orion.voicelab.data.MemoryCategory
 import com.orion.voicelab.data.MemoryItem
+import com.orion.voicelab.data.PendingCallRequest
+import com.orion.voicelab.data.PhoneCallStatus
+import com.orion.voicelab.data.PhoneContactEntry
+import com.orion.voicelab.data.PhoneContactSource
 import com.orion.voicelab.data.TurnContext
 import com.orion.voicelab.data.TurnLatencyMetrics
 import com.orion.voicelab.data.VoiceProfile
@@ -59,11 +65,17 @@ import com.orion.voicelab.persistence.ConversationMessageEntity
 import com.orion.voicelab.persistence.ConversationRepository
 import com.orion.voicelab.persistence.ConversationRowTuple
 import com.orion.voicelab.persistence.CoworkerContactEntity
+import com.orion.voicelab.persistence.FavoritePhoneContactEntity
 import com.orion.voicelab.persistence.IdentityDao
 import com.orion.voicelab.persistence.IdentityRepository
 import com.orion.voicelab.persistence.MemoryDao
 import com.orion.voicelab.persistence.MemoryItemEntity
 import com.orion.voicelab.persistence.MemoryRepository
+import com.orion.voicelab.persistence.PhoneCallRecordEntity
+import com.orion.voicelab.persistence.PhoneDao
+import com.orion.voicelab.phone.CallIntentRouter
+import com.orion.voicelab.phone.PhoneContactMatcher
+import com.orion.voicelab.phone.PhoneRepository
 import com.orion.voicelab.tts.LocalSpeechSynthesizer
 import com.orion.voicelab.tts.SherpaOnnxSpeechSynthesizer
 import com.orion.voicelab.tts.SynthesisResult
@@ -1579,6 +1591,7 @@ class VoiceLabUnitTest {
         override val modelLicense: String = "Apache 2.0"
         private var loaded = false
         val cancelCount = AtomicInteger(0)
+        val generateCount = AtomicInteger(0)
         @Volatile
         private var cancelled = false
         @Volatile
@@ -1603,6 +1616,7 @@ class VoiceLabUnitTest {
             history: List<ChatMessage>,
             onToken: (String) -> Unit
         ): LlmGenerationResult {
+            generateCount.incrementAndGet()
             cancelled = false
             startedSignal?.complete(Unit)
             generationGate.await()
@@ -2244,6 +2258,320 @@ class VoiceLabUnitTest {
 
         override suspend fun deleteCoworkerById(id: Long) {
             items.value = items.value.filterNot { it.id == id }
+        }
+    }
+
+    // =========================================================================
+    // Phase 0.6 tests: deterministic call intent routing, matching, persistence
+    // =========================================================================
+
+    @Test
+    fun `call intent router parses calls, confirmation safety, cancellation, disambiguation, and history queries`() {
+        val callAction = CallIntentRouter.route("Quiero llamar a Juan para hablar del presupuesto", null)
+        assertTrue(callAction is CallIntentAction.InitiateCall)
+        val init = callAction as CallIntentAction.InitiateCall
+        assertEquals("juan", init.rawTargetQuery)
+        assertEquals("hablar del presupuesto", init.reason)
+        assertFalse(init.scheduledOnly)
+
+        val relAction = CallIntentRouter.route("Llama a mi madre", null) as CallIntentAction.InitiateCall
+        assertEquals("mi madre", relAction.rawTargetQuery)
+
+        val lookupAction = CallIntentRouter.route("Busca el teléfono de Pedro", null) as CallIntentAction.LookupContactNumber
+        assertEquals("pedro", lookupAction.rawTargetQuery)
+
+        assertEquals(CallIntentAction.CallLastContact, CallIntentRouter.route("Llama al último contacto", null))
+
+        val prepAction = CallIntentRouter.route("Prepara una llamada con Laura para mañana", null) as CallIntentAction.InitiateCall
+        assertTrue(prepAction.scheduledOnly)
+        assertEquals("laura", prepAction.rawTargetQuery)
+        assertTrue(prepAction.scheduledNote.contains("mañana", ignoreCase = true))
+
+        val whenQuery = CallIntentRouter.route("¿Cuándo llamé a Pedro?", null) as CallIntentAction.QueryCallHistory
+        assertEquals(HistoryQueryType.WHEN_CALLED, whenQuery.queryType)
+        assertEquals("Pedro", whenQuery.contactQuery)
+
+        val pendingQuery = CallIntentRouter.route("¿Qué tenía pendiente hablar con María?", null) as CallIntentAction.QueryCallHistory
+        assertEquals(HistoryQueryType.PENDING_WITH, pendingQuery.queryType)
+        assertEquals("María", pendingQuery.contactQuery)
+
+        val callbackQuery = CallIntentRouter.route("¿A quién tengo que devolver la llamada?", null) as CallIntentAction.QueryCallHistory
+        assertEquals(HistoryQueryType.CALLBACKS, callbackQuery.queryType)
+
+        // Saying "Sí" without an awaitingConfirmation pending call must NOT confirm anything
+        assertEquals(CallIntentAction.None, CallIntentRouter.route("Sí", null))
+
+        val awaitingPending = PendingCallRequest(
+            requestId = "req_1",
+            contactName = "Juan",
+            phoneNumber = "+34600111222",
+            awaitingConfirmation = true
+        )
+        assertEquals(CallIntentAction.ConfirmPendingCall, CallIntentRouter.route("Sí, llama", awaitingPending))
+        assertEquals(CallIntentAction.CancelPendingCall, CallIntentRouter.route("No, cancela", awaitingPending))
+
+        val disambigPending = PendingCallRequest(
+            requestId = "req_2",
+            contactName = "Juan",
+            phoneNumber = "",
+            candidates = listOf(
+                PhoneContactEntry("1", "Juan García", "600111111", "600111111"),
+                PhoneContactEntry("2", "Juan López", "600222222", "600222222")
+            ),
+            awaitingConfirmation = false
+        )
+        assertEquals(
+            CallIntentAction.SelectCandidateByIndex(1),
+            CallIntentRouter.route("El segundo", disambigPending)
+        )
+    }
+
+    @Test
+    fun `phone contact matcher handles ASR Spanish phonetics, relationship aliases, digits, and ambiguity`() {
+        val pool = listOf(
+            PhoneContactEntry("k1", "Vega Morales", "+34611223344", "+34611223344", isFavorite = true),
+            PhoneContactEntry("k2", "Carlos Navarro", "622334455", "622334455"),
+            PhoneContactEntry("k3", "Mamá", "633445566", "633445566"),
+            PhoneContactEntry("k4", "Juan García", "644556677", "644556677"),
+            PhoneContactEntry("k5", "Juan López", "655667788", "655667788")
+        )
+
+        val vegaMatches = PhoneContactMatcher.findMatches("Bega Morales", pool)
+        assertEquals("Vega Morales", vegaMatches.first().displayName)
+
+        val carlosMatches = PhoneContactMatcher.findMatches("Cárlos", pool)
+        assertEquals("Carlos Navarro", carlosMatches.first().displayName)
+
+        val momMatches = PhoneContactMatcher.findMatches("mi madre", pool)
+        assertEquals("Mamá", momMatches.first().displayName)
+
+        val juanMatches = PhoneContactMatcher.findMatches("Juan", pool)
+        assertEquals(2, juanMatches.size)
+
+        val digitMatches = PhoneContactMatcher.findMatches("622334455", pool)
+        assertEquals("Carlos Navarro", digitMatches.single().displayName)
+    }
+
+    @Test
+    fun `phone repository persists favorites, call lifecycle, notes, and answers local history queries`() = runBlocking {
+        val clock = AtomicLong(1_700_000_000_000L)
+        val repo = PhoneRepository(phoneDao = InMemoryPhoneDao(), clockMs = { clock.addAndGet(5_000L) })
+
+        val fav = PhoneContactEntry(
+            contactKey = "native:10:+34600123456",
+            displayName = "Pedro Ruiz",
+            phoneNumber = "+34600123456",
+            normalizedNumber = "+34600123456",
+            label = "Móvil"
+        )
+        repo.setFavorite(fav, favorite = true)
+        assertEquals(1, repo.observeFavorites().first().size)
+
+        val call = repo.createCallRecord(
+            contactName = "Pedro Ruiz",
+            phoneNumber = "+34600123456",
+            reason = "Revisar contrato",
+            status = PhoneCallStatus.CALL_INITIATED
+        )
+        repo.updateCallStatusAndTiming(
+            id = call.id,
+            status = PhoneCallStatus.COMPLETED,
+            startedAtMs = call.createdAtMs + 2_000L,
+            endedAtMs = call.createdAtMs + 47_000L,
+            durationSeconds = 45L
+        )
+        repo.updateCallNotesAndOutcome(
+            id = call.id,
+            reason = "Revisar contrato",
+            userNotes = "Enviar borrador el viernes",
+            outcome = "Acordado",
+            followUpPending = true
+        )
+
+        val prepared = repo.createCallRecord(
+            contactName = "María Soto",
+            phoneNumber = "699887766",
+            reason = "Confirmar cita médica",
+            status = PhoneCallStatus.PREPARED,
+            scheduledNote = "Para mañana",
+            followUpPending = true
+        )
+
+        val all = repo.getAllCallRecords()
+        assertEquals(2, all.size)
+
+        val whenAns = repo.answerCallHistoryQuery(HistoryQueryType.WHEN_CALLED, "Pedro", all)
+        assertTrue(whenAns.contains("Pedro Ruiz"))
+        assertTrue(whenAns.contains("45 segundos"))
+
+        val pendingAns = repo.answerCallHistoryQuery(HistoryQueryType.PENDING_WITH, "María", all)
+        assertTrue(pendingAns.contains("María Soto"))
+        assertTrue(pendingAns.contains("Confirmar cita médica"))
+
+        val callbacksAns = repo.answerCallHistoryQuery(HistoryQueryType.CALLBACKS, null, all)
+        assertTrue(callbacksAns.contains("2 pendientes"))
+
+        repo.deleteCallRecord(prepared.id)
+        repo.setFavorite(fav, favorite = false)
+        assertEquals(1, repo.getAllCallRecords().size)
+        assertTrue(repo.getFavorites().isEmpty())
+    }
+
+    @Test
+    fun `conversation engine directTurnResponder bypasses LLM for deterministic call commands and falls back otherwise`() = runBlocking {
+        val fakeInput = FakeVoiceInputController()
+        val fakeVad = FakeVad()
+        val fakeAsr = FakeSpeechRecognizer()
+        val fakeLlm = FakeLanguageModel()
+        val fakeTts = FakeSpeechSynthesizer()
+        val fakePlayback = FakeAudioOutputSink()
+        val nowMs = AtomicLong(1_000L)
+
+        var bypassEnabled = true
+        val engine = ConversationEngine(
+            speechRecognizer = fakeAsr,
+            languageModel = fakeLlm,
+            speechSynthesizer = fakeTts,
+            playbackEngine = fakePlayback,
+            vadFactory = { fakeVad },
+            clockMs = { nowMs.addAndGet(20L) },
+            directTurnResponder = { text ->
+                if (bypassEnabled && text.contains("Hola")) {
+                    "Voy a confirmar antes de llamar."
+                } else {
+                    null
+                }
+            },
+            inputFactory = { fakeInput }
+        )
+
+        val listeningLatch = CountDownLatch(1)
+        val firstCommitted = CompletableDeferred<String>()
+        val secondCommitted = CompletableDeferred<String>()
+        val committedCount = AtomicInteger(0)
+
+        engine.attachCallbacks(object : ConversationEngine.Callbacks {
+            override fun onStateChanged(state: ConversationState, statusText: String) {
+                if (state == ConversationState.LISTENING) listeningLatch.countDown()
+            }
+            override fun onSpeechDetectedChanged(detected: Boolean) {}
+            override fun onAudioLevel(level: Float) {}
+            override fun onTurnsUpdated(turns: List<ConversationTurn>) {}
+            override fun onAssistantTurnCommitted(turn: ConversationTurn) {
+                if (committedCount.incrementAndGet() == 1) {
+                    firstCommitted.complete(turn.text)
+                } else {
+                    secondCommitted.complete(turn.text)
+                }
+            }
+            override fun onStreamingText(text: String) {}
+            override fun onTelemetryUpdated(telemetry: CallTelemetry) {}
+            override fun onModelsInRamChanged(loaded: Boolean) {}
+            override fun onCallEnded() {}
+        })
+
+        engine.startCall()
+        assertTrue(listeningLatch.await(3, TimeUnit.SECONDS))
+
+        // Turn 1: directTurnResponder handles it -> LLM must NOT be invoked
+        fakeVad.enqueueSegment(FloatArray(8_000) { 0.2f })
+        fakeInput.emitFrame(FloatArray(512) { 0.2f }, 0.3f)
+        assertEquals("Voy a confirmar antes de llamar.", firstCommitted.await())
+        assertEquals(0, fakeLlm.generateCount.get())
+
+        // Wait past ECHO_COOLDOWN_MS, disable bypass, run Turn 2 -> LLM runs normally
+        delay(50L)
+        nowMs.addAndGet(500L)
+        bypassEnabled = false
+        fakeVad.enqueueSegment(FloatArray(8_000) { 0.2f })
+        fakeInput.emitFrame(FloatArray(512) { 0.2f }, 0.3f)
+        assertTrue(secondCommitted.await().contains("listo para ayudarte"))
+        assertEquals(1, fakeLlm.generateCount.get())
+
+        engine.shutdown()
+    }
+
+    private class InMemoryPhoneDao : PhoneDao {
+        private var nextCallId = 1L
+        private val favorites = MutableStateFlow<List<FavoritePhoneContactEntity>>(emptyList())
+        private val records = MutableStateFlow<List<PhoneCallRecordEntity>>(emptyList())
+
+        override fun observeFavorites(): Flow<List<FavoritePhoneContactEntity>> =
+            favorites.map { it.sortedBy { row -> row.displayName } }
+
+        override suspend fun getFavorites(): List<FavoritePhoneContactEntity> =
+            favorites.value.sortedBy { it.displayName }
+
+        override suspend fun upsertFavorite(entity: FavoritePhoneContactEntity) {
+            favorites.value = favorites.value.filterNot { it.contactKey == entity.contactKey } + entity
+        }
+
+        override suspend fun deleteFavoriteByKey(contactKey: String) {
+            favorites.value = favorites.value.filterNot { it.contactKey == contactKey }
+        }
+
+        override fun observeCallRecords(): Flow<List<PhoneCallRecordEntity>> =
+            records.map { list -> list.sortedWith(compareByDescending<PhoneCallRecordEntity> { it.createdAtMs }.thenByDescending { it.id }) }
+
+        override suspend fun getAllCallRecords(): List<PhoneCallRecordEntity> =
+            records.value.sortedWith(compareByDescending<PhoneCallRecordEntity> { it.createdAtMs }.thenByDescending { it.id })
+
+        override suspend fun getLatestCallRecord(): PhoneCallRecordEntity? =
+            getAllCallRecords().firstOrNull()
+
+        override suspend fun getCallRecordById(id: Long): PhoneCallRecordEntity? =
+            records.value.firstOrNull { it.id == id }
+
+        override suspend fun insertCallRecord(entity: PhoneCallRecordEntity): Long {
+            val id = nextCallId++
+            records.value = records.value + entity.copy(id = id)
+            return id
+        }
+
+        override suspend fun updateCallStatusAndTiming(
+            id: Long,
+            status: String,
+            startedAtMs: Long?,
+            endedAtMs: Long?,
+            durationSeconds: Long
+        ) {
+            records.value = records.value.map {
+                if (it.id == id) {
+                    it.copy(
+                        status = status,
+                        startedAtMs = startedAtMs,
+                        endedAtMs = endedAtMs,
+                        durationSeconds = durationSeconds
+                    )
+                } else {
+                    it
+                }
+            }
+        }
+
+        override suspend fun updateCallNotesAndOutcome(
+            id: Long,
+            reason: String,
+            userNotes: String,
+            outcome: String,
+            followUpPending: Boolean
+        ) {
+            records.value = records.value.map {
+                if (it.id == id) {
+                    it.copy(
+                        reason = reason,
+                        userNotes = userNotes,
+                        outcome = outcome,
+                        followUpPending = followUpPending
+                    )
+                } else {
+                    it
+                }
+            }
+        }
+
+        override suspend fun deleteCallRecordById(id: Long) {
+            records.value = records.value.filterNot { it.id == id }
         }
     }
 }

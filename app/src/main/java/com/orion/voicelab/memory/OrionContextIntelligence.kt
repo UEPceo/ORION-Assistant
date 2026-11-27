@@ -7,6 +7,7 @@ import com.orion.voicelab.data.ContactProfile
 import com.orion.voicelab.data.MemoryCategory
 import com.orion.voicelab.data.MemoryItem
 import com.orion.voicelab.data.MemorySuggestion
+import com.orion.voicelab.data.PhoneCallRecord
 import com.orion.voicelab.data.TurnContext
 import java.text.Normalizer
 import java.util.Locale
@@ -250,6 +251,7 @@ object ContextPromptBuilder {
         recentHistory: List<ChatMessage>,
         currentQuery: String,
         activeCoworker: ContactProfile? = null,
+        recentPhoneCalls: List<PhoneCallRecord> = emptyList(),
         maxHistoryMessages: Int = DEFAULT_MAX_HISTORY_MESSAGES,
         maxHistoryChars: Int = DEFAULT_MAX_HISTORY_CHARS
     ): TurnContext {
@@ -263,11 +265,14 @@ object ContextPromptBuilder {
             emptyList()
         }
 
+        val relevantCalls = selectRelevantCalls(currentQuery, recentPhoneCalls)
+
         val systemPrompt = buildSystemPrompt(
             identity = identity,
             selectedMemories = selectedMemories,
             conversationSummary = conversationSummary,
-            activeCoworker = activeCoworker
+            activeCoworker = activeCoworker,
+            phoneCallHighlights = relevantCalls
         )
 
         val trimmedHistory = trimHistoryToBudget(
@@ -287,7 +292,8 @@ object ContextPromptBuilder {
         identity: AssistantIdentity,
         selectedMemories: List<MemoryItem> = emptyList(),
         conversationSummary: String = "",
-        activeCoworker: ContactProfile? = null
+        activeCoworker: ContactProfile? = null,
+        phoneCallHighlights: List<PhoneCallRecord> = emptyList()
     ): String = buildString {
         if (activeCoworker != null && !activeCoworker.isPrimary) {
             append("Tu nombre es ${activeCoworker.name}. ")
@@ -309,11 +315,43 @@ object ContextPromptBuilder {
             }
         }
 
+        if (phoneCallHighlights.isNotEmpty()) {
+            append("\n\nRegistro reciente de llamadas locales:")
+            for (call in phoneCallHighlights) {
+                val detail = listOf(call.reason, call.userNotes, call.outcome, call.scheduledNote)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" · ")
+                val suffix = if (detail.isNotBlank()) " — $detail" else ""
+                val pendingTag = if (call.followUpPending) " [Pendiente]" else ""
+                append("\n- ${call.contactName} (${call.status.displayLabel})$pendingTag$suffix")
+            }
+        }
+
         if (conversationSummary.isNotBlank()) {
             append("\n\nResumen previo de esta conversación:")
             append('\n')
             append(conversationSummary.trim().take(480))
         }
+    }
+
+    private fun selectRelevantCalls(
+        query: String,
+        records: List<PhoneCallRecord>
+    ): List<PhoneCallRecord> {
+        if (records.isEmpty()) return emptyList()
+        val queryTokens = MemoryTextSimilarity.tokenizeSignificant(query)
+        val hasPhoneCue = queryTokens.any {
+            it in setOf("llama", "llame", "llamada", "llamadas", "telefono", "pendiente", "devolver", "hablar", "contacto")
+        }
+        val filtered = if (hasPhoneCue) {
+            records.take(3)
+        } else {
+            records.filter { call ->
+                val nameTokens = MemoryTextSimilarity.tokenizeSignificant(call.contactName)
+                call.followUpPending || queryTokens.intersect(nameTokens).isNotEmpty()
+            }.take(2)
+        }
+        return filtered
     }
 
     internal fun trimHistoryToBudget(

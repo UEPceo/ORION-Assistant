@@ -49,6 +49,7 @@ class ConversationEngine internal constructor(
     private val workerDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val turnContextResolver: ((userText: String, recentHistory: List<ChatMessage>) -> TurnContext)? = null,
+    private val directTurnResponder: (suspend (userText: String) -> String?)? = null,
     inputFactory: (() -> VoiceInputController)? = null
 ) {
     constructor(
@@ -60,7 +61,8 @@ class ConversationEngine internal constructor(
         playbackEngine: AudioOutputSink = AudioPlaybackEngine(),
         vadFactory: () -> VoiceActivityDetector = { SileroVoiceActivityDetector(assets) },
         sampleRate: Int = SileroVoiceActivityDetector.SAMPLE_RATE,
-        turnContextResolver: ((userText: String, recentHistory: List<ChatMessage>) -> TurnContext)? = null
+        turnContextResolver: ((userText: String, recentHistory: List<ChatMessage>) -> TurnContext)? = null,
+        directTurnResponder: (suspend (userText: String) -> String?)? = null
     ) : this(
         speechRecognizer = speechRecognizer,
         languageModel = languageModel,
@@ -70,7 +72,8 @@ class ConversationEngine internal constructor(
         vadFactory = vadFactory,
         sampleRate = sampleRate,
         clockMs = { SystemClock.elapsedRealtime() },
-        turnContextResolver = turnContextResolver
+        turnContextResolver = turnContextResolver,
+        directTurnResponder = directTurnResponder
     )
 
     companion object {
@@ -514,39 +517,55 @@ class ConversationEngine internal constructor(
                     }
                 }
 
-                val resolvedContext = turnContextResolver?.invoke(userText, session.historySnapshot())
-                val llmResult = languageModel.generateReply(
-                    systemPrompt = resolvedContext?.systemPrompt ?: session.systemPrompt,
-                    history = resolvedContext?.recentHistory ?: session.historySnapshot()
-                ) { token ->
-                    if (!callActive.get() ||
-                        callSessionEpoch.get() != sessionEpoch ||
+                val directReply = directTurnResponder?.invoke(userText)?.trim()?.takeIf { it.isNotEmpty() }
+                val llmResult = if (directReply != null) {
+                    callbacks?.onStreamingText(directReply)
+                    sentenceChannel.trySend(directReply)
+                    sentenceChannel.close()
+                    ttsConsumer.await()
+                    com.orion.voicelab.llm.LlmGenerationResult(
+                        text = directReply,
+                        firstTokenMs = 0L,
+                        totalMs = 0L,
+                        tokensGenerated = 0,
+                        cancelled = false
+                    )
+                } else {
+                    val resolvedContext = turnContextResolver?.invoke(userText, session.historySnapshot())
+                    val result = languageModel.generateReply(
+                        systemPrompt = resolvedContext?.systemPrompt ?: session.systemPrompt,
+                        history = resolvedContext?.recentHistory ?: session.historySnapshot()
+                    ) { token ->
+                        if (!callActive.get() ||
+                            callSessionEpoch.get() != sessionEpoch ||
+                            turnGeneration.get() != myGeneration
+                        ) {
+                            return@generateReply
+                        }
+                        streamedDisplay.append(token)
+                        callbacks?.onStreamingText(streamedDisplay.toString())
+                        val readySentences = chunker.appendToken(token)
+                        for (s in readySentences) {
+                            sentenceChannel.trySend(s)
+                        }
+                    }
+
+                    if (!result.cancelled &&
+                        callActive.get() &&
+                        callSessionEpoch.get() == sessionEpoch &&
                         turnGeneration.get() != myGeneration
                     ) {
-                        return@generateReply
+                        val trailing = chunker.flush()
+                        if (trailing != null) {
+                            sentenceChannel.trySend(trailing)
+                        } else if (streamedDisplay.isEmpty() && result.text.isNotBlank()) {
+                            sentenceChannel.trySend(result.text)
+                        }
                     }
-                    streamedDisplay.append(token)
-                    callbacks?.onStreamingText(streamedDisplay.toString())
-                    val readySentences = chunker.appendToken(token)
-                    for (s in readySentences) {
-                        sentenceChannel.trySend(s)
-                    }
+                    sentenceChannel.close()
+                    ttsConsumer.await()
+                    result
                 }
-
-                if (!llmResult.cancelled &&
-                    callActive.get() &&
-                    callSessionEpoch.get() == sessionEpoch &&
-                    turnGeneration.get() == myGeneration
-                ) {
-                    val trailing = chunker.flush()
-                    if (trailing != null) {
-                        sentenceChannel.trySend(trailing)
-                    } else if (streamedDisplay.isEmpty() && llmResult.text.isNotBlank()) {
-                        sentenceChannel.trySend(llmResult.text)
-                    }
-                }
-                sentenceChannel.close()
-                ttsConsumer.await()
 
                 if (!callActive.get() ||
                     callSessionEpoch.get() != sessionEpoch ||

@@ -2,6 +2,7 @@ package com.orion.voicelab.ui
 
 import android.app.Application
 import android.content.Context
+import android.net.Uri
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,6 +12,7 @@ import com.orion.voicelab.conversation.ConversationEngine
 import com.orion.voicelab.data.AsrStats
 import com.orion.voicelab.data.AssistantIdentity
 import com.orion.voicelab.data.AudioHardwareStatus
+import com.orion.voicelab.data.CallIntentAction
 import com.orion.voicelab.data.CallTelemetry
 import com.orion.voicelab.data.ComponentModelState
 import com.orion.voicelab.data.ContactProfile
@@ -21,6 +23,12 @@ import com.orion.voicelab.data.ListeningState
 import com.orion.voicelab.data.MemoryCategory
 import com.orion.voicelab.data.MemoryItem
 import com.orion.voicelab.data.ModelInstallState
+import com.orion.voicelab.data.PendingCallRequest
+import com.orion.voicelab.data.PhoneCallRecord
+import com.orion.voicelab.data.PhoneCallStatus
+import com.orion.voicelab.data.PhoneContactEntry
+import com.orion.voicelab.data.PhoneContactSource
+import com.orion.voicelab.data.SystemTelephonyState
 import com.orion.voicelab.data.TranscriptEntry
 import com.orion.voicelab.data.TurnLatencyMetrics
 import com.orion.voicelab.data.VoiceLabUiState
@@ -35,6 +43,11 @@ import com.orion.voicelab.persistence.ConversationRepository
 import com.orion.voicelab.persistence.IdentityRepository
 import com.orion.voicelab.persistence.MemoryRepository
 import com.orion.voicelab.persistence.OrionDatabase
+import com.orion.voicelab.phone.CallDispatchResult
+import com.orion.voicelab.phone.CallIntentRouter
+import com.orion.voicelab.phone.PhoneCallManager
+import com.orion.voicelab.phone.PhoneContactMatcher
+import com.orion.voicelab.phone.PhoneRepository
 import com.orion.voicelab.tts.SherpaOnnxSpeechSynthesizer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -69,6 +82,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private val memoryRepository = MemoryRepository(database.memoryDao())
     private val identityRepository = IdentityRepository(database.identityDao())
     private val contactRepository = ContactRepository(database.contactDao())
+    private val phoneRepository = PhoneRepository(database.phoneDao(), appContext.contentResolver)
+    private val phoneCallManager = PhoneCallManager(appContext)
     private val persistenceMutex = Mutex()
     private val asrDownloadMutex = Mutex()
     private val ttsDownloadMutex = Mutex()
@@ -88,6 +103,21 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     @Volatile
     private var latestSelectedCoworker: ContactProfile? = null
+
+    @Volatile
+    private var latestPhoneCallRecords: List<PhoneCallRecord> = emptyList()
+
+    @Volatile
+    private var latestFavoriteContacts: List<PhoneContactEntry> = emptyList()
+
+    @Volatile
+    private var pendingRequestSnapshot: PendingCallRequest? = null
+
+    @Volatile
+    private var activeTelephonyCallRecordId: Long? = null
+
+    @Volatile
+    private var activeTelephonyStartedAtMs: Long? = null
 
     @Volatile
     private var userInteractedWithConversations = false
@@ -118,20 +148,31 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 conversationSummary = latestConversationSummary,
                 recentHistory = recentHistory,
                 currentQuery = userText,
-                activeCoworker = latestSelectedCoworker
+                activeCoworker = latestSelectedCoworker,
+                recentPhoneCalls = latestPhoneCallRecords
             )
+        },
+        directTurnResponder = { userText ->
+            handleVoiceCallCommand(userText)
         }
     )
 
     private var tickerJob: Job? = null
     private var callTimerJob: Job? = null
     private var autoDownloadJob: Job? = null
+    private var contactSearchJob: Job? = null
+    private var delayedVoiceConfirmJob: Job? = null
     private var nextTranscriptId = 1L
+    private var nextPendingRequestSeq = 1L
 
     private val _uiState = MutableStateFlow(
         VoiceLabUiState(
             availableVoices = speechSynthesizer.availableVoices(),
-            selectedVoiceId = speechSynthesizer.selectedVoice().id
+            selectedVoiceId = speechSynthesizer.selectedVoice().id,
+            isTelephonySupported = phoneCallManager.isTelephonySupported(),
+            hasContactsPermission = phoneCallManager.hasContactsPermission(),
+            hasCallPhonePermission = phoneCallManager.hasCallPhonePermission(),
+            hasPhoneStatePermission = phoneCallManager.hasPhoneStatePermission()
         )
     )
     val uiState: StateFlow<VoiceLabUiState> = _uiState.asStateFlow()
@@ -143,6 +184,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         attachConversationCallbacks()
         observePersistenceFlows()
         initializePersistence()
+        refreshPhonePermissions()
+        startObservingTelephonyState()
         refreshModelState()
         refreshMetrics()
         ensureInitialModelsDownloaded()
@@ -202,6 +245,19 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                         selectedContactId = fallbackId
                     )
                 }
+            }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            phoneRepository.observeFavorites().collect { favorites ->
+                latestFavoriteContacts = favorites
+                _uiState.update { it.copy(favoritePhoneContacts = favorites) }
+                refreshNativeContactSearch()
+            }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            phoneRepository.observeCallRecords().collect { records ->
+                latestPhoneCallRecords = records
+                _uiState.update { it.copy(phoneCallRecords = records) }
             }
         }
     }
@@ -1112,6 +1168,592 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // =========================================================================
+    // ORION 0.6 — Integración telefónica real (agenda, confirmación y llamadas)
+    // =========================================================================
+
+    fun refreshPhonePermissions() {
+        val contactsOk = phoneCallManager.hasContactsPermission()
+        val callOk = phoneCallManager.hasCallPhonePermission()
+        val stateOk = phoneCallManager.hasPhoneStatePermission()
+        val supported = phoneCallManager.isTelephonySupported()
+
+        _uiState.update { current ->
+            current.copy(
+                hasContactsPermission = contactsOk,
+                hasCallPhonePermission = callOk,
+                hasPhoneStatePermission = stateOk,
+                isTelephonySupported = supported
+            )
+        }
+        if (contactsOk) {
+            refreshNativeContactSearch()
+        }
+        if (stateOk) {
+            startObservingTelephonyState()
+        }
+    }
+
+    private fun startObservingTelephonyState() {
+        phoneCallManager.startObservingCallState { newState ->
+            _uiState.update { it.copy(systemTelephonyState = newState) }
+            handleTelephonyTransition(newState)
+        }
+    }
+
+    private fun handleTelephonyTransition(newState: SystemTelephonyState) {
+        val trackedId = activeTelephonyCallRecordId ?: return
+        val now = System.currentTimeMillis()
+        when (newState) {
+            SystemTelephonyState.OFFHOOK -> {
+                if (activeTelephonyStartedAtMs == null) {
+                    activeTelephonyStartedAtMs = now
+                    viewModelScope.launch(Dispatchers.IO) {
+                        phoneRepository.updateCallStatusAndTiming(
+                            id = trackedId,
+                            status = PhoneCallStatus.IN_PROGRESS,
+                            startedAtMs = now,
+                            endedAtMs = null,
+                            durationSeconds = 0L
+                        )
+                    }
+                }
+            }
+
+            SystemTelephonyState.IDLE -> {
+                val started = activeTelephonyStartedAtMs
+                if (started != null) {
+                    val elapsedSec = ((now - started) / 1_000L).coerceAtLeast(1L)
+                    activeTelephonyCallRecordId = null
+                    activeTelephonyStartedAtMs = null
+                    viewModelScope.launch(Dispatchers.IO) {
+                        phoneRepository.updateCallStatusAndTiming(
+                            id = trackedId,
+                            status = PhoneCallStatus.COMPLETED,
+                            startedAtMs = started,
+                            endedAtMs = now,
+                            durationSeconds = elapsedSec
+                        )
+                    }
+                    _uiState.update {
+                        it.copy(phoneStatusMessage = "Llamada finalizada (${elapsedSec} s registrados).")
+                    }
+                }
+            }
+
+            else -> Unit
+        }
+    }
+
+    fun onPhoneSearchQueryChanged(query: String) {
+        _uiState.update { it.copy(phoneSearchQuery = query) }
+        refreshNativeContactSearch(query)
+    }
+
+    private fun refreshNativeContactSearch(query: String = _uiState.value.phoneSearchQuery) {
+        contactSearchJob?.cancel()
+        contactSearchJob = viewModelScope.launch(Dispatchers.IO) {
+            val favKeys = latestFavoriteContacts.map { it.contactKey }.toSet()
+            val matches = if (phoneCallManager.hasContactsPermission()) {
+                phoneRepository.queryNativeContacts(
+                    query = query,
+                    favoriteKeys = favKeys,
+                    limit = 40
+                )
+            } else {
+                if (query.isBlank()) {
+                    latestFavoriteContacts
+                } else {
+                    PhoneContactMatcher.findMatches(query, latestFavoriteContacts, maxCandidates = 20)
+                }
+            }
+            _uiState.update { it.copy(phoneContactMatches = matches) }
+        }
+    }
+
+    fun onNativeContactPicked(uri: Uri?) {
+        if (uri == null) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val favKeys = latestFavoriteContacts.map { it.contactKey }.toSet()
+            val picked = phoneRepository.resolvePickedContactUri(uri, favKeys)
+            if (picked == null) {
+                _uiState.update {
+                    it.copy(phoneStatusMessage = "El contacto seleccionado no tiene un número de teléfono válido.")
+                }
+                return@launch
+            }
+            preparePendingCallFromEntry(picked, reason = "", source = "PICKER")
+        }
+    }
+
+    fun toggleFavoriteContact(entry: PhoneContactEntry) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val currentlyFav = latestFavoriteContacts.any { it.contactKey == entry.contactKey }
+            phoneRepository.setFavorite(entry, favorite = !currentlyFav)
+        }
+    }
+
+    fun preparePendingCallFromEntry(
+        entry: PhoneContactEntry,
+        reason: String = "",
+        scheduledNote: String = "",
+        source: String = "UI"
+    ) {
+        delayedVoiceConfirmJob?.cancel()
+        val req = PendingCallRequest(
+            requestId = "req_${nextPendingRequestSeq++}",
+            contactName = entry.displayName,
+            phoneNumber = entry.phoneNumber,
+            reason = reason.trim(),
+            scheduledNote = scheduledNote.trim(),
+            candidates = listOf(entry),
+            selectedCandidate = entry,
+            awaitingConfirmation = true,
+            source = source
+        )
+        pendingRequestSnapshot = req
+        _uiState.update {
+            it.copy(
+                pendingCallRequest = req,
+                phoneStatusMessage = "Confirmación requerida antes de llamar a ${req.contactName} (${req.phoneNumber})."
+            )
+        }
+    }
+
+    fun preparePendingCallManual(
+        contactName: String,
+        phoneNumber: String,
+        reason: String = "",
+        scheduledNote: String = ""
+    ) {
+        val normalizedNum = PhoneContactMatcher.normalizePhoneNumber(phoneNumber)
+        if (normalizedNum.isEmpty()) {
+            _uiState.update { it.copy(phoneStatusMessage = "Introduce un número de teléfono válido.") }
+            return
+        }
+        val cleanName = contactName.trim().ifBlank { phoneNumber.trim() }
+        val entry = PhoneContactEntry(
+            contactKey = "manual:$normalizedNum",
+            displayName = cleanName,
+            phoneNumber = phoneNumber.trim(),
+            normalizedNumber = normalizedNum,
+            label = "Manual",
+            source = PhoneContactSource.MANUAL
+        )
+        preparePendingCallFromEntry(entry, reason = reason, scheduledNote = scheduledNote, source = "MANUAL")
+    }
+
+    fun savePreparedCallOnly(
+        contactName: String,
+        phoneNumber: String,
+        reason: String,
+        scheduledNote: String
+    ) {
+        val cleanNumber = phoneNumber.trim()
+        val cleanName = contactName.trim().ifBlank { cleanNumber }
+        if (cleanNumber.none { it.isDigit() }) {
+            _uiState.update { it.copy(phoneStatusMessage = "Introduce un número válido para preparar la llamada.") }
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            phoneRepository.createCallRecord(
+                contactName = cleanName,
+                phoneNumber = cleanNumber,
+                reason = reason,
+                status = PhoneCallStatus.PREPARED,
+                scheduledNote = scheduledNote.ifBlank { "Preparada" },
+                followUpPending = true
+            )
+            _uiState.update {
+                it.copy(phoneStatusMessage = "Llamada con $cleanName guardada como preparada.")
+            }
+        }
+    }
+
+    fun selectDisambiguationCandidate(candidate: PhoneContactEntry) {
+        val current = pendingRequestSnapshot ?: return
+        preparePendingCallFromEntry(
+            entry = candidate,
+            reason = current.reason,
+            scheduledNote = current.scheduledNote,
+            source = current.source
+        )
+    }
+
+    fun confirmAndExecutePendingCall(preferDirectCall: Boolean) {
+        val pending = pendingRequestSnapshot ?: return
+        delayedVoiceConfirmJob?.cancel()
+        pendingRequestSnapshot = null
+        _uiState.update { it.copy(pendingCallRequest = null) }
+        viewModelScope.launch(Dispatchers.IO) {
+            executeCallInternal(pending, preferDirectCall)
+        }
+    }
+
+    fun cancelPendingCall() {
+        delayedVoiceConfirmJob?.cancel()
+        val pending = pendingRequestSnapshot
+        pendingRequestSnapshot = null
+        _uiState.update {
+            it.copy(
+                pendingCallRequest = null,
+                phoneStatusMessage = if (pending != null) {
+                    "Llamada con ${pending.contactName} cancelada."
+                } else {
+                    "Operación cancelada."
+                }
+            )
+        }
+        if (pending != null && pending.contactName.isNotBlank() && pending.phoneNumber.isNotBlank()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                phoneRepository.createCallRecord(
+                    contactName = pending.contactName,
+                    phoneNumber = pending.phoneNumber,
+                    reason = pending.reason,
+                    status = PhoneCallStatus.CANCELLED,
+                    scheduledNote = pending.scheduledNote,
+                    followUpPending = pending.reason.isNotBlank() || pending.scheduledNote.isNotBlank()
+                )
+            }
+        }
+    }
+
+    fun prepareRedialFromRecord(record: PhoneCallRecord) {
+        val entry = PhoneContactEntry(
+            contactKey = "rec:${record.id}:${PhoneContactMatcher.normalizePhoneNumber(record.phoneNumber)}",
+            displayName = record.contactName,
+            phoneNumber = record.phoneNumber,
+            normalizedNumber = PhoneContactMatcher.normalizePhoneNumber(record.phoneNumber),
+            label = "Registro",
+            source = PhoneContactSource.MANUAL
+        )
+        preparePendingCallFromEntry(entry, reason = record.reason, source = "HISTORY")
+    }
+
+    fun updateCallRecordNotes(
+        id: Long,
+        reason: String,
+        userNotes: String,
+        outcome: String,
+        followUpPending: Boolean
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            phoneRepository.updateCallNotesAndOutcome(
+                id = id,
+                reason = reason,
+                userNotes = userNotes,
+                outcome = outcome,
+                followUpPending = followUpPending
+            )
+        }
+    }
+
+    fun deleteCallRecord(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            phoneRepository.deleteCallRecord(id)
+        }
+    }
+
+    private suspend fun executeCallInternal(
+        pending: PendingCallRequest,
+        preferDirectCall: Boolean
+    ) {
+        // Libera el micrófono de ORION antes de transferir foco de audio al marcador telefónico
+        if (conversationEngine.isCallActive()) {
+            conversationEngine.endCall(unloadModels = false)
+            delay(180L)
+        }
+
+        val now = System.currentTimeMillis()
+        when (val result = phoneCallManager.dispatchCall(pending.phoneNumber, preferDirectCall)) {
+            is CallDispatchResult.DirectCallStarted -> {
+                val rec = phoneRepository.createCallRecord(
+                    contactName = pending.contactName,
+                    phoneNumber = result.sanitizedNumber,
+                    reason = pending.reason,
+                    status = PhoneCallStatus.CALL_INITIATED,
+                    scheduledNote = pending.scheduledNote,
+                    startedAtMs = now
+                )
+                if (phoneCallManager.hasPhoneStatePermission()) {
+                    activeTelephonyCallRecordId = rec.id
+                    activeTelephonyStartedAtMs = null
+                }
+                _uiState.update {
+                    it.copy(phoneStatusMessage = "Llamando a ${pending.contactName} (${result.sanitizedNumber})…")
+                }
+            }
+
+            is CallDispatchResult.DialerOpened -> {
+                phoneRepository.createCallRecord(
+                    contactName = pending.contactName,
+                    phoneNumber = result.sanitizedNumber,
+                    reason = pending.reason,
+                    status = PhoneCallStatus.DIALING_UI_OPENED,
+                    scheduledNote = pending.scheduledNote
+                )
+                _uiState.update {
+                    it.copy(phoneStatusMessage = "Marcador abierto con ${pending.contactName} (${result.sanitizedNumber}).")
+                }
+            }
+
+            is CallDispatchResult.Failed -> {
+                recordError("Telefonía: ${result.message}")
+                phoneRepository.createCallRecord(
+                    contactName = pending.contactName,
+                    phoneNumber = pending.phoneNumber,
+                    reason = pending.reason,
+                    status = PhoneCallStatus.FAILED,
+                    scheduledNote = pending.scheduledNote
+                )
+                _uiState.update { it.copy(phoneStatusMessage = result.message) }
+            }
+        }
+    }
+
+    private suspend fun handleVoiceCallCommand(userText: String): String? {
+        val action = CallIntentRouter.route(userText, pendingRequestSnapshot)
+        return when (action) {
+            CallIntentAction.None -> null
+
+            CallIntentAction.CancelPendingCall -> {
+                delayedVoiceConfirmJob?.cancel()
+                val hadPending = pendingRequestSnapshot != null
+                if (hadPending) {
+                    cancelPendingCall()
+                    "De acuerdo, llamada cancelada. No marcaré ningún número."
+                } else {
+                    "De acuerdo, no iniciaré ninguna llamada."
+                }
+            }
+
+            CallIntentAction.ConfirmPendingCall -> {
+                val target = pendingRequestSnapshot
+                if (target == null || !target.awaitingConfirmation) {
+                    return null
+                }
+                delayedVoiceConfirmJob?.cancel()
+                delayedVoiceConfirmJob = viewModelScope.launch(Dispatchers.IO) {
+                    delay(1_850L)
+                    if (pendingRequestSnapshot?.requestId == target.requestId) {
+                        pendingRequestSnapshot = null
+                        _uiState.update { it.copy(pendingCallRequest = null) }
+                        executeCallInternal(target, preferDirectCall = true)
+                    }
+                }
+                if (phoneCallManager.hasCallPhonePermission()) {
+                    "Confirmado. Iniciando llamada con ${target.contactName}."
+                } else {
+                    "Confirmado. Abriendo el marcador para llamar a ${target.contactName}."
+                }
+            }
+
+            is CallIntentAction.SelectCandidateByIndex -> {
+                val pending = pendingRequestSnapshot ?: return null
+                val candidate = pending.candidates.getOrNull(action.index) ?: return null
+                val updated = pending.copy(
+                    contactName = candidate.displayName,
+                    phoneNumber = candidate.phoneNumber,
+                    selectedCandidate = candidate,
+                    awaitingConfirmation = pending.scheduledNote.isBlank()
+                )
+                if (pending.scheduledNote.isNotBlank()) {
+                    pendingRequestSnapshot = null
+                    _uiState.update { it.copy(pendingCallRequest = null) }
+                    phoneRepository.createCallRecord(
+                        contactName = candidate.displayName,
+                        phoneNumber = candidate.phoneNumber,
+                        reason = pending.reason,
+                        status = PhoneCallStatus.PREPARED,
+                        scheduledNote = pending.scheduledNote,
+                        followUpPending = true
+                    )
+                    "Listo, he dejado preparada la llamada con ${candidate.displayName} (${pending.scheduledNote})."
+                } else {
+                    pendingRequestSnapshot = updated
+                    _uiState.update { it.copy(pendingCallRequest = updated) }
+                    "Has elegido a ${candidate.displayName}, número ${formatSpokenNumber(candidate.phoneNumber)}. ¿Confirmas que llame?"
+                }
+            }
+
+            is CallIntentAction.SelectCandidateByName -> {
+                val pending = pendingRequestSnapshot ?: return null
+                val narrowed = PhoneContactMatcher.findMatches(action.query, pending.candidates, maxCandidates = 2)
+                if (narrowed.size == 1) {
+                    val chosen = narrowed.first()
+                    if (pending.scheduledNote.isNotBlank()) {
+                        pendingRequestSnapshot = null
+                        _uiState.update { it.copy(pendingCallRequest = null) }
+                        phoneRepository.createCallRecord(
+                            contactName = chosen.displayName,
+                            phoneNumber = chosen.phoneNumber,
+                            reason = pending.reason,
+                            status = PhoneCallStatus.PREPARED,
+                            scheduledNote = pending.scheduledNote,
+                            followUpPending = true
+                        )
+                        "Preparada la llamada con ${chosen.displayName} (${pending.scheduledNote})."
+                    } else {
+                        val updated = pending.copy(
+                            contactName = chosen.displayName,
+                            phoneNumber = chosen.phoneNumber,
+                            selectedCandidate = chosen,
+                            awaitingConfirmation = true
+                        )
+                        pendingRequestSnapshot = updated
+                        _uiState.update { it.copy(pendingCallRequest = updated) }
+                        "Entendido, ${chosen.displayName}, número ${formatSpokenNumber(chosen.phoneNumber)}. ¿Confirmas que inicie la llamada?"
+                    }
+                } else {
+                    "No he podido distinguir cuál de los contactos prefieres. Dime el primero o el segundo, o di cancelar."
+                }
+            }
+
+            is CallIntentAction.QueryCallHistory -> {
+                val records = phoneRepository.getAllCallRecords()
+                phoneRepository.answerCallHistoryQuery(
+                    queryType = action.queryType,
+                    contactQuery = action.contactQuery,
+                    records = records
+                )
+            }
+
+            CallIntentAction.CallLastContact -> {
+                val latest = phoneRepository.getLatestCallRecord()
+                if (latest == null) {
+                    "Todavía no tengo ninguna llamada registrada desde ORION."
+                } else {
+                    val req = PendingCallRequest(
+                        requestId = "req_${nextPendingRequestSeq++}",
+                        contactName = latest.contactName,
+                        phoneNumber = latest.phoneNumber,
+                        reason = latest.reason,
+                        awaitingConfirmation = true,
+                        source = "VOICE_LAST"
+                    )
+                    pendingRequestSnapshot = req
+                    _uiState.update { it.copy(pendingCallRequest = req) }
+                    "El último contacto registrado fue ${latest.contactName}, número ${formatSpokenNumber(latest.phoneNumber)}. ¿Confirmas que vuelva a llamar?"
+                }
+            }
+
+            is CallIntentAction.LookupContactNumber -> {
+                val matches = phoneRepository.resolveVoiceContactMatches(action.rawTargetQuery)
+                if (matches.isEmpty()) {
+                    missingContactReply(action.rawTargetQuery)
+                } else if (matches.size == 1) {
+                    val c = matches.first()
+                    "El teléfono de ${c.displayName} es ${formatSpokenNumber(c.phoneNumber)}. Si quieres que llame, dímelo."
+                } else {
+                    val listText = matches.take(3).joinToString("; ") {
+                        "${it.displayName}, ${formatSpokenNumber(it.phoneNumber)}"
+                    }
+                    "He encontrado varios contactos: $listText."
+                }
+            }
+
+            is CallIntentAction.InitiateCall -> {
+                if (action.rawTargetQuery.isBlank() && action.scheduledOnly) {
+                    return "Dime el nombre del contacto para preparar la llamada en tu registro."
+                }
+                val resolved = resolveCandidatesOrRawNumber(action.rawTargetQuery)
+                if (resolved.isEmpty()) {
+                    return missingContactReply(action.rawTargetQuery)
+                }
+
+                if (action.scheduledOnly) {
+                    if (resolved.size == 1) {
+                        val chosen = resolved.first()
+                        phoneRepository.createCallRecord(
+                            contactName = chosen.displayName,
+                            phoneNumber = chosen.phoneNumber,
+                            reason = action.reason,
+                            status = PhoneCallStatus.PREPARED,
+                            scheduledNote = action.scheduledNote.ifBlank { "Preparada" },
+                            followUpPending = true
+                        )
+                        "He preparado la llamada con ${chosen.displayName} (${action.scheduledNote}). La tienes en la pestaña Teléfono."
+                    } else {
+                        val req = PendingCallRequest(
+                            requestId = "req_${nextPendingRequestSeq++}",
+                            contactName = action.rawTargetQuery,
+                            phoneNumber = "",
+                            reason = action.reason,
+                            scheduledNote = action.scheduledNote.ifBlank { "Preparada" },
+                            candidates = resolved.take(3),
+                            awaitingConfirmation = false,
+                            source = "VOICE"
+                        )
+                        pendingRequestSnapshot = req
+                        _uiState.update { it.copy(pendingCallRequest = req) }
+                        val opts = req.candidates.mapIndexed { idx, c -> "${idx + 1}, ${c.displayName}" }.joinToString("; ")
+                        "He encontrado varios contactos para preparar la llamada: $opts. ¿Cuál eliges?"
+                    }
+                } else if (resolved.size == 1) {
+                    val chosen = resolved.first()
+                    val req = PendingCallRequest(
+                        requestId = "req_${nextPendingRequestSeq++}",
+                        contactName = chosen.displayName,
+                        phoneNumber = chosen.phoneNumber,
+                        reason = action.reason,
+                        candidates = listOf(chosen),
+                        selectedCandidate = chosen,
+                        awaitingConfirmation = true,
+                        source = "VOICE"
+                    )
+                    pendingRequestSnapshot = req
+                    _uiState.update { it.copy(pendingCallRequest = req) }
+                    val reasonCue = if (action.reason.isNotBlank()) " por ${action.reason}" else ""
+                    "Voy a llamar a ${chosen.displayName}, número ${formatSpokenNumber(chosen.phoneNumber)}$reasonCue. ¿Confirmas que inicie la llamada?"
+                } else {
+                    val req = PendingCallRequest(
+                        requestId = "req_${nextPendingRequestSeq++}",
+                        contactName = action.rawTargetQuery,
+                        phoneNumber = "",
+                        reason = action.reason,
+                        candidates = resolved.take(3),
+                        awaitingConfirmation = false,
+                        source = "VOICE"
+                    )
+                    pendingRequestSnapshot = req
+                    _uiState.update { it.copy(pendingCallRequest = req) }
+                    val opts = req.candidates.mapIndexed { idx, c -> "${idx + 1}, ${c.displayName} (${c.label})" }.joinToString("; ")
+                    "He encontrado varios contactos: $opts. Dime el primero o el segundo para confirmar antes de llamar."
+                }
+            }
+        }
+    }
+
+    private suspend fun resolveCandidatesOrRawNumber(targetQuery: String): List<PhoneContactEntry> {
+        val matches = phoneRepository.resolveVoiceContactMatches(targetQuery)
+        if (matches.isNotEmpty()) return matches
+        val digits = targetQuery.filter { it.isDigit() }
+        if (digits.length >= 6) {
+            val normalized = PhoneContactMatcher.normalizePhoneNumber(targetQuery)
+            return listOf(
+                PhoneContactEntry(
+                    contactKey = "voice_num:$normalized",
+                    displayName = normalized,
+                    phoneNumber = normalized,
+                    normalizedNumber = normalized,
+                    label = "Dictado",
+                    source = PhoneContactSource.MANUAL
+                )
+            )
+        }
+        return emptyList()
+    }
+
+    private fun missingContactReply(target: String): String =
+        if (!phoneCallManager.hasContactsPermission()) {
+            "No tengo permiso para consultar tu agenda todavía. Concede el permiso en la pestaña Teléfono o elige el contacto manualmente."
+        } else {
+            "No encuentro a $target en tu agenda ni en tus favoritos. Revisa el nombre o el número en la pestaña Teléfono."
+        }
+
+    private fun formatSpokenNumber(raw: String): String =
+        raw.trim().ifBlank { "desconocido" }
+
     fun onPermissionDenied() {
         recordError("Permiso RECORD_AUDIO denegado")
         _uiState.update {
@@ -1351,8 +1993,13 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val callTel = state.callTelemetry
         val hw = state.audioHardwareStatus
         return buildString {
-            appendLine("ORION Voice Lab 0.5.0 — informe de diagnóstico")
+            appendLine("ORION Voice Lab 0.6.0 — informe de diagnóstico")
             appendLine(DeviceMetrics.deviceSummary())
+            appendLine(
+                "Telefonía local: soporte=${state.isTelephonySupported} · permisoContactos=${state.hasContactsPermission} · " +
+                    "permisoLlamar=${state.hasCallPhonePermission} · permisoEstado=${state.hasPhoneStatePermission} · " +
+                    "favoritos=${state.favoritePhoneContacts.size} · llamadas=${state.phoneCallRecords.size} · estado=${state.systemTelephonyState.displayLabel}"
+            )
             appendLine(
                 "Memoria local: conversaciones=${state.conversations.size} (activa: ${state.activeConversationTitle}) · " +
                     "recuerdos=${state.memories.size} · memoria=${if (state.assistantIdentity.memoryEnabled) "activa" else "desactivada"} · " +
@@ -1488,6 +2135,9 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     override fun onCleared() {
         autoDownloadJob?.cancel()
+        contactSearchJob?.cancel()
+        delayedVoiceConfirmJob?.cancel()
+        phoneCallManager.stopObservingCallState()
         stopCallTimer()
         stopMetricsTicker()
         engine.destroy()

@@ -101,7 +101,19 @@ data class VoiceLabUiState(
     val selectedContactId: Long = ContactProfile.PRIMARY_CONTACT_ID,
     val isInCallScreen: Boolean = false,
     val isAutoDownloadingInitialModels: Boolean = false,
-    val autoDownloadError: String? = null
+    val autoDownloadError: String? = null,
+    // Voice Lab 0.6 Android Telephony integration
+    val hasContactsPermission: Boolean = false,
+    val hasCallPhonePermission: Boolean = false,
+    val hasPhoneStatePermission: Boolean = false,
+    val isTelephonySupported: Boolean = true,
+    val phoneSearchQuery: String = "",
+    val phoneContactMatches: List<PhoneContactEntry> = emptyList(),
+    val favoritePhoneContacts: List<PhoneContactEntry> = emptyList(),
+    val phoneCallRecords: List<PhoneCallRecord> = emptyList(),
+    val pendingCallRequest: PendingCallRequest? = null,
+    val systemTelephonyState: SystemTelephonyState = SystemTelephonyState.IDLE,
+    val phoneStatusMessage: String = ""
 ) {
     val isModelReady: Boolean
         get() = modelState is ModelInstallState.Installed

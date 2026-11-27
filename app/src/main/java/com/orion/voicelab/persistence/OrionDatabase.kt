@@ -89,6 +89,35 @@ data class CoworkerContactEntity(
     val updatedAtMs: Long
 )
 
+@Entity(tableName = "favorite_phone_contacts")
+data class FavoritePhoneContactEntity(
+    @PrimaryKey val contactKey: String,
+    val displayName: String,
+    val phoneNumber: String,
+    val label: String,
+    val createdAtMs: Long
+)
+
+@Entity(
+    tableName = "phone_call_records",
+    indices = [Index(value = ["createdAtMs"])]
+)
+data class PhoneCallRecordEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val contactName: String,
+    val phoneNumber: String,
+    val reason: String,
+    val status: String,
+    val createdAtMs: Long,
+    val startedAtMs: Long? = null,
+    val endedAtMs: Long? = null,
+    val durationSeconds: Long = 0L,
+    val scheduledNote: String = "",
+    val userNotes: String = "",
+    val outcome: String = "",
+    val followUpPending: Boolean = false
+)
+
 data class ConversationRowTuple(
     val id: Long,
     val title: String,
@@ -199,15 +228,72 @@ interface ContactDao {
     suspend fun deleteCoworkerById(id: Long)
 }
 
+@Dao
+interface PhoneDao {
+    @Query("SELECT * FROM favorite_phone_contacts ORDER BY displayName ASC")
+    fun observeFavorites(): Flow<List<FavoritePhoneContactEntity>>
+
+    @Query("SELECT * FROM favorite_phone_contacts ORDER BY displayName ASC")
+    suspend fun getFavorites(): List<FavoritePhoneContactEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertFavorite(entity: FavoritePhoneContactEntity)
+
+    @Query("DELETE FROM favorite_phone_contacts WHERE contactKey = :contactKey")
+    suspend fun deleteFavoriteByKey(contactKey: String)
+
+    @Query("SELECT * FROM phone_call_records ORDER BY createdAtMs DESC, id DESC")
+    fun observeCallRecords(): Flow<List<PhoneCallRecordEntity>>
+
+    @Query("SELECT * FROM phone_call_records ORDER BY createdAtMs DESC, id DESC")
+    suspend fun getAllCallRecords(): List<PhoneCallRecordEntity>
+
+    @Query("SELECT * FROM phone_call_records ORDER BY createdAtMs DESC, id DESC LIMIT 1")
+    suspend fun getLatestCallRecord(): PhoneCallRecordEntity?
+
+    @Query("SELECT * FROM phone_call_records WHERE id = :id LIMIT 1")
+    suspend fun getCallRecordById(id: Long): PhoneCallRecordEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCallRecord(entity: PhoneCallRecordEntity): Long
+
+    @Query(
+        "UPDATE phone_call_records SET status = :status, startedAtMs = :startedAtMs, endedAtMs = :endedAtMs, durationSeconds = :durationSeconds WHERE id = :id"
+    )
+    suspend fun updateCallStatusAndTiming(
+        id: Long,
+        status: String,
+        startedAtMs: Long?,
+        endedAtMs: Long?,
+        durationSeconds: Long
+    )
+
+    @Query(
+        "UPDATE phone_call_records SET reason = :reason, userNotes = :userNotes, outcome = :outcome, followUpPending = :followUpPending WHERE id = :id"
+    )
+    suspend fun updateCallNotesAndOutcome(
+        id: Long,
+        reason: String,
+        userNotes: String,
+        outcome: String,
+        followUpPending: Boolean
+    )
+
+    @Query("DELETE FROM phone_call_records WHERE id = :id")
+    suspend fun deleteCallRecordById(id: Long)
+}
+
 @Database(
     entities = [
         ConversationEntity::class,
         ConversationMessageEntity::class,
         MemoryItemEntity::class,
         AssistantIdentityEntity::class,
-        CoworkerContactEntity::class
+        CoworkerContactEntity::class,
+        FavoritePhoneContactEntity::class,
+        PhoneCallRecordEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class OrionDatabase : RoomDatabase() {
@@ -215,6 +301,7 @@ abstract class OrionDatabase : RoomDatabase() {
     abstract fun memoryDao(): MemoryDao
     abstract fun identityDao(): IdentityDao
     abstract fun contactDao(): ContactDao
+    abstract fun phoneDao(): PhoneDao
 
     companion object {
         private const val DB_NAME = "orion_offline_memory.db"
@@ -237,6 +324,44 @@ abstract class OrionDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS favorite_phone_contacts (
+                        contactKey TEXT PRIMARY KEY NOT NULL,
+                        displayName TEXT NOT NULL,
+                        phoneNumber TEXT NOT NULL,
+                        label TEXT NOT NULL,
+                        createdAtMs INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS phone_call_records (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        contactName TEXT NOT NULL,
+                        phoneNumber TEXT NOT NULL,
+                        reason TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        createdAtMs INTEGER NOT NULL,
+                        startedAtMs INTEGER,
+                        endedAtMs INTEGER,
+                        durationSeconds INTEGER NOT NULL,
+                        scheduledNote TEXT NOT NULL,
+                        userNotes TEXT NOT NULL,
+                        outcome TEXT NOT NULL,
+                        followUpPending INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_phone_call_records_createdAtMs ON phone_call_records(createdAtMs)"
+                )
+            }
+        }
+
         @Volatile
         private var instance: OrionDatabase? = null
 
@@ -247,7 +372,7 @@ abstract class OrionDatabase : RoomDatabase() {
                     OrionDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { instance = it }
             }

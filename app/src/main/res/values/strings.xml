@@ -2,12 +2,13 @@
 <resources>
     <string name="app_name">ORION Voice Lab</string>
     <string name="brand_title">ORION</string>
-    <string name="brand_subtitle">VOICE LAB 0.5.0 · MEMORIA E IDENTIDAD OFFLINE</string>
+    <string name="brand_subtitle">VOICE LAB 0.6.0 · ASISTENTE Y TELEFONÍA LOCAL</string>
     <string name="tab_call">Agenda</string>
+    <string name="tab_phone">Teléfono</string>
     <string name="tab_conversations">Chats</string>
     <string name="tab_memory">Memoria</string>
     <string name="tab_lab">Lab</string>
-    <string name="section_diagnostics">DIAGNÓSTICO LOCAL · 0.5.0</string>
+    <string name="section_diagnostics">DIAGNÓSTICO LOCAL · 0.6.0</string>
 
     <!-- Voice Lab 0.3 preserved strings -->
     <string name="status_model_ready">Moonshine Base ES instalado. Reconocimiento local disponible sin Internet.</string>
@@ -102,6 +103,39 @@
     <string name="action_cancel">Cancelar</string>
     <string name="action_delete">Eliminar</string>
 
+    <!-- Voice Lab 0.6 Telephony strings -->
+    <string name="phone_title">Telefonía de ORION</string>
+    <string name="phone_subtitle">Prepara, confirma y registra llamadas reales sin conexión en la nube</string>
+    <string name="phone_search_hint">Buscar en agenda o por número…</string>
+    <string name="phone_pick_native">Elegir contacto</string>
+    <string name="phone_allow_contacts">Permitir agenda</string>
+    <string name="phone_allow_call">Permitir llamada directa</string>
+    <string name="phone_allow_state">Permitir estado</string>
+    <string name="phone_confirm_title">Confirmar llamada telefónica</string>
+    <string name="phone_disambiguation_title">Elige el contacto exacto</string>
+    <string name="phone_confirm_call_now">Confirmar y llamar</string>
+    <string name="phone_confirm_dialer">Abrir marcador</string>
+    <string name="phone_cancel_call">Cancelar</string>
+    <string name="phone_manual_title">Preparar o marcar llamada</string>
+    <string name="phone_manual_name_label">Nombre del contacto</string>
+    <string name="phone_manual_number_label">Número de teléfono</string>
+    <string name="phone_manual_reason_label">Motivo o tema a tratar (opcional)</string>
+    <string name="phone_manual_schedule_label">Nota o fecha prevista (opcional)</string>
+    <string name="phone_action_prepare">Preparar llamada</string>
+    <string name="phone_action_request_call">Solicitar llamada</string>
+    <string name="phone_favorites_header">CONTACTOS FAVORITOS (%1$d)</string>
+    <string name="phone_results_header">CONTACTOS ENCONTRADOS (%1$d)</string>
+    <string name="phone_records_header">REGISTRO DE LLAMADAS (%1$d)</string>
+    <string name="phone_records_empty">Todavía no hay llamadas preparadas o realizadas desde ORION.\n\nBusca un contacto, usa el selector nativo o di en voz alta «Quiero llamar a…» durante una charla.</string>
+    <string name="phone_redial">Volver a llamar</string>
+    <string name="phone_notes_edit">Notas</string>
+    <string name="phone_edit_notes_title">Notas y seguimiento</string>
+    <string name="phone_notes_outcome_label">Resultado de la llamada</string>
+    <string name="phone_notes_body_label">Notas adicionales</string>
+    <string name="phone_notes_followup_toggle">Pendiente de seguimiento o devolución</string>
+    <string name="phone_no_telephony_hw">Este dispositivo no anuncia hardware de telefonía celular; puedes usar el marcador o probar la lógica local.</string>
+    <string name="phone_audio_limit_notice">Android restringe la captura/inyección de audio en llamadas celulares normales; ORION libera su micrófono al iniciar la llamada.</string>
+
     <!-- Accessibility -->
     <string name="cd_voice_status">Indicador de estado de voz</string>
     <string name="cd_download_icon">Descargar modelo</string>
@@ -121,4 +155,7 @@
     <string name="cd_call_contact">Llamar a este contacto</string>
     <string name="cd_back_agenda">Volver a la agenda</string>
     <string name="cd_search_contacts">Buscar contactos</string>
+    <string name="cd_favorite_contact">Alternar contacto favorito</string>
+    <string name="cd_pick_contact">Elegir contacto desde la agenda del sistema</string>
+    <string name="cd_delete_call_record">Eliminar registro de llamada</string>
 </resources>

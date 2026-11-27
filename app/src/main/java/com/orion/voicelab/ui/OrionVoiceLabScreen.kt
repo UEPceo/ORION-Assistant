@@ -1,10 +1,13 @@
 package com.orion.voicelab.ui
 
 import android.Manifest
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.provider.ContactsContract
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -66,6 +69,7 @@ import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.PhoneInTalk
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Science
@@ -90,6 +94,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -112,6 +117,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.orion.voicelab.R
 import com.orion.voicelab.data.ChatRole
@@ -122,6 +130,7 @@ import com.orion.voicelab.data.DeviceMetrics
 import com.orion.voicelab.data.ListeningState
 import com.orion.voicelab.data.MemoryCategory
 import com.orion.voicelab.data.ModelInstallState
+import com.orion.voicelab.data.PhoneContactEntry
 import com.orion.voicelab.data.TranscriptEntry
 import com.orion.voicelab.data.VoiceLabUiState
 import com.orion.voicelab.ui.theme.OrionNavyGlow
@@ -131,6 +140,7 @@ import java.util.Locale
 
 private enum class OrionTab {
     CALL,
+    PHONE,
     CONVERSATIONS,
     MEMORY,
     LAB
@@ -154,8 +164,20 @@ fun OrionVoiceLabScreen(
     val identitySavedMsg = stringResource(R.string.identity_saved_feedback)
     val identityResetMsg = stringResource(R.string.identity_reset_feedback)
 
+    val lifecycleOwner = LocalLifecycleOwner.current
     var selectedTab by rememberSaveable { mutableStateOf(OrionTab.CALL) }
     var pendingPermissionTarget by remember { mutableStateOf(MicPermissionTarget.CALL) }
+    var executePendingAfterCallPerm by remember { mutableStateOf(false) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshPhonePermissions()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     BackHandler(enabled = selectedTab != OrionTab.CALL || (state.isInCallScreen && !state.isCallActive)) {
         if (selectedTab != OrionTab.CALL) {
@@ -182,6 +204,69 @@ fun OrionVoiceLabScreen(
             }
         } else {
             viewModel.onPermissionDenied()
+        }
+    }
+
+    val contactsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        viewModel.refreshPhonePermissions()
+        if (!granted) {
+            showToast("Permiso de agenda no concedido; puedes usar el selector de contacto.")
+        }
+    }
+
+    val callPhonePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        viewModel.refreshPhonePermissions()
+        if (executePendingAfterCallPerm) {
+            executePendingAfterCallPerm = false
+            // Si no se concede CALL_PHONE, cae con seguridad al marcador nativo (ACTION_DIAL)
+            viewModel.confirmAndExecutePendingCall(preferDirectCall = granted)
+        } else if (!granted) {
+            showToast("Permiso de llamada directa no concedido; se usará el marcador del teléfono.")
+        }
+    }
+
+    val phoneStatePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        viewModel.refreshPhonePermissions()
+        if (!granted) {
+            showToast("Permiso de estado telefónico no concedido; la duración automática no estará disponible.")
+        }
+    }
+
+    val nativeContactPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            viewModel.onNativeContactPicked(result.data?.data)
+        }
+    }
+
+    val onPickNativeContact: () -> Unit = {
+        val intent = Intent(Intent.ACTION_PICK).apply {
+            type = ContactsContract.CommonDataKinds.Phone.CONTENT_TYPE
+        }
+        try {
+            nativeContactPickerLauncher.launch(intent)
+        } catch (_: Exception) {
+            showToast("No hay selector de contactos disponible en este dispositivo.")
+        }
+    }
+
+    val onConfirmDirectPhoneCall: () -> Unit = {
+        val hasPerm = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CALL_PHONE
+        ) == PackageManager.PERMISSION_GRANTED
+        if (hasPerm) {
+            viewModel.confirmAndExecutePendingCall(preferDirectCall = true)
+        } else {
+            executePendingAfterCallPerm = true
+            callPhonePermissionLauncher.launch(Manifest.permission.CALL_PHONE)
         }
     }
 
@@ -304,6 +389,10 @@ fun OrionVoiceLabScreen(
                                     },
                                     onEditAndSaveSuggestion = onEditAndSaveSuggestion,
                                     onDismissSuggestion = viewModel::dismissMemorySuggestion,
+                                    onSelectPhoneCandidate = viewModel::selectDisambiguationCandidate,
+                                    onConfirmDirectPhoneCall = onConfirmDirectPhoneCall,
+                                    onOpenPhoneDialer = { viewModel.confirmAndExecutePendingCall(preferDirectCall = false) },
+                                    onCancelPhoneCall = viewModel::cancelPendingCall,
                                     onCopyReport = onCopyReportClicked
                                 )
                             } else {
@@ -320,6 +409,35 @@ fun OrionVoiceLabScreen(
                                     onRetryAutoDownload = viewModel::retryInitialDownloads
                                 )
                             }
+                        }
+
+                        OrionTab.PHONE -> {
+                            PhoneSectionScreen(
+                                state = state,
+                                onSearchQueryChanged = viewModel::onPhoneSearchQueryChanged,
+                                onRequestContactsPermission = {
+                                    contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                                },
+                                onRequestCallPhonePermission = {
+                                    executePendingAfterCallPerm = false
+                                    callPhonePermissionLauncher.launch(Manifest.permission.CALL_PHONE)
+                                },
+                                onRequestPhoneStatePermission = {
+                                    phoneStatePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
+                                },
+                                onPickNativeContact = onPickNativeContact,
+                                onToggleFavorite = viewModel::toggleFavoriteContact,
+                                onRequestCallContact = { entry -> viewModel.preparePendingCallFromEntry(entry) },
+                                onPrepareManualCall = viewModel::preparePendingCallManual,
+                                onSavePreparedCallOnly = viewModel::savePreparedCallOnly,
+                                onSelectCandidate = viewModel::selectDisambiguationCandidate,
+                                onConfirmDirectCall = onConfirmDirectPhoneCall,
+                                onOpenDialer = { viewModel.confirmAndExecutePendingCall(preferDirectCall = false) },
+                                onCancelPendingCall = viewModel::cancelPendingCall,
+                                onRedialRecord = viewModel::prepareRedialFromRecord,
+                                onUpdateRecordNotes = viewModel::updateCallRecordNotes,
+                                onDeleteRecord = viewModel::deleteCallRecord
+                            )
                         }
 
                         OrionTab.CONVERSATIONS -> {
@@ -424,7 +542,7 @@ private fun TopBrandAndTabs(
         )
         Surface(
             modifier = Modifier
-                .widthIn(max = 580.dp)
+                .widthIn(max = 640.dp)
                 .fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
             color = MaterialTheme.colorScheme.surface,
@@ -434,7 +552,7 @@ private fun TopBrandAndTabs(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 TabSegmentButton(
                     selected = selectedTab == OrionTab.CALL,
@@ -444,6 +562,15 @@ private fun TopBrandAndTabs(
                     modifier = Modifier
                         .weight(1f)
                         .testTag("tab_call")
+                )
+                TabSegmentButton(
+                    selected = selectedTab == OrionTab.PHONE,
+                    icon = Icons.Outlined.Phone,
+                    label = stringResource(R.string.tab_phone),
+                    onClick = { onSelectTab(OrionTab.PHONE) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("tab_phone")
                 )
                 TabSegmentButton(
                     selected = selectedTab == OrionTab.CONVERSATIONS,
@@ -496,12 +623,12 @@ private fun TabSegmentButton(
         shape = RoundedCornerShape(10.dp),
         color = bgColor
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 4.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Icon(
                 imageVector = icon,
@@ -509,13 +636,14 @@ private fun TabSegmentButton(
                 tint = fgColor,
                 modifier = Modifier.size(16.dp)
             )
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
                 color = fgColor,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -538,13 +666,18 @@ private fun VirtualCallScreen(
     onAcceptSuggestion: (String) -> Unit,
     onEditAndSaveSuggestion: (String, MemoryCategory, String, Int) -> Unit,
     onDismissSuggestion: (String) -> Unit,
+    onSelectPhoneCandidate: (PhoneContactEntry) -> Unit,
+    onConfirmDirectPhoneCall: () -> Unit,
+    onOpenPhoneDialer: () -> Unit,
+    onCancelPhoneCall: () -> Unit,
     onCopyReport: () -> Unit
 ) {
     val listState = rememberLazyListState()
     LaunchedEffect(
         state.conversationTurns.size,
         state.streamingAssistantText,
-        state.pendingMemorySuggestions.size
+        state.pendingMemorySuggestions.size,
+        state.pendingCallRequest
     ) {
         val hasFeedContent = state.conversationTurns.isNotEmpty() || state.streamingAssistantText.isNotBlank()
         if (hasFeedContent) {
@@ -619,6 +752,18 @@ private fun VirtualCallScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
+                    state.pendingCallRequest?.let { pendingCall ->
+                        item(key = "call_pending_phone_request") {
+                            PendingCallConfirmationCard(
+                                pendingCall = pendingCall,
+                                hasCallPhonePermission = state.hasCallPhonePermission,
+                                onSelectCandidate = onSelectPhoneCandidate,
+                                onConfirmDirectCall = onConfirmDirectPhoneCall,
+                                onOpenDialer = onOpenPhoneDialer,
+                                onCancel = onCancelPhoneCall
+                            )
+                        }
+                    }
                     if (state.pendingMemorySuggestions.isNotEmpty()) {
                         item(key = "call_memory_suggestions") {
                             PendingMemorySuggestionsCard(
@@ -696,6 +841,18 @@ private fun VirtualCallScreen(
                         onOpenConversations = onOpenConversations,
                         onCopyReport = onCopyReport
                     )
+                }
+                state.pendingCallRequest?.let { pendingCall ->
+                    item(key = "call_pending_phone_request") {
+                        PendingCallConfirmationCard(
+                            pendingCall = pendingCall,
+                            hasCallPhonePermission = state.hasCallPhonePermission,
+                            onSelectCandidate = onSelectPhoneCandidate,
+                            onConfirmDirectCall = onConfirmDirectPhoneCall,
+                            onOpenDialer = onOpenPhoneDialer,
+                            onCancel = onCancelPhoneCall
+                        )
+                    }
                 }
                 if (state.pendingMemorySuggestions.isNotEmpty()) {
                     item(key = "call_memory_suggestions") {

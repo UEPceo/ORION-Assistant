@@ -1,8 +1,26 @@
-# ORION Voice Lab 0.5.0 (Android / Jetpack Compose)
+# ORION Voice Lab 0.6.0 (Android / Jetpack Compose)
 
 Asistente conversacional de voz **100 % offline y de coste cero (0 €)** en español para Android (`arm64-v8a`), construido con **Kotlin**, **Jetpack Compose (Material 3)**, **Room + KSP**, **sherpa-onnx** (`1.13.8`) y **llama.cpp** (`io.github.ljcamargo:llamacpp-kotlin:0.4.0`).
 
-## Novedades de la Fase 0.5 (Memoria persistente e identidad)
+## Novedades de la Fase 0.6 (Integración telefónica real)
+
+1. **Agenda nativa de Android y selector sin permisos (`PhoneRepository`)**:
+   - Búsqueda bajo demanda en `ContactsContract.CommonDataKinds.Phone` mediante permiso en tiempo de ejecución (`READ_CONTACTS`) **sin replicar la agenda completa** dentro de la base de datos de ORION.
+   - Resolución fonética/difusa en español (`PhoneContactMatcher`) para variaciones de ASR (`b/v`, `c/z/s`, `ll/y`, tildes) y alias familiares (*«mi madre»* → *Mamá*).
+   - Selector nativo del sistema (`ACTION_PICK`) sin requerir `READ_CONTACTS`, más gestión local de contactos favoritos.
+2. **Enrutador determinista de intenciones (`CallIntentRouter`)**:
+   - Separado del LLM (`Qwen2.5-1.5B`) para evitar alucinaciones en acciones telefónicas críticas: solicitar llamadas (*«Quiero llamar a Juan»*, *«Llama a mi madre»*), buscar teléfonos, rellamar al último contacto, preparar llamadas sin marcar (*«Prepara una llamada…»*), desambiguar homónimos y responder consultas sobre historial (*«¿Cuándo llamé a Pedro?»*, *«¿Qué tenía pendiente hablar con María?»*, *«¿A quién tengo que devolver la llamada?»*).
+3. **Confirmación explícita obligatoria y control de seguridad**:
+   - ORION nunca marca ni abre el marcador sin mostrar primero **nombre y número** y recibir autorización explícita (*«Sí»*, *«Confirmo»*, *«Adelante»* o botón **Confirmar y llamar**), con cancelación inmediata por voz (*«No, cancela»*) o botón **Cancelar**.
+4. **Telefonía oficial Android (`PhoneCallManager`) y pestaña `Teléfono`**:
+   - Inicio con `Intent.ACTION_CALL` si `CALL_PHONE` está concedido y respaldo automático a `Intent.ACTION_DIAL` (marcador del sistema) si no hay permiso.
+   - Seguimiento de estado telefónico (`IDLE` / `OFFHOOK` / `RINGING`) mediante `TelephonyCallback.CallStateListener` (API 31+) y `PhoneStateListener` (API 26–30) con `READ_PHONE_STATE` para medir duración cuando el dispositivo lo permite.
+   - Registro persistente local en Room (`PhoneCallRecordEntity`, migración v2→v3) con motivo, estado, duración, notas, resultado y bandera de seguimiento pendiente.
+5. **Limitaciones reales de la plataforma Android**:
+   - Las aplicaciones estándar no pueden capturar ni inyectar audio en llamadas celulares activas (`VOICE_DOWNLINK`/`VOICE_UPLINK` restringidos al sistema); por ello ORION libera su micrófono al iniciar una llamada real.
+   - No se fuerza `RoleManager` ni la sustitución del marcador predeterminado del sistema.
+
+## Novedades heredadas de la Fase 0.5 (Memoria persistente, Agenda de Co-workers e identidad)
 
 1. **Persistencia local de conversaciones (`Chats`)**:
    - Almacenamiento local 100 % offline en SQLite mediante **Room** (`orion_offline_memory.db`, `allowBackup="false"`).
