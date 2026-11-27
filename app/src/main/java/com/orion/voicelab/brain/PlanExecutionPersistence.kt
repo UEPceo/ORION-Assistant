@@ -254,6 +254,29 @@ class PlanExecutionRepository(private val dao: PlanExecutionDao) {
         return running.size
     }
 
+    suspend fun recoverInterruptedExecution(id: String, nowMs: Long = System.currentTimeMillis()): Boolean {
+        val entity = dao.getById(id) ?: return false
+        if (entity.status != PlanStatus.RUNNING.name) return false
+        val results = PlanExecutionJsonCodec.decodeResults(entity.resultsJson).toMutableMap()
+        val uncertainStepIds = results.filterValues { it.status == StepStatus.RUNNING }.keys +
+            listOfNotNull(entity.activeStepId)
+        uncertainStepIds.distinct().forEach { activeId ->
+            results[activeId] = StepExecution(
+                StepStatus.FAILED,
+                "ORION se cerró durante este paso. El resultado de la operación puede ser incierto; verifica el servicio antes de reintentar."
+            )
+        }
+        dao.updateProgress(
+            id = entity.id,
+            resultsJson = PlanExecutionJsonCodec.encodeResults(results),
+            status = PlanStatus.PAUSED.name,
+            activeStepId = null,
+            updatedAtMs = nowMs,
+            lastError = "Ejecución interrumpida por cierre del proceso; requiere revisión."
+        )
+        return true
+    }
+
     suspend fun delete(id: String) = dao.deleteById(id)
 }
 
@@ -281,6 +304,7 @@ class PersistentPlanExecutionService(
         runner: PlanStepRunner,
         retryStepIds: Set<String>
     ): PlanExecutionReport {
+        repository.recoverInterruptedExecution(planId)
         val saved = repository.load(planId)
             ?: return PlanExecutionReport(planId, PlanStatus.FAILED, emptyMap(), "No existe la ejecución guardada.")
         val validation = PlanValidator.validate(saved.plan)
