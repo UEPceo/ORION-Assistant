@@ -77,9 +77,9 @@ object OrionSelfKnowledgeAdvisor {
                 if (diagnosticLog.isBlank()) {
                     appendLine("No hay extracto técnico local disponible en este contexto. Solicita o genera el informe de diagnóstico; no simules haber leído logs.")
                 } else {
-                    appendLine(diagnosticLog.takeLast(1_800))
+                    appendLine(diagnosticLog.takeLast(1_000))
                 }
-                appendLine(OrionSelfDiagnosticRegistry.composeReport(state, diagnosticLog, maxChars = 2_100))
+                appendLine(OrionSelfDiagnosticRegistry.composeReport(state, diagnosticLog, maxChars = 2_600))
             }
             if (asksForAdvice) {
                 appendLine("PROTOCOLO DE ASESORAMIENTO:")
@@ -89,5 +89,5 @@ object OrionSelfKnowledgeAdvisor {
         }.take(MAX_CONTEXT_CHARS)
     }
 
-    private const val MAX_CONTEXT_CHARS = 6_000
+    private const val MAX_CONTEXT_CHARS = 6_500
 }
