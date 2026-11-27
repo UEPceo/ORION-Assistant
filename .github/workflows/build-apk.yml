@@ -1,41 +1,74 @@
 name: Build APK (debug)
 
 on:
-  workflow_dispatch:      # permite lanzarlo a mano desde la pestaña Actions
+  workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: orion-debug-apk-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
+    name: Compile ORION debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: JDK 17
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Gradle (caché)
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          sdkmanager --list_installed
+
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Aceptar licencias del SDK de Android
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+      - name: Verify build environment
+        run: |
+          java -version
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          sdkmanager --version
+          chmod +x ./gradlew
+          ./gradlew --version
 
-      - name: Permisos de gradlew
-        run: chmod +x ./gradlew
+      - name: Build debug APK
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon --stacktrace --max-workers=2 assembleDebug 2>&1 | tee build.log
 
-      - name: Compilar APK debug
-        run: ./gradlew assembleDebug --stacktrace
-
-      - name: Subir APK
+      - name: Upload debug APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: ORION-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build log after failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ORION-build-diagnostics
+          path: build.log
+          if-no-files-found: warn
           retention-days: 14
