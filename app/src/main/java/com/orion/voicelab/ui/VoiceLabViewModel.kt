@@ -13,6 +13,8 @@ import com.orion.voicelab.connectors.ConnectorVoiceIntentRouter
 import com.orion.voicelab.connectors.OrionConnectorRuntime
 import com.orion.voicelab.creative.CreativeSkillRouter
 import com.orion.voicelab.creative.CreativeBrainPromptComposer
+import com.orion.voicelab.creative.CreativeSkill
+import com.orion.voicelab.creative.OrionMediaRuntime
 import com.orion.voicelab.data.AsrStats
 import com.orion.voicelab.data.AssistantIdentity
 import com.orion.voicelab.data.AudioHardwareStatus
@@ -98,6 +100,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private val settingsPreferences = appContext.getSharedPreferences("orion_user_settings", 0)
     private val connectorRuntime = OrionConnectorRuntime(appContext)
     private val brainRuntime = OrionBrainRuntime(appContext)
+    private val mediaRuntime = OrionMediaRuntime()
     private val connectorPermissionManager = com.orion.voicelab.connectors.ConnectorPermissionManager()
     @Volatile private var lastConnectorRepository: String? = null
     @Volatile private var pendingConnectorInputAction: com.orion.voicelab.connectors.ConnectorAction? = null
@@ -192,10 +195,18 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 brainRuntime.retrieve(userText)
             }
             val creativeSkill = CreativeSkillRouter.route(userText)
+            val mediaStatus = when (creativeSkill) {
+                CreativeSkill.IMAGE_GENERATION -> mediaRuntime.imageGenerationStatus()
+                CreativeSkill.VIDEO_GENERATION -> mediaRuntime.videoGenerationStatus()
+                CreativeSkill.IMAGE_UNDERSTANDING -> mediaRuntime.imageUnderstandingStatus("image/jpeg")
+                CreativeSkill.VIDEO_UNDERSTANDING -> mediaRuntime.videoUnderstandingStatus()
+                else -> null
+            }
             val creativeContext = CreativeBrainPromptComposer.compose(
                 userText = userText,
                 skill = creativeSkill,
-                activeRole = latestSelectedCoworker?.roleTitle
+                activeRole = latestSelectedCoworker?.roleTitle,
+                mediaStatus = mediaStatus
             )
             baseContext.copy(
                 systemPrompt = baseContext.systemPrompt + "\n\n" +
