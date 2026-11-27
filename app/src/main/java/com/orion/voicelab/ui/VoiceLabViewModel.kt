@@ -350,7 +350,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             Si la petición no se puede resolver con esas consultas, devuelve un JSON con steps vacío.
             Esquema:
             {"goal":"objetivo breve","budget":{"maxSteps":8,"maxRetriesPerStep":1,"maxDurationMs":120000},"steps":[{"id":"s1","kind":"CONNECTOR_READ","title":"...","rationale":"...","risk":"LOW","dependsOn":[],"requiresApproval":false,"connectorId":"GITHUB","connectorOperation":"list_repositories","connectorArguments":{"limit":"5"}}]}
-            Los argumentos deben ser cadenas. IDs únicos. Las dependencias deben referirse a IDs existentes y no crear ciclos.
+            Los argumentos deben ser cadenas y estar completos usando solo datos de la solicitud; no uses variables ni supongas que un paso puede consumir automáticamente la salida de otro. IDs únicos. Las dependencias deben referirse a IDs existentes y no crear ciclos.
         """.trimIndent()
         val generated = languageModel.generateReply(
             systemPrompt = systemPrompt,
