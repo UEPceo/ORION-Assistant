@@ -30,7 +30,7 @@ El plan considera plataforma, público, objetivo y formato. Los objetivos incluy
 
 El motor propone gancho, promesa de valor, estructura, orientación de longitud, copy, CTA, accesibilidad y medición. La puntuación de resultados permite comparar publicaciones propias con señales disponibles: retención, finalización, compartidos, guardados, comentarios cualificados, acciones de perfil, conversiones y feedback negativo.
 
-No replica ni afirma conocer pesos internos de los algoritmos de Instagram, TikTok o YouTube. Sus sistemas cambian y son parcialmente opacos. Para recomendaciones específicas de actualidad, debe conectarse una fuente de documentación oficial y datos recientes de la cuenta. Nunca se promete viralidad ni se fomenta spam, interacción artificial o engagement bait.
+No replica ni afirma conocer pesos internos de los algoritmos de Instagram, TikTok o YouTube. Sus sistemas cambian y son parcialmente opacos. Para recomendaciones específicas de actualidad, debe conectarse una fuente de documentación oficial y datos recientes de la cuenta. Se ha añadido un catálogo inicial de referencias oficiales para Meta/Instagram, TikTok, YouTube y LinkedIn en `SocialPlatformReferenceCatalog`; no sustituye la consulta y actualización de esas páginas. Nunca se promete viralidad ni se fomenta spam, interacción artificial o engagement bait.
 
 ### Comprensión de imágenes y vídeos
 
