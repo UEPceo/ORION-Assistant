@@ -1054,6 +1054,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                         archiveName = "${voice.modelDirectoryName}.tar.bz2",
                         modelFileName = voice.modelFileName,
                         url = url,
+                        shouldCancel = { !viewModelScope.isActive },
                         onProgress = { percent, downloadedMb, totalMb ->
                             _uiState.update { it.copy(
                                 voiceDownloadProgressPercent = percent,
