@@ -144,3 +144,15 @@ El registro incorpora la versión instalada de ORION, API de Android, fabricante
 
 La recuperación recomendada se limita a acciones seguras y reversibles. No elimina modelos, no cambia permisos, no reintenta operaciones sensibles ni transmite registros por sí misma. El inventario se mantiene manualmente y debe revisarse cuando cambien módulos, versiones o dependencias; todavía no es un escáner automático del código ni un grafo de dependencias generado desde Gradle.
 
+
+
+### Autodiagnóstico de estado en vivo v1.1
+
+El informe de autodiagnóstico recibe ahora el contexto de la aplicación y realiza comprobaciones locales de solo lectura antes de formular recomendaciones:
+
+- Estado de los modelos ASR, LLM y TTS en disco, diferenciándolo de su carga efectiva en RAM.
+- Permisos Android relevantes para micrófono, contactos, llamadas, calendario y notificaciones (este último solo desde Android 13).
+- Espacio disponible en la partición de datos y memoria RAM disponible, incluyendo el indicador de presión de memoria del sistema.
+- Estado de conversación y escucha, versión de ORION, API y dispositivo, junto con los eventos técnicos correlacionados.
+
+La comprobación no solicita permisos, no descarga ni repara modelos, no modifica archivos y no transmite datos. Un permiso ausente se presenta como una limitación funcional potencial, no como un fallo automático. Un modelo instalado pero no cargado se distingue de uno ausente o incompleto. Se añade una prueba Robolectric para verificar que el informe incorpora estas comprobaciones con un contexto Android.
