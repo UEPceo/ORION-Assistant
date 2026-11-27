@@ -50,7 +50,7 @@ object SpanishDateTimeParser {
     )
 
     private val relativeOffsetRegex = Regex(
-        """\b(?:en|dentro\s+de)\s+(\d+|un|una|dos|tres|cuatro|cinco|seis|diez|quince|veinte|treinta|media)\s+(minuto|minutos|hora|horas|dia|dias)\b"""
+        """\b(?:en|dentro\s+de)\s+(\d+|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince|veinte|treinta|cuarenta\s+y\s+cinco|media)\s+(minuto|minutos|hora|horas|dia|dias)\b"""
     )
 
     private val numericTimeRegex = Regex(
