@@ -109,7 +109,7 @@ class GitHubApiClient(
         withContext(Dispatchers.IO) {
             runCatching {
                 require(REPOSITORY_PATTERN.matches(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
-                val json = requestJson("/repos/$repository/commits?per_page=20&page=\${page.coerceIn(1, MAX_PAGE)}")
+                val json = requestJson("/repos/$repository/commits?per_page=20&page=${page.coerceIn(1, MAX_PAGE)}")
                 buildList {
                     for (i in 0 until json.length()) {
                         val item = json.optJSONObject(i) ?: continue
@@ -131,7 +131,7 @@ class GitHubApiClient(
         withContext(Dispatchers.IO) {
             runCatching {
                 require(REPOSITORY_PATTERN.matches(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
-                val root = requestObject("/repos/$repository/actions/runs?per_page=20&page=\${page.coerceIn(1, MAX_PAGE)}")
+                val root = requestObject("/repos/$repository/actions/runs?per_page=20&page=${page.coerceIn(1, MAX_PAGE)}")
                 val runs = root.optJSONArray("workflow_runs") ?: JSONArray()
                 buildList {
                     for (i in 0 until runs.length()) {
@@ -159,7 +159,7 @@ class GitHubApiClient(
                 val safeBranch = branch?.takeIf { it.isNotBlank() }?.let {
                     "&ref=" + java.net.URLEncoder.encode(it.take(120), Charsets.UTF_8.name())
                 }.orEmpty()
-                val endpoint = "/repos/$repository/contents\${if (safePath.isBlank()) "" else "/$safePath"}?$safeBranch"
+                val endpoint = "/repos/$repository/contents${if (safePath.isBlank()) "" else "/$safePath"}?$safeBranch"
                 val json = requestAny(endpoint)
                 val entries = if (json is JSONArray) json else JSONArray().put(json)
                 buildList {
