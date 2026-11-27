@@ -5,6 +5,7 @@ import android.util.AtomicFile
 import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
+import java.security.MessageDigest
 import java.text.Normalizer
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -119,7 +120,8 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                             }
                         }
                     }.orEmpty()
-                    if (evidence.id.isNotBlank() && evidence.canonicalUrl.startsWith("https://")) {
+                    if (evidence.id.isNotBlank() && evidence.canonicalUrl.startsWith("https://") &&
+                        (evidence.contentHash == null || evidence.contentHash == sha256(evidence.content))) {
                         add(KnowledgeDocument(
                             evidence = evidence,
                             excerpt = item.optString("excerpt", evidence.content),
@@ -164,6 +166,10 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
             throw IllegalStateException("No se pudo guardar el corpus local de conocimiento.", error)
         }
     }
+
+    private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
 
     private fun authorityWeight(authority: EvidenceAuthority): Int = when (authority) {
         EvidenceAuthority.OFFICIAL_PRIMARY -> 7
