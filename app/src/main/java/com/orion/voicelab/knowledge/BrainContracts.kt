@@ -29,6 +29,7 @@ interface KnowledgeRepository {
     suspend fun search(query: BrainQuery, limit: Int): List<KnowledgeDocument>
     suspend fun upsert(document: KnowledgeDocument)
     suspend fun remove(documentId: String)
+    suspend fun contains(documentId: String): Boolean
 }
 
 enum class LearningOrigin {
