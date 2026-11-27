@@ -171,7 +171,7 @@ class GitHubDeviceFlowAuthenticator(
         const val ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
         const val VERIFICATION_URI = "https://github.com/login/device"
         const val DEVICE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
-        const val REQUESTED_SCOPES = "read:user,public_repo"
+        const val REQUESTED_SCOPES = "read:user"
         const val DEFAULT_POLL_INTERVAL = 5L
         const val SLOW_DOWN_INCREMENT_SECONDS = 5L
         const val CONNECT_TIMEOUT_MS = 10_000
