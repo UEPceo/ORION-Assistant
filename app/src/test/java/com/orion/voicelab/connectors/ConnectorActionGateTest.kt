@@ -75,6 +75,20 @@ class ConnectorActionGateTest {
     }
 
     @Test
+    fun unknownListOrGetPrefixedOperationsCannotBypassReadOnlyGate() {
+        listOf("list_and_delete", "get_then_delete", "search_and_send").forEach { operation ->
+            assertEquals(
+                ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION,
+                ConnectorActionGate.evaluate(
+                    ConnectorAction(ConnectorId.GITHUB, operation, risk = ConnectorRisk.READ_ONLY),
+                    userRequestedExactAction = true,
+                    connectorConnected = true
+                )
+            )
+        }
+    }
+
+    @Test
     fun externalSideEffectsAlwaysRequireConfirmation() {
         val action = ConnectorAction(
             connectorId = ConnectorId.GMAIL,
