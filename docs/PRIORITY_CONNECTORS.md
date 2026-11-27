@@ -1,6 +1,6 @@
 # ORION — Conectores prioritarios
 
-Estado: cuatro integraciones prioritarias fijadas. No ampliar el catálogo a otros proveedores hasta completar estas cuatro.
+Estado: primera integración funcional de las cuatro prioridades incorporada. El alcance se limita a capacidades verificables; no se declara acceso a datos privados sin API/permisos específicos.
 
 ## 1. Notas del móvil
 
@@ -11,7 +11,7 @@ Primera entrega implementada:
 - Envío mediante Android Sharesheet (ACTION_SEND, text/plain); Google Keep aparecerá como destino si está instalado y registrado para recibir texto.
 - El usuario elige el destino y confirma la acción en el selector del sistema.
 
-Pendiente para completar el conector:
+Pendiente de ampliación:
 - Recepción de notas compartidas desde Keep hacia ORION.
 - Biblioteca local de notas con persistencia Room, búsqueda e indexación para el cerebro.
 - Importación de documentos seleccionados mediante Storage Access Framework.
@@ -27,7 +27,7 @@ Primera entrega implementada:
 - Transferencia mediante ACTION_INSERT y CalendarContract.Events.CONTENT_URI a la aplicación de calendario instalada.
 - El usuario revisa y guarda el evento en la aplicación de destino. No se solicitan permisos de calendario y ORION no escribe silenciosamente.
 
-Pendiente para completar el conector:
+Pendiente de ampliación:
 - Lectura de próximos eventos mediante CalendarContract con permiso READ_CALENDAR en tiempo de ejecución.
 - Crear directamente en un calendario seleccionado con WRITE_CALENDAR y confirmación explícita, si el usuario habilita esa modalidad.
 - Modificar y eliminar eventos con confirmación reforzada.
@@ -38,12 +38,11 @@ No duplicar el calendario completo dentro de la base de ORION. Consultar bajo de
 
 ## 3. Google Maps
 
-Primera entrega sin API key: intents y URI oficiales de Android/Google Maps para:
-- Buscar lugares y direcciones.
-- Mostrar un lugar en el mapa.
-- Abrir navegación a pie, en coche o en transporte cuando Google Maps lo soporte.
-- Compartir coordenadas o una dirección desde ORION a Maps.
-- Abrir desde un lugar de PescaIA la ficha o navegación correspondiente.
+Primera entrega incorporada:
+- Tarjeta de Maps con búsqueda de lugar/dirección y apertura de navegación.
+- Enrutamiento por voz para búsquedas explícitas y navegación a pie, coche o transporte público.
+- Proveedor Android registrado en el runtime; las búsquedas se consideran lectura y la navegación requiere confirmación adicional en el dispatcher.
+- Intents geo: y google.navigation: sin API key ni permiso de ubicación en segundo plano.
 
 La ubicación del usuario solo se solicita cuando una función concreta la necesita, con permiso en tiempo de ejecución. No mantener seguimiento de ubicación en segundo plano.
 
@@ -53,13 +52,14 @@ Una futura búsqueda avanzada de Places, reseñas o detalles estructurados puede
 
 Objetivo: que ORION sea capaz de consultar la información pública y, cuando se autorice, la información privada de la cuenta del usuario.
 
-Primera entrega pública:
-- Catálogo de playas y fichas de pesqueros.
-- Previsión marina y condiciones disponibles.
-- Mareas y calendario solunar.
-- Metodología, fuentes y fecha de revisión.
-- Guías de especies, cebos, técnicas y material.
-- Normativa y tallas con enlaces a las fuentes oficiales originales.
+Primera entrega pública incorporada:
+- Proveedor de consulta HTTP de páginas públicas con lista fija de dominios y URLs de PescaIA.
+- Lectura acotada de la portada, catálogo de playas y metodología; extracción de texto limitada por tamaño y tiempo de espera.
+- Búsqueda por términos sobre los fragmentos obtenidos, devolviendo las URLs de origen y advertencia de que la información es orientativa.
+- Enrutamiento por voz para consultas explícitas que mencionan PescaIA.
+- Tarjeta con accesos directos a la web, catálogo de playas y metodología.
+
+No se afirma que esta primera versión lea la previsión horaria dinámica, mareas en tiempo real ni los datos privados de una cuenta. Esos datos requieren endpoints públicos estables o una API autenticada del backend.
 
 Cuenta personal, fase posterior del mismo conector:
 - Bitácora, playas favoritas y preferencias del usuario.
@@ -82,14 +82,14 @@ Cada proveedor debe declarar:
 
 Toda salida debe indicar origen y hora de consulta cuando la información sea dinámica. Los datos no deben incorporarse automáticamente a la memoria personal o al corpus general.
 
-## Orden de implementación
+## Estado y siguientes ampliaciones
 
-1. Notas: biblioteca local + importar/compartir + crear mediante intent compatible.
-2. Calendario: lectura y creación controladas con CalendarContract y fallback a intents.
-3. Maps: búsqueda, mapa y navegación mediante intents; permisos de ubicación solo cuando sean necesarios.
-4. PescaIA: primero consulta pública de fuentes y catálogo; después cuenta y datos privados mediante contrato API autenticado.
+1. Keep: añadir recepción de notas compartidas, biblioteca Room e importación mediante Storage Access Framework.
+2. Calendario: lectura de agenda con permiso runtime y creación directa solo con confirmación; después edición y borrado.
+3. Maps: ampliar a búsqueda avanzada de Places solo si se justifica el coste y la clave restringida.
+4. PescaIA: descubrir y documentar endpoints públicos estables para previsión/mareas; para cuenta privada, integrar API autenticada y scopes mínimos.
 
-## Bloqueos de integración que deben resolverse antes de declarar los conectores completos
+## Límites que deben resolverse antes de ampliar el alcance
 
 - La aplicación de destino ya está elegida: Google Keep. La lectura global de notas privadas no está disponible mediante una API pública de consumo; el intercambio debe basarse en acciones explícitas del usuario.
 - Para PescaIA privada, definir el contrato estable de API y autenticación de la cuenta; no incrustar service-role keys ni secretos Supabase en la aplicación.
