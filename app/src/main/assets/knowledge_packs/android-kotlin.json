@@ -1,0 +1,27 @@
+{
+  "id": "android-kotlin",
+  "version": 1,
+  "title": "Android y Kotlin: fundamentos prácticos",
+  "documents": [
+    {
+      "id": "android-lifecycle",
+      "title": "Ciclo de vida de Activity en Android",
+      "url": "https://developer.android.com/guide/components/activities/activity-lifecycle",
+      "publisher": "Android Developers",
+      "domain": "PROGRAMMING",
+      "authority": "PRIMARY_TECHNICAL",
+      "jurisdiction": null,
+      "content": "El ciclo de vida de una Activity describe cómo Android crea, muestra, pausa, detiene, reanuda y destruye una pantalla. Los callbacks principales son onCreate, onStart, onResume, onPause, onStop y onDestroy. No deben tratarse como una secuencia lineal que siempre se completa: una Activity puede pausarse y volver a primer plano, detenerse y reanudarse, o destruirse por un cambio de configuración o por presión de memoria. onPause indica pérdida de foco y debe ser breve; no es un lugar fiable para guardar datos, hacer peticiones de red o transacciones largas. onStop es apropiado para liberar recursos que ya no se necesitan cuando la pantalla deja de ser visible. onDestroy no está garantizado como mecanismo de persistencia ante la muerte del proceso. La interfaz debe conservar estado importante mediante ViewModel y almacenamiento persistente, no confiar en que la instancia siga viva. En aplicaciones Compose, conviene recoger Flows respetando el ciclo de vida, por ejemplo con collectAsStateWithLifecycle, y evitar mantener observadores o lógica de negocio ligados manualmente a callbacks de Activity. Una Activity pausada puede seguir visible en multiventana; por eso pausar no equivale siempre a quedar completamente oculta. Diseña cada operación según el estado real y haz que la recuperación tras recreación sea segura."
+    },
+    {
+      "id": "kotlin-coroutines",
+      "title": "Kotlin Coroutines: concurrencia estructurada",
+      "url": "https://kotlinlang.org/docs/coroutines-basics.html",
+      "publisher": "Kotlin Documentation",
+      "domain": "PROGRAMMING",
+      "authority": "PRIMARY_TECHNICAL",
+      "jurisdiction": null,
+      "content": "Una coroutine es una computación suspendible: puede esperar sin bloquear el hilo que la ejecuta. La palabra suspend permite declarar funciones que se suspenden y reanudan; no crea por sí sola un hilo nuevo. launch inicia trabajo concurrente en un CoroutineScope y devuelve un Job; async produce un Deferred cuyo resultado se obtiene con await. runBlocking bloquea el hilo llamante y debe reservarse para puentes excepcionales, no para el flujo normal de una interfaz Android. El dispatcher decide dónde se ejecuta el trabajo: Dispatchers.Main para interacción de UI, Dispatchers.IO para operaciones de entrada/salida bloqueantes y Dispatchers.Default para trabajo intensivo de CPU. withContext permite cambiar de dispatcher de forma estructurada. La cancelación forma parte del contrato: las funciones suspendibles deben propagar CancellationException y no tragarse la cancelación como si fuera un error ordinario. Las tareas hijas deben permanecer dentro del alcance de su padre para evitar trabajos huérfanos. En Android, ViewModel suele usar viewModelScope para trabajo ligado a la pantalla y lifecycle-aware collection para observar flujos solo cuando la UI está activa. Usa límites temporales, manejo explícito de excepciones y operaciones idempotentes cuando haya reintentos."
+    }
+  ]
+}
