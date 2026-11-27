@@ -1,0 +1,62 @@
+package com.orion.voicelab.connectors
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class ConnectorActionGateTest {
+    @Test
+    fun disconnectedProviderIsAlwaysDenied() {
+        val action = ConnectorAction(
+            connectorId = ConnectorId.GMAIL,
+            operation = "search",
+            risk = ConnectorRisk.READ_ONLY
+        )
+
+        assertEquals(
+            ConnectorAuthorizationDecision.DENY,
+            ConnectorActionGate.evaluate(action, userRequestedExactAction = true, connectorConnected = false)
+        )
+    }
+
+    @Test
+    fun explicitReadRequestIsAllowedWhenConnected() {
+        val action = ConnectorAction(
+            connectorId = ConnectorId.GITHUB,
+            operation = "list_repositories",
+            risk = ConnectorRisk.READ_ONLY
+        )
+
+        assertEquals(
+            ConnectorAuthorizationDecision.ALLOW,
+            ConnectorActionGate.evaluate(action, userRequestedExactAction = true, connectorConnected = true)
+        )
+    }
+
+    @Test
+    fun unsolicitedReadRequiresConfirmation() {
+        val action = ConnectorAction(
+            connectorId = ConnectorId.GMAIL,
+            operation = "search",
+            risk = ConnectorRisk.READ_ONLY
+        )
+
+        assertEquals(
+            ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION,
+            ConnectorActionGate.evaluate(action, userRequestedExactAction = false, connectorConnected = true)
+        )
+    }
+
+    @Test
+    fun externalSideEffectsAlwaysRequireConfirmation() {
+        val action = ConnectorAction(
+            connectorId = ConnectorId.GMAIL,
+            operation = "send_message",
+            risk = ConnectorRisk.EXTERNAL_SIDE_EFFECT
+        )
+
+        assertEquals(
+            ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION,
+            ConnectorActionGate.evaluate(action, userRequestedExactAction = true, connectorConnected = true)
+        )
+    }
+}
