@@ -78,4 +78,33 @@ class BrainCoreTest {
         )
         assertEquals(LearningDecision.STORE_AS_UNVERIFIED, BrainLearningPolicy.decide(candidate))
     }
+    @Test
+    fun webSearchRequiresAnExplicitUserRequest() {
+        assertEquals(true, WebSearchIntentPolicy.requiresWebSearch("Busca en internet las últimas novedades de Kotlin"))
+        assertEquals(false, WebSearchIntentPolicy.requiresWebSearch("Explícame cómo funciona Kotlin"))
+    }
+
+    @Test
+    fun unknownSearchSnippetsCannotVerifyGeneralClaims() {
+        val snippets = listOf("a", "b").map { host ->
+            KnowledgeEvidence(
+                id = host,
+                title = "Search snippet",
+                canonicalUrl = "https://$host.example.org/result",
+                publisherId = "$host.example.org",
+                domain = KnowledgeDomain.GENERAL,
+                authority = EvidenceAuthority.UNKNOWN,
+                retrievedAtMs = 1_000L,
+                content = "Search result excerpt"
+            )
+        }
+        val result = KnowledgeVerifier.assess(
+            evidence = snippets,
+            domain = KnowledgeDomain.GENERAL,
+            nowMs = 2_000L,
+            maxAgeMs = 10_000L
+        )
+        assertEquals(KnowledgeVerdict.NEEDS_CORROBORATION, result.verdict)
+    }
+
 }
