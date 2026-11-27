@@ -113,6 +113,7 @@ class BrainCoreTest {
     @Test
     fun offlinePackTopicsRouteToTheirStoredDomains() {
         assertEquals(KnowledgeDomain.PROGRAMMING, BrainQueryRouter.route("Kotlin coroutines y Android Activity").domain)
+        assertEquals(KnowledgeDomain.INTERNET, BrainQueryRouter.route("Qué es HTTP y cómo funciona un servidor web").domain)
         assertEquals(KnowledgeDomain.CYBERSECURITY, BrainQueryRouter.route("Cómo proteger contraseñas con doble factor").domain)
         assertEquals(KnowledgeDomain.FISHING, BrainQueryRouter.route("Cómo funciona PescaREC para pesca recreativa").domain)
         assertEquals(KnowledgeDomain.LAW_AND_REGULATION, BrainQueryRouter.route("Qué establece el Decreto 205/2023").domain)
