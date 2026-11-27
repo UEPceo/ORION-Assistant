@@ -8,6 +8,7 @@
     <string name="tab_tasks">Tareas</string>
     <string name="tab_conversations">Chats</string>
     <string name="tab_memory">Memoria</string>
+    <string name="tab_connectors">Conectores</string>
     <string name="tab_lab">Lab</string>
     <string name="section_diagnostics">DIAGNÓSTICO LOCAL · 0.8.0</string>
 
