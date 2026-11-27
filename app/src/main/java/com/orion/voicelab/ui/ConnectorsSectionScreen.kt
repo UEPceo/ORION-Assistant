@@ -161,32 +161,37 @@ fun ConnectorsSectionScreen(
                                 listOf(Scope(GMAIL_READONLY_SCOPE))
                             )
                             .build()
-                        Identity.getAuthorizationClient(context)
-                            .authorize(request)
-                            .addOnSuccessListener { authorizationResult ->
-                                if (authorizationResult.hasResolution()) {
-                                    val pendingIntent = authorizationResult.pendingIntent
-                                    if (pendingIntent == null) {
-                                        gmailBusy = false
-                                        gmailStatus = "Google no proporcionó la pantalla de autorización."
-                                    } else {
-                                        runCatching {
-                                            gmailAuthorizationLauncher.launch(
-                                                IntentSenderRequest.Builder(pendingIntent.intentSender).build()
-                                            )
-                                        }.onFailure {
+                        try {
+                            Identity.getAuthorizationClient(context)
+                                .authorize(request)
+                                .addOnSuccessListener { authorizationResult ->
+                                    if (authorizationResult.hasResolution()) {
+                                        val pendingIntent = authorizationResult.pendingIntent
+                                        if (pendingIntent == null) {
                                             gmailBusy = false
-                                            gmailStatus = "No se pudo abrir la autorización de Google."
+                                            gmailStatus = "Google no proporcionó la pantalla de autorización."
+                                        } else {
+                                            runCatching {
+                                                gmailAuthorizationLauncher.launch(
+                                                    IntentSenderRequest.Builder(pendingIntent.intentSender).build()
+                                                )
+                                            }.onFailure {
+                                                gmailBusy = false
+                                                gmailStatus = "No se pudo abrir la autorización de Google."
+                                            }
                                         }
+                                    } else {
+                                        saveGmailAuthorization(authorizationResult)
                                     }
-                                } else {
-                                    saveGmailAuthorization(authorizationResult)
                                 }
-                            }
-                            .addOnFailureListener {
-                                gmailBusy = false
-                                gmailStatus = "No se pudo iniciar la autorización de Gmail."
-                            }
+                                .addOnFailureListener {
+                                    gmailBusy = false
+                                    gmailStatus = "No se pudo iniciar la autorización de Gmail."
+                                }
+                        } catch (_: Exception) {
+                            gmailBusy = false
+                            gmailStatus = "Google Identity no está disponible en este dispositivo."
+                        }
                     },
                     onDisconnect = {
                         gmailBusy = true
