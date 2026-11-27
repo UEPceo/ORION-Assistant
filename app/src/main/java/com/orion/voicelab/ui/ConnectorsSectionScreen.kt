@@ -300,6 +300,8 @@ fun ConnectorsSectionScreen(
                 )
             } else if (connector.id.name == "ANDROID_NOTES") {
                 GoogleKeepConnectorCard()
+            } else if (connector.id.name == "ANDROID_CALENDAR") {
+                AndroidCalendarConnectorCard()
             } else {
                 ConnectorProviderCard(connector)
             }
