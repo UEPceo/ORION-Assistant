@@ -230,9 +230,11 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     init {
         speechSynthesizer.selectVoice(settingsPreferences.getString("selected_voice_id", "sharvard_f").orEmpty())
+        val speakerEnabled = settingsPreferences.getBoolean("speaker_enabled", false)
+        audioRoutingController.setSpeakerEnabled(speakerEnabled)
         _uiState.update { it.copy(
             selectedVoiceId = speechSynthesizer.selectedVoice().id,
-            isSpeakerEnabled = settingsPreferences.getBoolean("speaker_enabled", false)
+            isSpeakerEnabled = speakerEnabled
         ) }
         attachConversationCallbacks()
         observePersistenceFlows()
