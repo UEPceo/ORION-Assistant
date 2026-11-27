@@ -938,7 +938,7 @@ fun TaskEditorDialog(
     var category by remember { mutableStateOf(existingTask?.category ?: prefillCategory) }
     var notes by remember { mutableStateOf(existingTask?.notes ?: "") }
     var priority by remember { mutableStateOf(existingTask?.priority ?: prefillPriority) }
-    var selectedDateEpochDay by remember { mutableStateOf(existingTask?.dueDateEpochDay ?: today.toEpochDay()) }
+    var selectedDateEpochDay by remember { mutableStateOf<Long?>(existingTask?.dueDateEpochDay ?: today.toEpochDay()) }
     var customDateText by remember {
         mutableStateOf(
             (existingTask?.dueDateEpochDay ?: today.toEpochDay()).let { day ->
