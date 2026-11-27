@@ -17,6 +17,7 @@ class TaskReminderReceiver : BroadcastReceiver() {
         const val ACTION_COMPLETE_TASK = "com.orion.voicelab.action.COMPLETE_TASK"
         const val ACTION_SNOOZE_TASK = "com.orion.voicelab.action.SNOOZE_TASK"
         const val ACTION_DISMISS_REMINDER = "com.orion.voicelab.action.DISMISS_TASK_REMINDER"
+        const val ACTION_EXACT_ALARM_PERMISSION_CHANGED = "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"
         const val EXTRA_TASK_ID = "extra_task_id"
         private const val DEFAULT_SNOOZE_MINUTES = 60L
 
@@ -67,7 +68,8 @@ class TaskReminderReceiver : BroadcastReceiver() {
                 Intent.ACTION_BOOT_COMPLETED,
                 Intent.ACTION_MY_PACKAGE_REPLACED,
                 Intent.ACTION_TIME_CHANGED,
-                Intent.ACTION_TIMEZONE_CHANGED -> {
+                Intent.ACTION_TIMEZONE_CHANGED,
+                ACTION_EXACT_ALARM_PERMISSION_CHANGED -> {
                     repo.reconcileReminders()
                 }
             }
