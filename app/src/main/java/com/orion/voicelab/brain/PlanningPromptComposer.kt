@@ -8,6 +8,8 @@ object PlanningPromptComposer {
  }
  fun compose(userText:String):String {
   if(!isMultiStepRequest(userText))return ""
+  val available = ToolCapabilityCatalog.tools.filter { it.availability == ToolAvailability.OPERATIONAL || it.availability == ToolAvailability.PARTIAL }
+   .joinToString("; ") { "${it.name}: ${it.availability} (${it.limitation})" }.take(700)
   return """MODO DE PLANIFICACIÓN MULTIPASO:
 - Descompón el objetivo en pasos pequeños, ordenados y verificables.
 - Indica dependencias, resultado esperado y riesgo de cada paso.
