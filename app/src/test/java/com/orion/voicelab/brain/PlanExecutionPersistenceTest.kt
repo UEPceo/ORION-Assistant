@@ -59,6 +59,8 @@ class PlanExecutionPersistenceTest {
                 nowMs = 200L
             )
 
+            assertEquals(0, repository.delete(plan.id))
+            assertTrue(repository.load(plan.id) != null)
             assertEquals(1, service.recoverInterruptedExecutions())
             val recovered = repository.load(plan.id)!!
             assertEquals(PlanStatus.PAUSED, recovered.status)
