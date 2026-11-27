@@ -2370,7 +2370,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val activeOrLatestCall = if (action.linkLatestOrActiveCall) {
             val activeId = activeTelephonyCallRecordId
             if (activeId != null) {
-                phoneRepository.getCallRecordById(activeId)
+                phoneRepository.getAllCallRecords().firstOrNull { it.id == activeId }
             } else {
                 phoneRepository.getLatestCallRecord()
             }
