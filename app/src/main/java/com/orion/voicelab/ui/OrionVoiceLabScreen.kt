@@ -2140,64 +2140,6 @@ private fun ToolsActionRow(
 }
 
 @Composable
-private fun TelemetryPanel(state: VoiceLabUiState) {
-    val snap = state.metricsSnapshot
-    val metricsText = remember(snap, state.modelSizeMb, state.modelLoadMs, state.asrStats) {
-        buildString {
-            if (snap != null) {
-                append(DeviceMetrics.describe(snap))
-            } else {
-                append("Leyendo métricas del sistema…")
-            }
-            append("\nModelo en disco: ${state.modelSizeMb} MB")
-            if (state.modelLoadMs >= 0) {
-                append(" · carga modelo+VAD: ${state.modelLoadMs} ms")
-            }
-            append("\n")
-            append(state.asrStats.summaryLine())
-        }
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("telemetry_panel"),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Memory,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(16.dp)
-                )
-                Text(
-                    text = stringResource(R.string.section_telemetry),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            Text(
-                text = metricsText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.tertiary
-            )
-        }
-    }
-}
-
-@Composable
 private fun SectionLabel(text: String) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
