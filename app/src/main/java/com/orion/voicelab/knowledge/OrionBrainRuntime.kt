@@ -15,7 +15,7 @@ class OrionBrainRuntime(
         sources = listOf(localCorpus, DuckDuckGoKnowledgeSource()) + externalSources.filterNot { it.sourceId in setOf(localCorpus.sourceId, "duckduckgo-web-discovery") }
     )
     private val ingestion = KnowledgeIngestionService(localCorpus)
-    val offlinePackInstaller = BundledKnowledgePackInstaller(context, ingestion)
+    val offlinePackInstaller = BundledKnowledgePackInstaller(context, ingestion, localCorpus)
 
     suspend fun retrieve(queryText: String, jurisdiction: String? = null): BrainContext {
         offlinePackInstaller.installIfNeeded()
