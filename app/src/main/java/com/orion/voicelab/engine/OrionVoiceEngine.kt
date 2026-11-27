@@ -249,17 +249,19 @@ class OrionVoiceEngine {
         val audioMs = samples.size * 1000L / SAMPLE_RATE
         try {
             asrExecutor.execute {
+                val t0 = SystemClock.elapsedRealtime()
+                var stream: com.k2fsa.sherpa.onnx.OnlineStream? = null
                 try {
-                    val t0 = SystemClock.elapsedRealtime()
-                    val stream = activeRecognizer.createStream()
+                    stream = activeRecognizer.createStream()
                     stream.acceptWaveform(samples, SAMPLE_RATE)
                     activeRecognizer.decode(stream)
                     val text = activeRecognizer.getResult(stream).text.trim()
-                    stream.release()
                     val decodeMs = SystemClock.elapsedRealtime() - t0
                     listener.onTranscriptReady(text, audioMs, decodeMs)
                 } catch (e: Exception) {
                     listener.onError("Error de reconocimiento: ${e.message ?: "desconocido"}")
+                } finally {
+                    try { stream?.release() } catch (_: Exception) {}
                 }
             }
         } catch (_: RejectedExecutionException) {
