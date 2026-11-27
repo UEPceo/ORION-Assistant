@@ -4,14 +4,19 @@ Estado: cuatro integraciones prioritarias fijadas. No ampliar el catálogo a otr
 
 ## 1. Notas del móvil
 
-Objetivo: consultar, capturar, crear y organizar notas del usuario.
+Aplicación de destino elegida: Google Keep.
 
-Integración propuesta:
-- Mantener en ORION una biblioteca local de notas propia, indexable por el cerebro y sincronizada solo si el usuario lo activa.
-- Importar notas de otras aplicaciones mediante Android Sharesheet, ACTION_SEND y selector de documentos (Storage Access Framework).
-- Crear una nota en una aplicación compatible mediante ACTION_CREATE_NOTE cuando esté disponible; usar ACTION_SEND como alternativa.
-- Permitir que el usuario comparta una nota concreta desde Samsung Notes, Google Keep u otra app para incorporarla a ORION.
-- Mantener referencia a la aplicación de origen, fecha de importación y permiso otorgado.
+Primera entrega implementada:
+- Tarjeta Google Keep en Conectores con título y contenido editables.
+- Envío mediante Android Sharesheet (ACTION_SEND, text/plain); Google Keep aparecerá como destino si está instalado y registrado para recibir texto.
+- El usuario elige el destino y confirma la acción en el selector del sistema.
+
+Pendiente para completar el conector:
+- Recepción de notas compartidas desde Keep hacia ORION.
+- Biblioteca local de notas con persistencia Room, búsqueda e indexación para el cerebro.
+- Importación de documentos seleccionados mediante Storage Access Framework.
+- Organización, edición y eliminación de notas propias con controles explícitos.
+- No se usa una API privada o no documentada de Google Keep.
 
 Límite importante: Android no ofrece un proveedor universal que permita leer todas las notas privadas de Samsung Notes, Keep y cualquier aplicación. No se debe prometer lectura global de notas ajenas sin una API oficial del proveedor. ORION solo importa lo que el usuario comparte o selecciona, o lo que un proveedor autorice explícitamente.
 
@@ -83,6 +88,6 @@ Toda salida debe indicar origen y hora de consulta cuando la información sea di
 
 ## Bloqueos de integración que deben resolverse antes de declarar los conectores completos
 
-- Confirmar qué aplicación de notas se usará como destino preferido (Samsung Notes, Google Keep u otra). La importación por compartir puede funcionar sin esa elección.
+- La aplicación de destino ya está elegida: Google Keep. La lectura global de notas privadas no está disponible mediante una API pública de consumo; el intercambio debe basarse en acciones explícitas del usuario.
 - Para PescaIA privada, definir el contrato estable de API y autenticación de la cuenta; no incrustar service-role keys ni secretos Supabase en la aplicación.
 - Para Places avanzado de Google Maps, decidir si se necesita realmente la API de Places o si bastan intents y navegación.
