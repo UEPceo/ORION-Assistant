@@ -139,6 +139,7 @@ class AudioRoutingController internal constructor(
     private var active = false
     private var previousMode: Int = AudioManager.MODE_NORMAL
     private var previousSpeakerphone: Boolean = false
+    private var forceSpeakerEnabled: Boolean = false
     private var listener: ((String) -> Unit)? = null
 
     fun startCallRouting(onRouteChanged: (String) -> Unit): String {
@@ -170,6 +171,16 @@ class AudioRoutingController internal constructor(
             applyPreferredRouteLocked() to listener
         }
         cb?.invoke(label)
+        return label
+    }
+
+    fun setSpeakerEnabled(enabled: Boolean): String {
+        val (label, callback) = synchronized(lock) {
+            forceSpeakerEnabled = enabled
+            val route = if (active) applyPreferredRouteLocked() else if (enabled) "Altavoz" else currentRouteLabel()
+            route to listener
+        }
+        callback?.invoke(label)
         return label
     }
 
@@ -227,6 +238,7 @@ class AudioRoutingController internal constructor(
         try {
             if (backend.isApiSOrAbove) {
                 val targetKind = when {
+                    forceSpeakerEnabled -> OutputDeviceKind.SPEAKER
                     hasWired -> OutputDeviceKind.WIRED_HEADSET
                     hasBluetooth -> OutputDeviceKind.BLUETOOTH
                     else -> OutputDeviceKind.SPEAKER
@@ -236,12 +248,12 @@ class AudioRoutingController internal constructor(
                     backend.clearCommunicationDevice()
                 }
             } else {
-                backend.setSpeakerphoneOn(!(hasWired || hasBluetooth))
+                backend.setSpeakerphoneOn(forceSpeakerEnabled || !(hasWired || hasBluetooth))
             }
         } catch (_: Exception) {
         }
 
-        return describeOutputRoute(outputs)
+        return if (forceSpeakerEnabled) "Altavoz" else describeOutputRoute(outputs)
     }
 
     internal fun describeOutputRoute(outputs: List<OutputDeviceKind>): String {
