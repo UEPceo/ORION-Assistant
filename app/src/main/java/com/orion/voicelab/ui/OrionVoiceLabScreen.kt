@@ -1737,7 +1737,7 @@ private fun CompactVoiceLabLayout(
                 )
             }
             item(key = "telemetry") {
-                TelemetryPanel(state = state)
+                OrionTelemetryPanel(state = state)
             }
             item(key = "diagnostics") {
                 OrionDiagnosticsPanel(state = state)
@@ -1804,7 +1804,7 @@ private fun WideVoiceLabLayout(
                 onCopyReportClick = onCopyReportClick,
                 onClearClick = onClearClick
             )
-            TelemetryPanel(state = state)
+            OrionTelemetryPanel(state = state)
             OrionDiagnosticsPanel(state = state)
         }
 
