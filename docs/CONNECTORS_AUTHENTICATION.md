@@ -2,7 +2,7 @@
 
 ## GitHub — implemented authentication foundation
 
-ORION uses the GitHub OAuth App Device Flow, intended for native devices without an embedded client secret.
+ORION uses the GitHub App Device Flow, intended for native devices without an embedded client secret.
 
 Setup required outside the repository:
 
