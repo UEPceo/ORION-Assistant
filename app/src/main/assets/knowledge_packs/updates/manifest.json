@@ -37,6 +37,60 @@
       "version": 2,
       "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/andalucia-fishing.json",
       "sha256": "43841a4a4637b88cd2d1cdc2e2155c097c6b07bc044e514871d34dc5c4f5f9e9"
+    },
+    {
+      "id": "computer-science",
+      "version": 1,
+      "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/computer-science.json",
+      "sha256": "0caa57b2f62b70c706394c49a66c668dff7a481223c99812d291175de40dfdb4"
+    },
+    {
+      "id": "mathematics",
+      "version": 1,
+      "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/mathematics.json",
+      "sha256": "f42a311c01a0250b61ce1cdd2fe9042f6619b259164e374b55ac1c28d206dd99"
+    },
+    {
+      "id": "science",
+      "version": 1,
+      "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/science.json",
+      "sha256": "79c9c382e38a978e1b9320c6d7d685b0f513e39102cfd5eed60d0f7d4cb9cc96"
+    },
+    {
+      "id": "engineering",
+      "version": 1,
+      "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/engineering.json",
+      "sha256": "71fe6e18feaa0926bdb965b722f9826d7f7409563e69658c09ea4d70161bd74c"
+    },
+    {
+      "id": "finance",
+      "version": 1,
+      "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/finance.json",
+      "sha256": "1a057c9755f7877ac4489c2b625fbc2594b0decf99886fa79b36dc36a1214d71"
+    },
+    {
+      "id": "business",
+      "version": 1,
+      "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/business.json",
+      "sha256": "ca1a26f4a5dceb4af419d0403ad7ec79d3306e4a6dc880ddaffb482a8edfac94"
+    },
+    {
+      "id": "communication",
+      "version": 1,
+      "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/communication.json",
+      "sha256": "b0773ca8042dff7136e64e0ccd09e89c96043643a0216896bae9246aa5379846"
+    },
+    {
+      "id": "creativity",
+      "version": 1,
+      "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/creativity.json",
+      "sha256": "991d0202eb5c958561bb3425b4df34002999910478ac1a03182de1066c8a3b82"
+    },
+    {
+      "id": "general-knowledge",
+      "version": 1,
+      "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/general-knowledge.json",
+      "sha256": "e7f14ab549d9d0e6b5d9f41dd95de379be908aa8be5303348edcb05d9cad9354"
     }
   ]
 }
