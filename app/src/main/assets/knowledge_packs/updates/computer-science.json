@@ -1,0 +1,27 @@
+{
+  "id": "computer-science",
+  "version": 1,
+  "title": "Informática y computación",
+  "documents": [
+    {
+      "id": "Algoritmos y estructuras de datos",
+      "title": "https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/",
+      "url": "MIT OpenCourseWare",
+      "publisher": "PRIMARY_TECHNICAL",
+      "domain": "COMPUTER_SCIENCE",
+      "authority": "Los algoritmos convierten problemas en pasos finitos y comprobables. Para analizarlos se definen entradas, salidas, restricciones, casos límite y criterios de corrección. Arrays, pilas, colas, árboles y tablas hash organizan datos según las operaciones necesarias. La notación O grande describe el crecimiento del coste de tiempo o memoria, no el tiempo exacto de ejecución. Antes de optimizar hay que probar invariantes, entradas límite y medir el cuello de botella. MIT OpenCourseWare aporta materiales académicos; esta síntesis no sustituye demostraciones ni práctica.",
+      "jurisdiction": null,
+      "reviewedAtMs": 1795737600000
+    },
+    {
+      "id": "Sistemas informáticos y gestión del riesgo",
+      "title": "https://www.nist.gov/itl/ai-risk-management-framework",
+      "url": "NIST",
+      "publisher": "OFFICIAL_PRIMARY",
+      "domain": "COMPUTER_SCIENCE",
+      "authority": "Un sistema informático combina hardware, sistema operativo, aplicaciones, datos, redes y personas. La fiabilidad depende de límites claros, control de errores, observabilidad, copias de seguridad y recuperación probada. Disponibilidad, confidencialidad e integridad son propiedades distintas. El riesgo se analiza identificando activos, amenazas, vulnerabilidades, probabilidad e impacto. El marco NIST citado trata riesgos de IA y no debe extrapolarse literalmente a todos los sistemas. Una guía de gestión no equivale a certificación ni garantiza ausencia de fallos.",
+      "jurisdiction": null,
+      "reviewedAtMs": 1795737600000
+    }
+  ]
+}
