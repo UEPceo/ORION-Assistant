@@ -16,7 +16,7 @@ import com.orion.voicelab.data.VoiceLabUiState
  * unless the diagnostic log contains matching evidence.
  */
 object OrionSelfDiagnosticRegistry {
-    const val REGISTRY_VERSION = "1.1"
+    const val REGISTRY_VERSION = "1.2"
 
     private data class ModuleProfile(
         val id: String,
@@ -80,9 +80,9 @@ object OrionSelfDiagnosticRegistry {
             "KNOWLEDGE",
             "Conocimiento y recuperación local",
             "OrionBrainRuntime y repositorio de conocimiento",
-            "corpus local y recuperación léxica",
-            "fuentes registradas, documentos disponibles y procedencia",
-            "comprobar que el corpus contiene fuentes; no presentar conocimiento del modelo como evidencia"
+            "corpus local; índice léxico y semántico disperso; encoder neuronal ONNX opcional (ONNX Runtime Android 1.28.0 y Extensions 0.13.0)",
+            "fuentes registradas, fragmentación documental, estado del encoder opcional e inferencia local",
+            "si ONNX falla, conservar la recuperación léxica y dispersa; comprobar archivo, SHA-256, ABI y bibliotecas nativas antes de reinstalar"
         ),
         ModuleProfile(
             "MEDIA",
@@ -249,7 +249,7 @@ object OrionSelfDiagnosticRegistry {
         "TASKS" -> listOf("tarea", "recordatorio", "alarma").any(component::contains)
         "CONTACTS_CALLS" -> listOf("contact", "llamada", "telefon", "teléfono").any(component::contains)
         "CONNECTORS" -> listOf("gmail", "github", "calendar", "maps", "keep", "conector").any(component::contains)
-        "KNOWLEDGE" -> listOf("knowledge", "conocimiento", "rag", "fuente").any(component::contains)
+        "KNOWLEDGE" -> listOf("knowledge", "conocimiento", "rag", "fuente", "onnx", "embedding", "encoder neuronal").any(component::contains)
         "MEDIA" -> listOf("media", "multimedia", "creative", "imagen", "video", "vídeo").any(component::contains)
         "DIAGNOSTICS" -> listOf("diagn", "crash", "log").any(component::contains)
         else -> false
