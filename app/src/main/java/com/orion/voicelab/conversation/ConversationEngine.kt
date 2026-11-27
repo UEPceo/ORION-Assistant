@@ -48,7 +48,7 @@ class ConversationEngine internal constructor(
     private val clockMs: () -> Long = { SystemClock.elapsedRealtime() },
     private val workerDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val turnContextResolver: ((userText: String, recentHistory: List<ChatMessage>) -> TurnContext)? = null,
+    private val turnContextResolver: (suspend (userText: String, recentHistory: List<ChatMessage>) -> TurnContext)? = null,
     private val directTurnResponder: (suspend (userText: String) -> String?)? = null,
     inputFactory: (() -> VoiceInputController)? = null
 ) {
@@ -61,7 +61,7 @@ class ConversationEngine internal constructor(
         playbackEngine: AudioOutputSink = AudioPlaybackEngine(),
         vadFactory: () -> VoiceActivityDetector = { SileroVoiceActivityDetector(assets) },
         sampleRate: Int = SileroVoiceActivityDetector.SAMPLE_RATE,
-        turnContextResolver: ((userText: String, recentHistory: List<ChatMessage>) -> TurnContext)? = null,
+        turnContextResolver: (suspend (userText: String, recentHistory: List<ChatMessage>) -> TurnContext)? = null,
         directTurnResponder: (suspend (userText: String) -> String?)? = null
     ) : this(
         speechRecognizer = speechRecognizer,
