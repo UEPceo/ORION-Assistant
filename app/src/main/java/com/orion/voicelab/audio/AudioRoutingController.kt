@@ -8,156 +8,245 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 
+internal enum class OutputDeviceKind {
+    WIRED_HEADSET,
+    BLUETOOTH,
+    SPEAKER,
+    OTHER
+}
+
+internal interface AudioRoutingBackend {
+    val isApiSOrAbove: Boolean
+    fun getMode(): Int
+    fun setMode(mode: Int)
+    fun isSpeakerphoneOn(): Boolean
+    fun setSpeakerphoneOn(on: Boolean)
+    fun getOutputDevices(): List<OutputDeviceKind>
+    fun selectCommunicationDevice(preferredKind: OutputDeviceKind): Boolean
+    fun clearCommunicationDevice()
+    fun registerDeviceCallback(onDevicesChanged: () -> Unit)
+    fun unregisterDeviceCallback()
+}
+
+private class AndroidAudioRoutingBackend(context: Context) : AudioRoutingBackend {
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var deviceCallback: AudioDeviceCallback? = null
+
+    override val isApiSOrAbove: Boolean
+        get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+    override fun getMode(): Int = audioManager.mode
+
+    override fun setMode(mode: Int) {
+        audioManager.mode = mode
+    }
+
+    @Suppress("DEPRECATION")
+    override fun isSpeakerphoneOn(): Boolean = audioManager.isSpeakerphoneOn
+
+    @Suppress("DEPRECATION")
+    override fun setSpeakerphoneOn(on: Boolean) {
+        audioManager.isSpeakerphoneOn = on
+    }
+
+    override fun getOutputDevices(): List<OutputDeviceKind> {
+        val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        return outputs.map { classifyDeviceType(it.type) }
+    }
+
+    override fun selectCommunicationDevice(preferredKind: OutputDeviceKind): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
+        val commDevices = audioManager.availableCommunicationDevices
+        val preferred = when (preferredKind) {
+            OutputDeviceKind.WIRED_HEADSET -> commDevices.firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                    it.type == AudioDeviceInfo.TYPE_USB_HEADSET
+            }
+            OutputDeviceKind.BLUETOOTH -> commDevices.firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                    it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                    it.type == AudioDeviceInfo.TYPE_HEARING_AID
+            }
+            OutputDeviceKind.SPEAKER -> commDevices.firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+            }
+            OutputDeviceKind.OTHER -> null
+        }
+        return if (preferred != null) {
+            audioManager.setCommunicationDevice(preferred)
+            true
+        } else {
+            audioManager.clearCommunicationDevice()
+            false
+        }
+    }
+
+    override fun clearCommunicationDevice() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            audioManager.clearCommunicationDevice()
+        }
+    }
+
+    override fun registerDeviceCallback(onDevicesChanged: () -> Unit) {
+        unregisterDeviceCallback()
+        val cb = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
+                onDevicesChanged()
+            }
+
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
+                onDevicesChanged()
+            }
+        }
+        deviceCallback = cb
+        audioManager.registerAudioDeviceCallback(cb, mainHandler)
+    }
+
+    override fun unregisterDeviceCallback() {
+        deviceCallback?.let {
+            audioManager.unregisterAudioDeviceCallback(it)
+            deviceCallback = null
+        }
+    }
+
+    private fun classifyDeviceType(type: Int): OutputDeviceKind = when {
+        type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+            type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+            type == AudioDeviceInfo.TYPE_USB_HEADSET -> OutputDeviceKind.WIRED_HEADSET
+        type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+            type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                (type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                    type == AudioDeviceInfo.TYPE_BLE_SPEAKER ||
+                    type == AudioDeviceInfo.TYPE_HEARING_AID)) -> OutputDeviceKind.BLUETOOTH
+        type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> OutputDeviceKind.SPEAKER
+        else -> OutputDeviceKind.OTHER
+    }
+}
+
 /**
  * Gestiona el enrutamiento de audio en llamada virtual entre altavoz, auriculares con cable y Bluetooth.
  * Restaura siempre el modo de audio original del sistema al finalizar.
  */
-class AudioRoutingController(context: Context) {
+class AudioRoutingController internal constructor(
+    private val backend: AudioRoutingBackend
+) {
+    constructor(context: Context) : this(AndroidAudioRoutingBackend(context))
 
-    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    private val mainHandler = Handler(Looper.getMainLooper())
-
-    @Volatile
+    private val lock = Any()
     private var active = false
-
-    @Volatile
     private var previousMode: Int = AudioManager.MODE_NORMAL
-
-    @Volatile
     private var previousSpeakerphone: Boolean = false
-
-    @Volatile
     private var listener: ((String) -> Unit)? = null
 
-    private val deviceCallback = object : AudioDeviceCallback() {
-        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
-            if (active) applyPreferredRoute()
-        }
-
-        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
-            if (active) applyPreferredRoute()
-        }
-    }
-
     fun startCallRouting(onRouteChanged: (String) -> Unit): String {
-        listener = onRouteChanged
-        if (!active) {
-            active = true
-            previousMode = audioManager.mode
-            @Suppress("DEPRECATION")
-            previousSpeakerphone = audioManager.isSpeakerphoneOn
-            try {
-                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-            } catch (_: Exception) {
+        val (label, cb) = synchronized(lock) {
+            listener = onRouteChanged
+            if (!active) {
+                active = true
+                previousMode = try {
+                    backend.getMode()
+                } catch (_: Exception) {
+                    AudioManager.MODE_NORMAL
+                }
+                previousSpeakerphone = try {
+                    backend.isSpeakerphoneOn()
+                } catch (_: Exception) {
+                    false
+                }
+                try {
+                    backend.setMode(AudioManager.MODE_IN_COMMUNICATION)
+                } catch (_: Exception) {
+                }
+                try {
+                    backend.registerDeviceCallback {
+                        onDevicesUpdatedFromSystem()
+                    }
+                } catch (_: Exception) {
+                }
             }
-            try {
-                audioManager.registerAudioDeviceCallback(deviceCallback, mainHandler)
-            } catch (_: Exception) {
-            }
+            applyPreferredRouteLocked() to listener
         }
-        return applyPreferredRoute()
+        cb?.invoke(label)
+        return label
     }
 
     fun currentRouteLabel(): String {
-        val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        val outputs = try {
+            backend.getOutputDevices()
+        } catch (_: Exception) {
+            emptyList()
+        }
         return describeOutputRoute(outputs)
     }
 
     fun stopCallRouting() {
-        if (!active) return
-        active = false
-        listener = null
-        try {
-            audioManager.unregisterAudioDeviceCallback(deviceCallback)
-        } catch (_: Exception) {
-        }
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                audioManager.clearCommunicationDevice()
-            } else {
-                @Suppress("DEPRECATION")
-                audioManager.isSpeakerphoneOn = previousSpeakerphone
+        synchronized(lock) {
+            if (!active) return
+            active = false
+            listener = null
+            try {
+                backend.unregisterDeviceCallback()
+            } catch (_: Exception) {
             }
-        } catch (_: Exception) {
-        }
-        try {
-            audioManager.mode = previousMode
-        } catch (_: Exception) {
+            try {
+                if (backend.isApiSOrAbove) {
+                    backend.clearCommunicationDevice()
+                } else {
+                    backend.setSpeakerphoneOn(previousSpeakerphone)
+                }
+            } catch (_: Exception) {
+            }
+            try {
+                backend.setMode(previousMode)
+            } catch (_: Exception) {
+            }
         }
     }
 
-    private fun applyPreferredRoute(): String {
+    private fun onDevicesUpdatedFromSystem() {
+        val (label, cb) = synchronized(lock) {
+            if (!active) return
+            applyPreferredRouteLocked() to listener
+        }
+        cb?.invoke(label)
+    }
+
+    private fun applyPreferredRouteLocked(): String {
         val outputs = try {
-            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            backend.getOutputDevices()
         } catch (_: Exception) {
-            emptyArray()
+            emptyList()
         }
 
-        val hasBluetooth = outputs.any {
-            it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    (it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                        it.type == AudioDeviceInfo.TYPE_BLE_SPEAKER ||
-                        it.type == AudioDeviceInfo.TYPE_HEARING_AID))
-        }
-        val hasWired = outputs.any {
-            it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
-                it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-                it.type == AudioDeviceInfo.TYPE_USB_HEADSET
-        }
+        val hasWired = outputs.any { it == OutputDeviceKind.WIRED_HEADSET }
+        val hasBluetooth = outputs.any { it == OutputDeviceKind.BLUETOOTH }
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val commDevices = audioManager.availableCommunicationDevices
-                val preferred = when {
-                    hasWired -> commDevices.firstOrNull {
-                        it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
-                            it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-                            it.type == AudioDeviceInfo.TYPE_USB_HEADSET
-                    }
-                    hasBluetooth -> commDevices.firstOrNull {
-                        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-                            it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                            it.type == AudioDeviceInfo.TYPE_HEARING_AID
-                    }
-                    else -> commDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+            if (backend.isApiSOrAbove) {
+                val targetKind = when {
+                    hasWired -> OutputDeviceKind.WIRED_HEADSET
+                    hasBluetooth -> OutputDeviceKind.BLUETOOTH
+                    else -> OutputDeviceKind.SPEAKER
                 }
-                if (preferred != null) {
-                    audioManager.setCommunicationDevice(preferred)
-                } else if (hasWired || hasBluetooth) {
-                    audioManager.clearCommunicationDevice()
+                val selected = backend.selectCommunicationDevice(targetKind)
+                if (!selected) {
+                    backend.clearCommunicationDevice()
                 }
             } else {
-                @Suppress("DEPRECATION")
-                audioManager.isSpeakerphoneOn = !(hasWired || hasBluetooth)
+                backend.setSpeakerphoneOn(!(hasWired || hasBluetooth))
             }
         } catch (_: Exception) {
         }
 
-        val label = describeOutputRoute(outputs)
-        listener?.invoke(label)
-        return label
+        return describeOutputRoute(outputs)
     }
 
-    internal fun describeOutputRoute(outputs: Array<out AudioDeviceInfo>): String {
-        val hasWired = outputs.any {
-            it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
-                it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-                it.type == AudioDeviceInfo.TYPE_USB_HEADSET
-        }
-        if (hasWired) return "Auriculares"
-
-        val hasBluetooth = outputs.any {
-            it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    (it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                        it.type == AudioDeviceInfo.TYPE_BLE_SPEAKER ||
-                        it.type == AudioDeviceInfo.TYPE_HEARING_AID))
-        }
-        if (hasBluetooth) return "Bluetooth"
-
+    internal fun describeOutputRoute(outputs: List<OutputDeviceKind>): String {
+        if (outputs.any { it == OutputDeviceKind.WIRED_HEADSET }) return "Auriculares"
+        if (outputs.any { it == OutputDeviceKind.BLUETOOTH }) return "Bluetooth"
         return "Altavoz"
     }
 }

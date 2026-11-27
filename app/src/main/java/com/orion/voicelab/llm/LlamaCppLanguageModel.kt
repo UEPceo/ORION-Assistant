@@ -170,66 +170,71 @@ class LlamaCppLanguageModel internal constructor(
     override suspend fun load(): Long = mutex.withLock {
         if (destroyed.get()) error("El motor LLM ya fue cerrado")
         unloadRequested.set(false)
-        withContext(llamaDispatcher) {
-            if (contextIdRef.get() != null) return@withContext 0L
-            check(isModelInstalled()) {
-                "El modelo LLM local no está instalado o está corrupto."
-            }
-
-            val t0 = clockMs()
-            val (modelUri, fd) = bridge.openModelDescriptor(modelFile)
-
-            val params = mapOf(
-                "model" to modelUri,
-                "model_fd" to fd,
-                "use_mmap" to true,
-                "use_mlock" to false,
-                "n_ctx" to CONTEXT_SIZE,
-                "n_batch" to BATCH_SIZE,
-                "n_threads" to THREADS_LOAD_AND_GEN,
-                "n_gpu_layers" to 0
-            )
-
-            val result = bridge.startEngine(params) { token ->
-                if (!cancelled.get()) {
-                    activeTokenSink?.invoke(token)
+        try {
+            withContext(llamaDispatcher) {
+                if (destroyed.get()) error("El motor LLM ya fue cerrado")
+                if (contextIdRef.get() != null) return@withContext 0L
+                check(isModelInstalled()) {
+                    "El modelo LLM local no está instalado o está corrupto."
                 }
-            }
 
-            val nativeError = result?.get("error")?.toString()?.takeIf { it.isNotBlank() }
-            val id = (result?.get("contextId") as? Number)?.toInt()
+                val t0 = clockMs()
+                val (modelUri, fd) = bridge.openModelDescriptor(modelFile)
 
-            if (nativeError != null) {
-                if (id != null) {
+                val params = mapOf(
+                    "model" to modelUri,
+                    "model_fd" to fd,
+                    "use_mmap" to true,
+                    "use_mlock" to false,
+                    "n_ctx" to CONTEXT_SIZE,
+                    "n_batch" to BATCH_SIZE,
+                    "n_threads" to THREADS_LOAD_AND_GEN,
+                    "n_gpu_layers" to 0
+                )
+
+                val result = bridge.startEngine(params) { token ->
+                    if (!cancelled.get()) {
+                        activeTokenSink?.invoke(token)
+                    }
+                }
+
+                val nativeError = result?.get("error")?.toString()?.takeIf { it.isNotBlank() }
+                val id = (result?.get("contextId") as? Number)?.toInt()
+
+                if (nativeError != null) {
+                    if (id != null) {
+                        try {
+                            bridge.releaseContext(id)
+                        } catch (_: Exception) {
+                        }
+                    }
+                    error("Error nativo al iniciar llama.cpp: $nativeError")
+                }
+
+                if (id == null) {
+                    error("No se obtuvo contextId de llama.cpp")
+                }
+
+                if (unloadRequested.get() || destroyed.get()) {
                     try {
                         bridge.releaseContext(id)
                     } catch (_: Exception) {
                     }
+                    error("Carga LLM cancelada al liberar memoria")
                 }
-                error("Error nativo al iniciar llama.cpp: $nativeError")
-            }
 
-            if (id == null) {
-                error("No se obtuvo contextId de llama.cpp")
-            }
-
-            if (unloadRequested.get() || destroyed.get()) {
-                try {
-                    bridge.releaseContext(id)
-                } catch (_: Exception) {
+                if (!contextIdRef.compareAndSet(null, id)) {
+                    try {
+                        bridge.releaseContext(id)
+                    } catch (_: Exception) {
+                    }
+                    return@withContext 0L
                 }
-                error("Carga LLM cancelada al liberar memoria")
-            }
 
-            if (!contextIdRef.compareAndSet(null, id)) {
-                try {
-                    bridge.releaseContext(id)
-                } catch (_: Exception) {
-                }
-                return@withContext 0L
+                clockMs() - t0
             }
-
-            clockMs() - t0
+        } catch (e: RejectedExecutionException) {
+            error("El motor LLM ya fue cerrado")
         }
     }
 
@@ -239,42 +244,53 @@ class LlamaCppLanguageModel internal constructor(
         onToken: (String) -> Unit
     ): LlmGenerationResult {
         val callEpoch = generationEpoch.get()
+        if (destroyed.get()) {
+            return LlmGenerationResult("", 0L, 0L, 0, cancelled = true)
+        }
         return mutex.withLock {
-            withContext(llamaDispatcher) {
-                val activeId = contextIdRef.get()
-                    ?: error("El modelo LLM no está cargado en memoria")
-                if (destroyed.get() || unloadRequested.get() || generationEpoch.get() != callEpoch) {
-                    return@withContext LlmGenerationResult(
-                        text = "",
-                        firstTokenMs = 0L,
-                        totalMs = 0L,
-                        tokensGenerated = 0,
-                        cancelled = true
-                    )
-                }
+            if (destroyed.get() || unloadRequested.get() || generationEpoch.get() != callEpoch) {
+                return@withLock LlmGenerationResult("", 0L, 0L, 0, cancelled = true)
+            }
+            try {
+                withContext(llamaDispatcher) {
+                    val activeId = contextIdRef.get()
+                        ?: error("El modelo LLM no está cargado en memoria")
+                    if (destroyed.get() || unloadRequested.get() || generationEpoch.get() != callEpoch) {
+                        return@withContext LlmGenerationResult(
+                            text = "",
+                            firstTokenMs = 0L,
+                            totalMs = 0L,
+                            tokensGenerated = 0,
+                            cancelled = true
+                        )
+                    }
 
-                cancelled.set(false)
-                generating.set(true)
+                    cancelled.set(false)
+                    generating.set(true)
 
-                val prompt = ChatPromptFormatter.formatChatMl(systemPrompt, history)
-                val startMs = clockMs()
-                var firstTokenMs = -1L
-                val tokenCounter = AtomicInteger(0)
-                val buffer = StringBuilder()
+                    val prompt = ChatPromptFormatter.formatChatMl(systemPrompt, history)
+                    val startMs = clockMs()
+                    var firstTokenMs = -1L
+                    val tokenCounter = AtomicInteger(0)
+                    val buffer = StringBuilder()
 
-                activeTokenSink = { rawToken ->
-                    if (!cancelled.get() && rawToken.isNotEmpty()) {
-                        if (firstTokenMs < 0L) {
-                            firstTokenMs = clockMs() - startMs
-                        }
-                        tokenCounter.incrementAndGet()
-                        buffer.append(rawToken)
-                        val filtered = filterStopFragment(rawToken)
-                        if (filtered.isNotEmpty()) {
-                            onToken(filtered)
+                    activeTokenSink = { rawToken ->
+                        if (!cancelled.get() &&
+                            !destroyed.get() &&
+                            generationEpoch.get() == callEpoch &&
+                            rawToken.isNotEmpty()
+                        ) {
+                            if (firstTokenMs < 0L) {
+                                firstTokenMs = clockMs() - startMs
+                            }
+                            tokenCounter.incrementAndGet()
+                            buffer.append(rawToken)
+                            val filtered = filterStopFragment(rawToken)
+                            if (filtered.isNotEmpty()) {
+                                onToken(filtered)
+                            }
                         }
                     }
-                }
 
                 try {
                     val params = mapOf(
@@ -318,6 +334,9 @@ class LlamaCppLanguageModel internal constructor(
                     generating.set(false)
                     activeTokenSink = null
                 }
+                }
+            } catch (_: RejectedExecutionException) {
+                LlmGenerationResult("", 0L, 0L, 0, cancelled = true)
             }
         }
     }
@@ -369,16 +388,42 @@ class LlamaCppLanguageModel internal constructor(
     }
 
     fun shutdown() {
-        destroyed.set(true)
-        unload()
-        controlScope.cancel()
+        if (!destroyed.compareAndSet(false, true)) return
+        unloadRequested.set(true)
+        generationEpoch.incrementAndGet()
+        cancelled.set(true)
+        activeTokenSink = null
+        val wasGenerating = generating.get()
+        val idToRelease = contextIdRef.getAndSet(null)
+
+        if (idToRelease != null && wasGenerating) {
+            controlScope.launch {
+                try {
+                    bridge.stopCompletion(idToRelease)
+                } catch (_: Exception) {
+                }
+            }
+        }
+
         if (!llamaExecutor.isShutdown) {
             try {
                 llamaExecutor.execute {
+                    if (idToRelease != null) {
+                        kotlinx.coroutines.runBlocking {
+                            try {
+                                bridge.releaseContext(idToRelease)
+                            } catch (_: Exception) {
+                            }
+                        }
+                    }
+                    controlScope.cancel()
                     llamaExecutor.shutdown()
                 }
             } catch (_: RejectedExecutionException) {
+                controlScope.cancel()
             }
+        } else {
+            controlScope.cancel()
         }
     }
 

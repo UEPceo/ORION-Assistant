@@ -9,9 +9,13 @@ import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
 import com.k2fsa.sherpa.onnx.SileroVadModelConfig
 import com.k2fsa.sherpa.onnx.VadModelConfig
 import com.orion.voicelab.asr.AsrRecognitionResult
+import com.orion.voicelab.asr.MoonshineSpeechRecognitionEngine
 import com.orion.voicelab.asr.SpeechRecognitionEngine
 import com.orion.voicelab.audio.AudioCaptureCapabilities
 import com.orion.voicelab.audio.AudioOutputSink
+import com.orion.voicelab.audio.AudioRoutingBackend
+import com.orion.voicelab.audio.AudioRoutingController
+import com.orion.voicelab.audio.OutputDeviceKind
 import com.orion.voicelab.audio.VoiceActivityDetector
 import com.orion.voicelab.audio.VoiceInputController
 import com.orion.voicelab.audio.VoiceInputEngine
@@ -34,10 +38,14 @@ import com.orion.voicelab.llm.LlamaCppLanguageModel
 import com.orion.voicelab.llm.LlamaRuntimeBridge
 import com.orion.voicelab.llm.LlmGenerationResult
 import com.orion.voicelab.llm.LocalLanguageModel
+import com.orion.voicelab.model.DownloadSpec
 import com.orion.voicelab.model.ModelManager
+import com.orion.voicelab.model.ResumableHttpDownloader
 import com.orion.voicelab.tts.LocalSpeechSynthesizer
+import com.orion.voicelab.tts.SherpaOnnxSpeechSynthesizer
 import com.orion.voicelab.tts.SynthesisResult
 import com.sun.net.httpserver.HttpServer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -782,6 +790,667 @@ class VoiceLabUnitTest {
         assertTrue(fakePlayback.stopCount.get() >= 1)
 
         engine.shutdown()
+    }
+
+    @Test
+    fun `http 206 without Content-Range rejects without appending`() {
+        val rootDir = createTempDirectory("orion_206_no_cr").toFile()
+        val payload = buildValidGgufPayload(1_000)
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        try {
+            val requestCount = AtomicInteger(0)
+            server.createContext("/model.gguf") { ex ->
+                requestCount.incrementAndGet()
+                val slice = payload.copyOfRange(200, payload.size)
+                // Always returns 206 without Content-Range even after clean retry
+                ex.sendResponseHeaders(206, slice.size.toLong())
+                ex.responseBody.use { it.write(slice) }
+            }
+            server.start()
+
+            val partFile = File(rootDir, "downloads/m.gguf.part").apply {
+                parentFile?.mkdirs()
+                writeBytes(payload.copyOfRange(0, 200))
+            }
+
+            try {
+                ResumableHttpDownloader.download(
+                    DownloadSpec(
+                        url = "http://127.0.0.1:${server.address.port}/model.gguf",
+                        destinationPartFile = partFile,
+                        minRequiredFreeBytes = 1_024L,
+                        expectedExactBytes = payload.size.toLong()
+                    )
+                ) { _, _, _ -> }
+                fail("Expected HTTP 206 without Content-Range to fail")
+            } catch (e: IllegalStateException) {
+                assertTrue(e.message!!.contains("206") || e.message!!.contains("Content-Range"))
+                assertFalse("Corrupt .part must not be appended or left around", partFile.exists())
+                assertEquals(2, requestCount.get())
+            }
+        } finally {
+            server.stop(0)
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `http 206 with mismatched start offset rejects without appending`() {
+        val rootDir = createTempDirectory("orion_206_bad_start").toFile()
+        val payload = buildValidGgufPayload(500)
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        try {
+            server.createContext("/model.gguf") { ex ->
+                val slice = payload.copyOfRange(100, payload.size)
+                ex.responseHeaders.add("Content-Range", "bytes 100-499/500")
+                ex.sendResponseHeaders(206, slice.size.toLong())
+                ex.responseBody.use { it.write(slice) }
+            }
+            server.start()
+
+            val partFile = File(rootDir, "downloads/m.gguf.part").apply {
+                parentFile?.mkdirs()
+                writeBytes(payload.copyOfRange(0, 200))
+            }
+
+            try {
+                ResumableHttpDownloader.download(
+                    DownloadSpec(
+                        url = "http://127.0.0.1:${server.address.port}/model.gguf",
+                        destinationPartFile = partFile,
+                        minRequiredFreeBytes = 1_024L,
+                        expectedExactBytes = 500L
+                    )
+                ) { _, _, _ -> }
+                fail("Expected HTTP 206 with mismatched start offset to fail")
+            } catch (_: IllegalStateException) {
+                assertFalse(partFile.exists())
+            }
+        } finally {
+            server.stop(0)
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `http 206 with invalid end range rejects without appending`() {
+        val rootDir = createTempDirectory("orion_206_bad_end").toFile()
+        val payload = buildValidGgufPayload(500)
+        val headerCase = AtomicInteger(0)
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        try {
+            server.createContext("/model.gguf") { ex ->
+                val slice = payload.copyOfRange(200, payload.size)
+                val cr = when (headerCase.get()) {
+                    0 -> "bytes 200-100/500" // end < start
+                    1 -> "bytes 200-500/500" // end >= total
+                    else -> "bytes 200-399/500" // incomplete end < total - 1
+                }
+                ex.responseHeaders.add("Content-Range", cr)
+                ex.sendResponseHeaders(206, slice.size.toLong())
+                ex.responseBody.use { it.write(slice) }
+            }
+            server.start()
+
+            for (caseIdx in 0..2) {
+                headerCase.set(caseIdx)
+                val partFile = File(rootDir, "case_$caseIdx/m.gguf.part").apply {
+                    parentFile?.mkdirs()
+                    writeBytes(payload.copyOfRange(0, 200))
+                }
+                try {
+                    ResumableHttpDownloader.download(
+                        DownloadSpec(
+                            url = "http://127.0.0.1:${server.address.port}/model.gguf",
+                            destinationPartFile = partFile,
+                            minRequiredFreeBytes = 1_024L,
+                            expectedExactBytes = 500L
+                        )
+                    ) { _, _, _ -> }
+                    fail("Expected invalid end range case $caseIdx to fail")
+                } catch (_: IllegalStateException) {
+                    assertFalse("Case $caseIdx should delete corrupt .part", partFile.exists())
+                }
+            }
+        } finally {
+            server.stop(0)
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `http 206 with incompatible remote total rejects without appending`() {
+        val rootDir = createTempDirectory("orion_206_bad_total").toFile()
+        val payload = buildValidGgufPayload(1_000)
+        val headerCase = AtomicInteger(0)
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        try {
+            server.createContext("/model.gguf") { ex ->
+                val slice = payload.copyOfRange(100, 500)
+                val cr = if (headerCase.get() == 0) {
+                    "bytes 100-999/1000" // mismatch with expectedExactBytes=500
+                } else {
+                    "bytes 100-499/*" // ambiguous total '*'
+                }
+                ex.responseHeaders.add("Content-Range", cr)
+                ex.sendResponseHeaders(206, slice.size.toLong())
+                ex.responseBody.use { it.write(slice) }
+            }
+            server.start()
+
+            for (caseIdx in 0..1) {
+                headerCase.set(caseIdx)
+                val partFile = File(rootDir, "case_$caseIdx/m.gguf.part").apply {
+                    parentFile?.mkdirs()
+                    writeBytes(payload.copyOfRange(0, 100))
+                }
+                try {
+                    ResumableHttpDownloader.download(
+                        DownloadSpec(
+                            url = "http://127.0.0.1:${server.address.port}/model.gguf",
+                            destinationPartFile = partFile,
+                            minRequiredFreeBytes = 1_024L,
+                            expectedExactBytes = 500L
+                        )
+                    ) { _, _, _ -> }
+                    fail("Expected incompatible remote total case $caseIdx to fail")
+                } catch (_: IllegalStateException) {
+                    assertFalse(partFile.exists())
+                }
+            }
+        } finally {
+            server.stop(0)
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `http 206 with truncated body rejects without installing partial`() {
+        val rootDir = createTempDirectory("orion_206_trunc_body").toFile()
+        val payload = buildValidGgufPayload(500)
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        try {
+            server.createContext("/model.gguf") { ex ->
+                ex.responseHeaders.add("Content-Range", "bytes 100-499/500")
+                ex.sendResponseHeaders(206, 400L)
+                ex.responseBody.write(payload.copyOfRange(100, 200))
+                ex.close()
+            }
+            server.start()
+
+            val filesDir = File(rootDir, "files").apply { mkdirs() }
+            val partFile = File(ModelManager.downloadsDirectory(filesDir), "${ModelManager.LLM_FILE_NAME}.part").apply {
+                parentFile?.mkdirs()
+                writeBytes(payload.copyOfRange(0, 100))
+            }
+
+            try {
+                ModelManager.downloadAndInstallLlm(
+                    filesDir = filesDir,
+                    url = "http://127.0.0.1:${server.address.port}/model.gguf",
+                    expectedExactBytes = 500L,
+                    expectedSha256 = sha256Hex(payload),
+                    requiredFreeBytes = 1_024L
+                ) { _, _, _ -> }
+                fail("Expected truncated 206 body to fail")
+            } catch (_: Exception) {
+                assertFalse(ModelManager.llmModelFile(filesDir).exists())
+                assertTrue(partFile.length() <= 200L)
+            }
+        } finally {
+            server.stop(0)
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `http 200 during resumed download resets partial file instead of concatenating`() {
+        val rootDir = createTempDirectory("orion_200_reset").toFile()
+        val payload = buildValidGgufPayload(1_200)
+        val expectedSha = sha256Hex(payload)
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        try {
+            server.createContext("/model.gguf") { ex ->
+                // Server ignores Range and replies 200 with complete file
+                ex.sendResponseHeaders(200, payload.size.toLong())
+                ex.responseBody.use { it.write(payload) }
+            }
+            server.start()
+
+            val filesDir = File(rootDir, "files").apply { mkdirs() }
+            val partFile = File(ModelManager.downloadsDirectory(filesDir), "${ModelManager.LLM_FILE_NAME}.part").apply {
+                parentFile?.mkdirs()
+                writeBytes(ByteArray(400) { 0x55 }) // stale garbage partial
+            }
+
+            ModelManager.downloadAndInstallLlm(
+                filesDir = filesDir,
+                url = "http://127.0.0.1:${server.address.port}/model.gguf",
+                expectedExactBytes = payload.size.toLong(),
+                expectedSha256 = expectedSha,
+                requiredFreeBytes = 1_024L
+            ) { _, _, _ -> }
+
+            val installed = ModelManager.llmModelFile(filesDir)
+            assertTrue(installed.isFile)
+            assertEquals(payload.size.toLong(), installed.length())
+            assertEquals(expectedSha, sha256Hex(installed.readBytes()))
+            assertFalse(partFile.exists())
+        } finally {
+            server.stop(0)
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `http 416 completes only when Content-Range matches local file size`() {
+        val rootDir = createTempDirectory("orion_416_cr").toFile()
+        val payload = buildValidGgufPayload(1_000)
+        val expectedSha = sha256Hex(payload)
+        val includeCr = AtomicInteger(0)
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        try {
+            server.createContext("/model.gguf") { ex ->
+                if (includeCr.get() == 1) {
+                    ex.responseHeaders.add("Content-Range", "bytes */${payload.size}")
+                }
+                ex.sendResponseHeaders(416, -1)
+                ex.close()
+            }
+            server.start()
+
+            // Without Content-Range on 416 -> must NOT blindly promote partial file
+            val f1 = File(rootDir, "no_cr").apply { mkdirs() }
+            File(ModelManager.downloadsDirectory(f1), "${ModelManager.LLM_FILE_NAME}.part").apply {
+                parentFile?.mkdirs()
+                writeBytes(payload)
+            }
+            try {
+                ModelManager.downloadAndInstallLlm(
+                    filesDir = f1,
+                    url = "http://127.0.0.1:${server.address.port}/model.gguf",
+                    expectedExactBytes = payload.size.toLong(),
+                    expectedSha256 = expectedSha,
+                    requiredFreeBytes = 1_024L
+                ) { _, _, _ -> }
+                fail("HTTP 416 without Content-Range must not assume completion")
+            } catch (_: IllegalStateException) {
+                assertFalse(ModelManager.llmModelFile(f1).exists())
+            }
+
+            // With matching Content-Range on 416 -> succeeds and verifies SHA-256
+            includeCr.set(1)
+            val f2 = File(rootDir, "with_cr").apply { mkdirs() }
+            File(ModelManager.downloadsDirectory(f2), "${ModelManager.LLM_FILE_NAME}.part").apply {
+                parentFile?.mkdirs()
+                writeBytes(payload)
+            }
+            ModelManager.downloadAndInstallLlm(
+                filesDir = f2,
+                url = "http://127.0.0.1:${server.address.port}/model.gguf",
+                expectedExactBytes = payload.size.toLong(),
+                expectedSha256 = expectedSha,
+                requiredFreeBytes = 1_024L
+            ) { _, _, _ -> }
+            assertEquals(expectedSha, sha256Hex(ModelManager.llmModelFile(f2).readBytes()))
+        } finally {
+            server.stop(0)
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `download cancellation mid-stream aborts cleanly without promoting partial`() {
+        val rootDir = createTempDirectory("orion_cancel_dl").toFile()
+        val payload = buildValidGgufPayload(256_000)
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        val cancelFlag = AtomicInteger(0)
+        try {
+            server.createContext("/model.gguf") { ex ->
+                ex.sendResponseHeaders(200, payload.size.toLong())
+                ex.responseBody.use { out ->
+                    var offset = 0
+                    while (offset < payload.size) {
+                        val len = minOf(16_384, payload.size - offset)
+                        out.write(payload, offset, len)
+                        out.flush()
+                        offset += len
+                        cancelFlag.incrementAndGet()
+                        Thread.sleep(15)
+                    }
+                }
+            }
+            server.start()
+
+            val filesDir = File(rootDir, "files").apply { mkdirs() }
+            try {
+                ModelManager.downloadAndInstallLlm(
+                    filesDir = filesDir,
+                    url = "http://127.0.0.1:${server.address.port}/model.gguf",
+                    expectedExactBytes = payload.size.toLong(),
+                    expectedSha256 = sha256Hex(payload),
+                    requiredFreeBytes = 1_024L,
+                    shouldCancel = { cancelFlag.get() >= 2 }
+                ) { _, _, _ -> }
+                fail("Expected CancellationException when aborted mid-stream")
+            } catch (_: CancellationException) {
+                assertFalse(ModelManager.llmModelFile(filesDir).exists())
+            }
+        } finally {
+            server.stop(0)
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `interrupted model replacement recovers cleanly from bak for llm and tar models`() {
+        val rootDir = createTempDirectory("orion_bak_recovery").toFile()
+        try {
+            // 1. LLM .bak recovery (crash after target -> .bak before .part -> target)
+            val filesLlm = File(rootDir, "llm_crash").apply { mkdirs() }
+            val validLlm = buildValidGgufPayload(4_096)
+            ModelManager.llmDirectory(filesLlm).mkdirs()
+            ModelManager.llmBackupFile(filesLlm).writeBytes(validLlm)
+            assertFalse(ModelManager.llmModelFile(filesLlm).exists())
+
+            assertTrue(ModelManager.isLlmInstalled(filesLlm, expectedExactBytes = validLlm.size.toLong()))
+            assertTrue(ModelManager.llmModelFile(filesLlm).isFile)
+            assertFalse(ModelManager.llmBackupFile(filesLlm).exists())
+
+            // 2. TTS .bak directory recovery
+            val filesTts = File(rootDir, "tts_crash").apply { mkdirs() }
+            val ttsBackupDir = File(filesTts, "models/${ModelManager.TTS_DIR_NAME}.bak").apply { mkdirs() }
+            File(ttsBackupDir, ModelManager.TTS_MODEL_FILE).writeBytes(ByteArray(5_100_000) { 1 })
+            File(ttsBackupDir, "tokens.txt").writeBytes(ByteArray(200) { 65 })
+            File(ttsBackupDir, "espeak-ng-data/phontab").apply {
+                parentFile?.mkdirs()
+                writeBytes(ByteArray(64) { 2 })
+            }
+            assertTrue(ModelManager.isTtsInstalled(filesTts))
+            assertTrue(ModelManager.ttsDirectory(filesTts).isDirectory)
+            assertFalse(ttsBackupDir.exists())
+
+            // 3. ASR .bak directory recovery
+            val filesAsr = File(rootDir, "asr_crash").apply { mkdirs() }
+            val asrBackupDir = File(filesAsr, "models/${MoonshineModelManager.MODEL_DIR_NAME}.bak").apply { mkdirs() }
+            File(asrBackupDir, "encoder_model.ort").writeBytes(ByteArray(1_100_000) { 3 })
+            File(asrBackupDir, "decoder_model_merged.ort").writeBytes(ByteArray(1_100_000) { 4 })
+            File(asrBackupDir, "tokens.txt").writeBytes(ByteArray(2_000) { 5 })
+            assertTrue(MoonshineModelManager.modelFilesPresent(filesAsr))
+            assertTrue(MoonshineModelManager.modelDirectory(filesAsr).isDirectory)
+            assertFalse(asrBackupDir.exists())
+        } finally {
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `archive sanitizer blocks leading slash and hardlinks and downloader follows redirects`() {
+        val rootDir = createTempDirectory("orion_redirect_tar").toFile()
+        val payload = buildValidGgufPayload(2_048)
+        val expectedSha = sha256Hex(payload)
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        try {
+            server.createContext("/redirect") { ex ->
+                ex.responseHeaders.add("Location", "/final")
+                ex.sendResponseHeaders(302, -1)
+                ex.close()
+            }
+            server.createContext("/final") { ex ->
+                val rangeHeader = ex.requestHeaders.getFirst("Range")
+                if (rangeHeader == "bytes=512-") {
+                    val slice = payload.copyOfRange(512, payload.size)
+                    ex.responseHeaders.add("Content-Range", "bytes 512-${payload.size - 1}/${payload.size}")
+                    ex.sendResponseHeaders(206, slice.size.toLong())
+                    ex.responseBody.use { it.write(slice) }
+                } else {
+                    ex.sendResponseHeaders(500, -1)
+                }
+            }
+            server.start()
+
+            // Redirect preserves Range header on HTTP 206 resume
+            val filesDir = File(rootDir, "files").apply { mkdirs() }
+            val partFile = File(ModelManager.downloadsDirectory(filesDir), "${ModelManager.LLM_FILE_NAME}.part").apply {
+                parentFile?.mkdirs()
+                writeBytes(payload.copyOfRange(0, 512))
+            }
+            ModelManager.downloadAndInstallLlm(
+                filesDir = filesDir,
+                url = "http://127.0.0.1:${server.address.port}/redirect",
+                expectedExactBytes = payload.size.toLong(),
+                expectedSha256 = expectedSha,
+                requiredFreeBytes = 1_024L
+            ) { _, _, _ -> }
+            assertEquals(expectedSha, sha256Hex(ModelManager.llmModelFile(filesDir).readBytes()))
+            assertFalse(partFile.exists())
+
+            // Leading slash (when preserved in TAR header) & hardlink blocked by sanitizeArchiveEntryPath
+            val absEntry = TarArchiveEntry("/etc/passwd", true)
+            assertNull(ModelManager.sanitizeArchiveEntryPath(absEntry))
+            val hardlink = TarArchiveEntry("model/tokens.txt", TarArchiveEntry.LF_LINK)
+            hardlink.linkName = "/etc/shadow"
+            assertNull(ModelManager.sanitizeArchiveEntryPath(hardlink))
+        } finally {
+            server.stop(0)
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `conversation engine hangup during load prevents ghost call and clobbering subsequent call`() = runBlocking {
+        val gateFirstLoad = CompletableDeferred<Unit>()
+        val firstLoadStarted = CompletableDeferred<Unit>()
+        val callCount = AtomicInteger(0)
+        val inputStarts = AtomicInteger(0)
+
+        val gatedAsr = object : SpeechRecognitionEngine {
+            private var loaded = false
+            override fun isLoaded(): Boolean = loaded
+            override suspend fun load(): Long {
+                if (callCount.incrementAndGet() == 1) {
+                    firstLoadStarted.complete(Unit)
+                    gateFirstLoad.await()
+                }
+                loaded = true
+                return 10L
+            }
+            override suspend fun transcribe(samples: FloatArray, sampleRate: Int) =
+                AsrRecognitionResult("Hola", 500L, 20L)
+            override fun release() { loaded = false }
+        }
+
+        val trackingInput = object : VoiceInputController {
+            override val isRunning: Boolean get() = active
+            override val isMuted: Boolean get() = false
+            private var active = false
+            override fun setMuted(value: Boolean) {}
+            override fun start(listener: VoiceInputEngine.Listener): Boolean {
+                inputStarts.incrementAndGet()
+                active = true
+                listener.onCaptureStarted(
+                    AudioCaptureCapabilities("VOICE_COMMUNICATION", 16_000, true, true, true, true)
+                )
+                return true
+            }
+            override fun stop() { active = false }
+        }
+
+        val engine = ConversationEngine(
+            speechRecognizer = gatedAsr,
+            languageModel = FakeLanguageModel(),
+            speechSynthesizer = FakeSpeechSynthesizer(),
+            playbackEngine = FakeAudioOutputSink(),
+            vadFactory = { FakeVad() },
+            clockMs = { 1_000L },
+            inputFactory = { trackingInput }
+        )
+
+        // Start call #1 -> blocks in ASR load; user hangs up -> immediately starts call #2
+        engine.startCall()
+        firstLoadStarted.await()
+        engine.endCall()
+        assertFalse(engine.isCallActive())
+
+        val secondListening = CompletableDeferred<Unit>()
+        engine.attachCallbacks(object : ConversationEngine.Callbacks {
+            override fun onStateChanged(state: ConversationState, statusText: String) {
+                if (state == ConversationState.LISTENING) secondListening.complete(Unit)
+            }
+            override fun onSpeechDetectedChanged(detected: Boolean) {}
+            override fun onAudioLevel(level: Float) {}
+            override fun onTurnsUpdated(turns: List<ConversationTurn>) {}
+            override fun onStreamingText(text: String) {}
+            override fun onTelemetryUpdated(telemetry: CallTelemetry) {}
+            override fun onModelsInRamChanged(loaded: Boolean) {}
+            override fun onCallEnded() {}
+        })
+
+        engine.startCall()
+        gateFirstLoad.complete(Unit) // Unblock aborted first session AFTER call #2 began!
+        secondListening.await()
+        delay(50)
+
+        assertTrue("Call #2 must remain active without being clobbered by aborted call #1", engine.isCallActive())
+        assertEquals("Only call #2 may start microphone capture", 1, inputStarts.get())
+        engine.shutdown()
+    }
+
+    @Test
+    fun `engines reject calls cleanly after shutdown without RejectedExecutionException`() = runBlocking {
+        val rootDir = createTempDirectory("orion_shutdown_safety").toFile()
+        try {
+            val gguf = File(rootDir, "m.gguf").apply { writeBytes(buildValidGgufPayload(1_024)) }
+            val completionStarted = CompletableDeferred<Unit>()
+            val allowFinish = CompletableDeferred<Unit>()
+            val stopCalls = AtomicInteger(0)
+            val releaseCalls = AtomicInteger(0)
+
+            val bridge = object : LlamaRuntimeBridge {
+                override fun openModelDescriptor(modelFile: File) = modelFile.toURI().toString() to 9
+                override suspend fun startEngine(params: Map<String, Any>, onToken: (String) -> Unit) =
+                    mapOf("contextId" to 33)
+                override suspend fun launchCompletion(contextId: Int, params: Map<String, Any>): Map<String, Any> {
+                    completionStarted.complete(Unit)
+                    allowFinish.await()
+                    return mapOf("text" to "", "tokens_predicted" to 0)
+                }
+                override suspend fun stopCompletion(contextId: Int) {
+                    stopCalls.incrementAndGet()
+                    allowFinish.complete(Unit)
+                }
+                override suspend fun releaseContext(contextId: Int) {
+                    releaseCalls.incrementAndGet()
+                }
+            }
+
+            val clock = AtomicLong(1_000L)
+            val llm = LlamaCppLanguageModel(
+                modelFile = gguf,
+                bridge = bridge,
+                clockMs = { clock.getAndAdd(10L) }
+            )
+            llm.load()
+            val gen = async {
+                llm.generateReply("Eres ORION", listOf(ChatMessage(ChatRole.USER, "Hola"))) {}
+            }
+            completionStarted.await()
+
+            // Calling shutdown mid-generation must invoke stopCompletion and release once
+            llm.shutdown()
+            llm.shutdown()
+            val cancelledResult = gen.await()
+            assertTrue(cancelledResult.cancelled)
+            delay(150)
+            assertEquals(1, stopCalls.get())
+            assertEquals(1, releaseCalls.get())
+
+            // Calling generateReply after shutdown must not throw RejectedExecutionException
+            val afterResult = llm.generateReply("Eres ORION", emptyList()) {}
+            assertTrue(afterResult.cancelled)
+
+            // TTS and ASR shutdowns are idempotent and reject subsequent calls cleanly
+            val tts = SherpaOnnxSpeechSynthesizer(rootDir)
+            tts.shutdown()
+            tts.shutdown()
+            try {
+                tts.load()
+                fail("Expected TTS load after shutdown to fail with IllegalStateException")
+            } catch (e: IllegalStateException) {
+                assertTrue(e.message!!.contains("cerrado"))
+            }
+            try {
+                tts.synthesize("hola") { _, _ -> true }
+                fail("Expected TTS synthesize after shutdown to fail cleanly")
+            } catch (e: IllegalStateException) {
+                assertTrue(e.message!!.contains("cerrado"))
+            }
+
+            val asr = MoonshineSpeechRecognitionEngine(rootDir)
+            asr.shutdown()
+            asr.shutdown()
+            try {
+                asr.transcribe(FloatArray(512), 16_000)
+                fail("Expected ASR transcribe after shutdown to fail cleanly")
+            } catch (e: IllegalStateException) {
+                assertTrue(e.message!!.contains("cerrado"))
+            }
+        } finally {
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `audio routing controller switches routes restores mode and ignores post-stop callbacks`() {
+        var modeNow = android.media.AudioManager.MODE_NORMAL
+        var speakerNow = false
+        var commCleared = 0
+        val selectedDevices = mutableListOf<OutputDeviceKind>()
+        val availableOutputs = mutableListOf<OutputDeviceKind>()
+        var registeredCb: (() -> Unit)? = null
+
+        val fakeBackend = object : AudioRoutingBackend {
+            override val isApiSOrAbove: Boolean = true
+            override fun getMode(): Int = modeNow
+            override fun setMode(mode: Int) { modeNow = mode }
+            override fun isSpeakerphoneOn(): Boolean = speakerNow
+            override fun setSpeakerphoneOn(on: Boolean) { speakerNow = on }
+            override fun getOutputDevices(): List<OutputDeviceKind> = availableOutputs.toList()
+            override fun selectCommunicationDevice(preferredKind: OutputDeviceKind): Boolean {
+                selectedDevices.add(preferredKind)
+                return preferredKind != OutputDeviceKind.OTHER
+            }
+            override fun clearCommunicationDevice() { commCleared++ }
+            override fun registerDeviceCallback(onDevicesChanged: () -> Unit) { registeredCb = onDevicesChanged }
+            override fun unregisterDeviceCallback() { registeredCb = null }
+        }
+
+        val controller = AudioRoutingController(fakeBackend)
+        val routesSeen = mutableListOf<String>()
+
+        availableOutputs.add(OutputDeviceKind.BLUETOOTH)
+        val initial = controller.startCallRouting { routesSeen.add(it) }
+        assertEquals("Bluetooth", initial)
+        assertEquals(android.media.AudioManager.MODE_IN_COMMUNICATION, modeNow)
+        assertEquals(OutputDeviceKind.BLUETOOTH, selectedDevices.last())
+
+        // Plugging wired headset overrides Bluetooth
+        availableOutputs.add(OutputDeviceKind.WIRED_HEADSET)
+        val staleCb = registeredCb!!
+        staleCb.invoke()
+        assertEquals("Auriculares", routesSeen.last())
+        assertEquals(OutputDeviceKind.WIRED_HEADSET, selectedDevices.last())
+
+        // Ending call restores MODE_NORMAL & clears communication device
+        controller.stopCallRouting()
+        assertEquals(android.media.AudioManager.MODE_NORMAL, modeNow)
+        assertEquals(1, commCleared)
+        val selectedCountAtStop = selectedDevices.size
+
+        // Delayed system callback firing after stopCallRouting must not mutate state or re-select routes
+        staleCb.invoke()
+        assertEquals(selectedCountAtStop, selectedDevices.size)
+        assertEquals(android.media.AudioManager.MODE_NORMAL, modeNow)
     }
 
     private class FakeVoiceInputController : VoiceInputController {

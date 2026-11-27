@@ -1,6 +1,7 @@
 package com.orion.voicelab.model
 
 import com.orion.voicelab.engine.MoonshineModelManager
+import kotlinx.coroutines.CancellationException
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
@@ -21,7 +22,8 @@ internal data class DownloadSpec(
     val expectedExactBytes: Long? = null,
     val expectedSha256: String? = null,
     val connectTimeoutMs: Int = 25_000,
-    val readTimeoutMs: Int = 90_000
+    val readTimeoutMs: Int = 90_000,
+    val shouldCancel: () -> Boolean = { Thread.currentThread().isInterrupted }
 )
 
 internal data class DownloadOutcome(
@@ -31,10 +33,19 @@ internal data class DownloadOutcome(
     val sha256Hex: String?
 )
 
+internal data class ParsedContentRange(
+    val start: Long,
+    val end: Long,
+    val total: Long
+) {
+    val sliceLength: Long get() = (end - start) + 1L
+}
+
 internal object ResumableHttpDownloader {
 
-    private val contentRangePattern = Regex("""bytes\s+(\d+)-(\d+)/(\d+|\*)""", RegexOption.IGNORE_CASE)
-    private val unsatRangePattern = Regex("""bytes\s+\*/(\d+)""", RegexOption.IGNORE_CASE)
+    private const val MAX_REDIRECTS = 5
+    private val contentRangeStrictPattern = Regex("""^bytes\s+(\d+)-(\d+)/(\d+)$""", RegexOption.IGNORE_CASE)
+    private val unsatRangePattern = Regex("""^bytes\s+\*/(\d+)$""", RegexOption.IGNORE_CASE)
 
     fun download(
         spec: DownloadSpec,
@@ -42,6 +53,8 @@ internal object ResumableHttpDownloader {
     ): DownloadOutcome {
         val partFile = spec.destinationPartFile
         partFile.parentFile?.mkdirs()
+
+        checkCancelled(spec)
 
         val initialExisting = if (partFile.isFile) partFile.length() else 0L
         val freeSpace = partFile.parentFile?.usableSpace ?: 0L
@@ -55,38 +68,38 @@ internal object ResumableHttpDownloader {
         var resumedFrom = 0L
 
         while (attempt < 2) {
+            checkCancelled(spec)
             attempt++
             val existingBytes = if (partFile.isFile) partFile.length() else 0L
             var connection: HttpURLConnection? = null
-            var retryFromScratch = false
+            var shouldDeletePartOnRetry = false
 
             try {
-                connection = (URL(spec.url).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = spec.connectTimeoutMs
-                    readTimeout = spec.readTimeoutMs
-                    instanceFollowRedirects = true
-                    if (existingBytes > 0L) {
-                        setRequestProperty("Range", "bytes=$existingBytes-")
-                    }
-                    connect()
-                }
+                connection = openWithRedirects(
+                    initialUrl = spec.url,
+                    rangeStart = existingBytes.takeIf { it > 0L },
+                    connectTimeoutMs = spec.connectTimeoutMs,
+                    readTimeoutMs = spec.readTimeoutMs,
+                    shouldCancel = spec.shouldCancel
+                )
 
                 val code = connection.responseCode
                 lastStatus = code
 
                 if (code == 416) {
                     val contentRange = connection.getHeaderField("Content-Range")
-                    val remoteTotal = parseUnsatisfiedTotal(contentRange) ?: spec.expectedExactBytes
-                    if (remoteTotal != null && existingBytes == remoteTotal && existingBytes > 0L) {
+                    val remoteTotal = parseUnsatisfiedTotal(contentRange)
+                    val coherentWithExpected = spec.expectedExactBytes == null || remoteTotal == spec.expectedExactBytes
+                    if (remoteTotal != null && existingBytes > 0L && existingBytes == remoteTotal && coherentWithExpected) {
                         resumedFrom = existingBytes
                         break
                     }
                     partFile.delete()
                     if (attempt < 2) {
-                        retryFromScratch = true
+                        shouldDeletePartOnRetry = true
                         continue
                     }
-                    error("El servidor rechazó el rango (HTTP 416) y no se pudo reiniciar la descarga")
+                    error("El servidor rechazó el rango (HTTP 416) con tamaño local incompatible")
                 }
 
                 val contentType = connection.contentType.orEmpty().lowercase(Locale.US)
@@ -95,32 +108,73 @@ internal object ResumableHttpDownloader {
                     error("Respuesta HTML inesperada al descargar modelo (posible portal cautivo o error remoto)")
                 }
 
-                val append = (code == 206 && existingBytes > 0L)
+                val contentLen = connection.contentLengthLong
+                var append = false
+                var effectiveExisting = 0L
+                var totalBytes = -1L
+                var expectedSliceBytes = -1L
+
                 if (code == 206) {
-                    val contentRange = connection.getHeaderField("Content-Range")
-                    val rangeStart = parseRangeStart(contentRange)
-                    if (rangeStart != null && rangeStart != existingBytes) {
-                        partFile.delete()
+                    if (existingBytes <= 0L) {
                         if (attempt < 2) {
-                            retryFromScratch = true
+                            shouldDeletePartOnRetry = true
                             continue
                         }
-                        error("Rango HTTP 206 inconsistente ($rangeStart != $existingBytes)")
+                        error("Respuesta HTTP 206 inesperada sin archivo parcial previo")
                     }
-                } else if (code !in 200..299) {
+
+                    val parsedRange = parseStrictContentRange(connection.getHeaderField("Content-Range"))
+                    val rangeValid = parsedRange != null &&
+                        parsedRange.start == existingBytes &&
+                        parsedRange.end >= parsedRange.start &&
+                        parsedRange.end < parsedRange.total &&
+                        parsedRange.end == parsedRange.total - 1L &&
+                        (spec.expectedExactBytes == null || parsedRange.total == spec.expectedExactBytes) &&
+                        (contentLen < 0L || contentLen == parsedRange.sliceLength)
+
+                    if (!rangeValid) {
+                        partFile.delete()
+                        if (attempt < 2) {
+                            shouldDeletePartOnRetry = true
+                            continue
+                        }
+                        error(
+                            "Cabecera Content-Range inválida o inconsistente en HTTP 206: " +
+                                "'${connection.getHeaderField("Content-Range")}'"
+                        )
+                    }
+
+                    append = true
+                    effectiveExisting = existingBytes
+                    totalBytes = parsedRange!!.total
+                    expectedSliceBytes = parsedRange.sliceLength
+                } else if (code == 200) {
+                    if (existingBytes > 0L) {
+                        // El servidor ignoró Range y envió el archivo completo desde 0: reiniciar .part
+                        partFile.delete()
+                    }
+                    if (spec.expectedExactBytes != null && contentLen > 0L && contentLen != spec.expectedExactBytes) {
+                        error("Tamaño remoto ($contentLen bytes) incompatible con el esperado (${spec.expectedExactBytes})")
+                    }
+                    append = false
+                    effectiveExisting = 0L
+                    totalBytes = when {
+                        contentLen > 0L -> contentLen
+                        spec.expectedExactBytes != null -> spec.expectedExactBytes
+                        else -> -1L
+                    }
+                    expectedSliceBytes = if (contentLen > 0L) contentLen else -1L
+                } else if (code in 201..299) {
+                    if (existingBytes > 0L) partFile.delete()
+                    append = false
+                    effectiveExisting = 0L
+                    totalBytes = if (contentLen > 0L) contentLen else (spec.expectedExactBytes ?: -1L)
+                    expectedSliceBytes = if (contentLen > 0L) contentLen else -1L
+                } else {
                     error("Descarga HTTP $code")
                 }
 
-                val effectiveExisting = if (append) existingBytes else 0L
                 resumedFrom = effectiveExisting
-                val rangeTotal = if (append) parseRangeTotal(connection.getHeaderField("Content-Range")) else null
-                val contentLen = connection.contentLengthLong
-                val totalBytes = when {
-                    rangeTotal != null && rangeTotal > 0L -> rangeTotal
-                    contentLen > 0L -> effectiveExisting + contentLen
-                    spec.expectedExactBytes != null -> spec.expectedExactBytes
-                    else -> -1L
-                }
 
                 if (totalBytes > 0L) {
                     val remainingNeeded = (totalBytes - effectiveExisting).coerceAtLeast(0L)
@@ -132,16 +186,22 @@ internal object ResumableHttpDownloader {
 
                 val totalMb = if (totalBytes > 0L) totalBytes / MB else 0L
                 var copied = effectiveExisting
+                var readThisRequest = 0L
                 var lastPercent = -1
 
                 connection.inputStream.use { input ->
                     FileOutputStream(partFile, append).use { output ->
                         val buffer = ByteArray(128 * 1024)
                         var count: Int
-                        while (input.read(buffer).also { count = it } >= 0) {
+                        while (true) {
+                            checkCancelled(spec)
+                            count = input.read(buffer)
+                            if (count < 0) break
+                            checkCancelled(spec)
                             if (count == 0) continue
                             output.write(buffer, 0, count)
                             copied += count
+                            readThisRequest += count
                             if (totalBytes > 0L) {
                                 val percent = ((copied * 100L) / totalBytes).toInt().coerceIn(0, 100)
                                 if (percent != lastPercent) {
@@ -154,6 +214,16 @@ internal object ResumableHttpDownloader {
                     }
                 }
 
+                if (expectedSliceBytes >= 0L && readThisRequest != expectedSliceBytes) {
+                    if (readThisRequest > expectedSliceBytes) {
+                        partFile.delete()
+                    }
+                    error(
+                        "Cuerpo recibido inconsistente con el rango/tamaño declarado: " +
+                            "$readThisRequest de $expectedSliceBytes bytes"
+                    )
+                }
+
                 if (totalBytes > 0L && partFile.length() != totalBytes) {
                     error(
                         "Descarga incompleta: ${partFile.length()} de $totalBytes bytes. Vuelve a pulsar Instalar para reanudar."
@@ -162,11 +232,13 @@ internal object ResumableHttpDownloader {
                 break
             } finally {
                 connection?.disconnect()
-                if (retryFromScratch && partFile.exists()) {
+                if (shouldDeletePartOnRetry && partFile.exists()) {
                     partFile.delete()
                 }
             }
         }
+
+        checkCancelled(spec)
 
         val actualLength = partFile.length()
         if (spec.expectedExactBytes != null && actualLength != spec.expectedExactBytes) {
@@ -193,6 +265,62 @@ internal object ResumableHttpDownloader {
         )
     }
 
+    private fun openWithRedirects(
+        initialUrl: String,
+        rangeStart: Long?,
+        connectTimeoutMs: Int,
+        readTimeoutMs: Int,
+        shouldCancel: () -> Boolean
+    ): HttpURLConnection {
+        var currentUrl = URL(initialUrl)
+        var redirects = 0
+        while (true) {
+            if (shouldCancel() || Thread.currentThread().isInterrupted) {
+                throw CancellationException("Descarga cancelada")
+            }
+            val conn = (currentUrl.openConnection() as HttpURLConnection).apply {
+                connectTimeout = connectTimeoutMs
+                readTimeout = readTimeoutMs
+                instanceFollowRedirects = false
+                if (rangeStart != null && rangeStart > 0L) {
+                    setRequestProperty("Range", "bytes=$rangeStart-")
+                }
+                connect()
+            }
+            val code = conn.responseCode
+            if (code == HttpURLConnection.HTTP_MOVED_PERM ||
+                code == HttpURLConnection.HTTP_MOVED_TEMP ||
+                code == HttpURLConnection.HTTP_SEE_OTHER ||
+                code == 307 ||
+                code == 308
+            ) {
+                val location = conn.getHeaderField("Location")
+                conn.disconnect()
+                if (location.isNullOrBlank()) {
+                    error("Redirección HTTP $code sin cabecera Location")
+                }
+                if (++redirects > MAX_REDIRECTS) {
+                    error("Demasiadas redirecciones HTTP al descargar modelo")
+                }
+                val nextUrl = URL(currentUrl, location)
+                if (currentUrl.protocol.equals("https", ignoreCase = true) &&
+                    nextUrl.protocol.equals("http", ignoreCase = true)
+                ) {
+                    error("Redirección insegura de HTTPS a HTTP rechazada")
+                }
+                currentUrl = nextUrl
+                continue
+            }
+            return conn
+        }
+    }
+
+    private fun checkCancelled(spec: DownloadSpec) {
+        if (spec.shouldCancel() || Thread.currentThread().isInterrupted) {
+            throw CancellationException("Descarga cancelada")
+        }
+    }
+
     fun sha256Hex(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         val buffer = ByteArray(128 * 1024)
@@ -205,22 +333,24 @@ internal object ResumableHttpDownloader {
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
-    internal fun parseRangeStart(header: String?): Long? {
+    internal fun parseStrictContentRange(header: String?): ParsedContentRange? {
         if (header.isNullOrBlank()) return null
-        val match = contentRangePattern.find(header) ?: return null
-        return match.groupValues[1].toLongOrNull()
+        val match = contentRangeStrictPattern.find(header.trim()) ?: return null
+        val start = match.groupValues[1].toLongOrNull() ?: return null
+        val end = match.groupValues[2].toLongOrNull() ?: return null
+        val total = match.groupValues[3].toLongOrNull() ?: return null
+        return ParsedContentRange(start = start, end = end, total = total)
     }
 
-    internal fun parseRangeTotal(header: String?): Long? {
-        if (header.isNullOrBlank()) return null
-        val match = contentRangePattern.find(header) ?: return null
-        val totalToken = match.groupValues[3]
-        return if (totalToken == "*") null else totalToken.toLongOrNull()
-    }
+    internal fun parseRangeStart(header: String?): Long? =
+        parseStrictContentRange(header)?.start
+
+    internal fun parseRangeTotal(header: String?): Long? =
+        parseStrictContentRange(header)?.total
 
     internal fun parseUnsatisfiedTotal(header: String?): Long? {
         if (header.isNullOrBlank()) return null
-        val match = unsatRangePattern.find(header) ?: return null
+        val match = unsatRangePattern.find(header.trim()) ?: return null
         return match.groupValues[1].toLongOrNull()
     }
 
@@ -239,7 +369,6 @@ object ModelManager {
         "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/$LLM_FILE_NAME"
     const val LLM_EXACT_BYTES = 1_117_320_736L
     const val LLM_SHA256 = "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e"
-    private const val LLM_MIN_BYTES = 500_000_000L
     private const val LLM_REQUIRED_FREE_BYTES = 1_250L * 1024L * 1024L
 
     // 3. TTS: VITS Piper es_ES Sharvard Medium INT8 (MIT / CC-BY 3.0) — sin checksum.txt oficial en tag tts-models
@@ -262,6 +391,8 @@ object ModelManager {
 
     fun llmModelFile(filesDir: File): File = File(llmDirectory(filesDir), LLM_FILE_NAME)
 
+    fun llmBackupFile(filesDir: File): File = File(llmDirectory(filesDir), "$LLM_FILE_NAME.bak")
+
     fun ttsDirectory(filesDir: File): File = File(filesDir, "models/$TTS_DIR_NAME")
 
     fun ttsModelFile(filesDir: File): File = File(ttsDirectory(filesDir), TTS_MODEL_FILE)
@@ -274,11 +405,13 @@ object ModelManager {
 
     fun isAsrInstalled(filesDir: File): Boolean = MoonshineModelManager.modelFilesPresent(filesDir)
 
-    fun isLlmInstalled(filesDir: File): Boolean {
-        val file = llmModelFile(filesDir)
-        return file.isFile &&
-            file.length() >= LLM_MIN_BYTES &&
-            hasGgufMagicHeader(file)
+    fun isLlmInstalled(filesDir: File, expectedExactBytes: Long = LLM_EXACT_BYTES): Boolean {
+        val targetFile = llmModelFile(filesDir)
+        recoverFileBackupIfNeeded(targetFile, llmBackupFile(filesDir))
+        recoverFileBackupIfNeeded(targetFile, File(llmDirectory(filesDir), "$LLM_FILE_NAME.new"))
+        return targetFile.isFile &&
+            targetFile.length() == expectedExactBytes &&
+            hasGgufMagicHeader(targetFile)
     }
 
     fun isTtsInstalled(filesDir: File): Boolean {
@@ -315,14 +448,21 @@ object ModelManager {
         expectedExactBytes: Long? = LLM_EXACT_BYTES,
         expectedSha256: String? = LLM_SHA256,
         requiredFreeBytes: Long = LLM_REQUIRED_FREE_BYTES,
+        shouldCancel: () -> Boolean = { Thread.currentThread().isInterrupted },
         onProgress: (percent: Int, downloadedMb: Long, totalMb: Long) -> Unit
     ) {
         synchronized(modelLock("llm")) {
             val targetDir = llmDirectory(filesDir).apply { mkdirs() }
             val targetFile = llmModelFile(filesDir)
+            val backupFile = llmBackupFile(filesDir)
+            recoverFileBackupIfNeeded(targetFile, backupFile)
+            recoverFileBackupIfNeeded(targetFile, File(targetDir, "$LLM_FILE_NAME.new"))
+            if (targetFile.isFile) {
+                backupFile.delete()
+                File(targetDir, "$LLM_FILE_NAME.new").delete()
+            }
+
             val partFile = File(downloadsDirectory(filesDir), "$LLM_FILE_NAME.part")
-            val swapFile = File(targetDir, "$LLM_FILE_NAME.new")
-            swapFile.delete()
 
             ResumableHttpDownloader.download(
                 spec = DownloadSpec(
@@ -330,7 +470,8 @@ object ModelManager {
                     destinationPartFile = partFile,
                     minRequiredFreeBytes = requiredFreeBytes,
                     expectedExactBytes = expectedExactBytes,
-                    expectedSha256 = expectedSha256
+                    expectedSha256 = expectedSha256,
+                    shouldCancel = shouldCancel
                 ),
                 onProgress = onProgress
             )
@@ -340,14 +481,15 @@ object ModelManager {
                 error("El archivo descargado no tiene cabecera GGUF válida")
             }
 
-            if (targetFile.exists()) {
-                check(targetFile.renameTo(swapFile)) { "No se pudo preparar el reemplazo del modelo LLM" }
+            val hadTarget = targetFile.exists()
+            if (hadTarget) {
+                check(targetFile.renameTo(backupFile)) { "No se pudo preparar el reemplazo del modelo LLM" }
             }
             if (!partFile.renameTo(targetFile)) {
-                if (swapFile.exists()) swapFile.renameTo(targetFile)
+                if (hadTarget && backupFile.exists()) backupFile.renameTo(targetFile)
                 error("No se pudo activar el modelo LLM descargado")
             }
-            swapFile.delete()
+            backupFile.delete()
         }
     }
 
@@ -358,11 +500,11 @@ object ModelManager {
         expectedExactBytes: Long? = null,
         expectedSha256: String? = null,
         requiredFreeBytes: Long = TTS_REQUIRED_FREE_BYTES,
+        shouldCancel: () -> Boolean = { Thread.currentThread().isInterrupted },
         onProgress: (percent: Int, downloadedMb: Long, totalMb: Long) -> Unit,
         onExtracting: () -> Unit
     ) {
         synchronized(modelLock("tts")) {
-            // Limpieza segura de archivos huérfanos antiguos en cacheDir
             File(cacheDir, TTS_ARCHIVE_NAME).delete()
             val partArchive = File(downloadsDirectory(filesDir), "$TTS_ARCHIVE_NAME.part")
 
@@ -375,14 +517,21 @@ object ModelManager {
                         expectedExactBytes = expectedExactBytes,
                         expectedSha256 = expectedSha256,
                         connectTimeoutMs = 20_000,
-                        readTimeoutMs = 60_000
+                        readTimeoutMs = 60_000,
+                        shouldCancel = shouldCancel
                     ),
                     onProgress = onProgress
                 )
 
+                if (shouldCancel() || Thread.currentThread().isInterrupted) {
+                    throw CancellationException("Descarga cancelada")
+                }
+
                 onExtracting()
                 extractTtsArchive(partArchive, filesDir)
                 partArchive.delete()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (e.message?.contains("tar", ignoreCase = true) == true ||
                     e.message?.contains("bzip2", ignoreCase = true) == true ||
@@ -403,7 +552,7 @@ object ModelManager {
 
         recoverBackupIfNeeded(targetDir, backupDir)
         tempDir.deleteRecursively()
-        backupDir.deleteRecursively()
+        if (targetDir.exists()) backupDir.deleteRecursively()
         check(tempDir.mkdirs() || tempDir.isDirectory) { "No se pudo crear el directorio TTS" }
 
         val canonicalRoot = tempDir.canonicalPath
@@ -457,7 +606,7 @@ object ModelManager {
                 check(targetDir.renameTo(backupDir)) { "No se pudo actualizar el modelo TTS" }
             }
             if (!tempDir.renameTo(targetDir)) {
-                if (hadTarget) backupDir.renameTo(targetDir)
+                if (hadTarget && backupDir.exists()) backupDir.renameTo(targetDir)
                 error("No se pudo activar el modelo TTS descargado")
             }
             backupDir.deleteRecursively()
@@ -470,11 +619,11 @@ object ModelManager {
     internal fun sanitizeArchiveEntryPath(entry: TarArchiveEntry): String? {
         if (entry.isSymbolicLink || entry.isLink) return null
         val raw = entry.name.replace('\\', '/')
-        if (raw.contains('\u0000')) return null
-        val rawSegments = raw.trimStart('/').split('/')
+        if (raw.contains('\u0000') || raw.startsWith("/")) return null
+        val withoutDotPrefix = if (raw.startsWith("./")) raw.removePrefix("./") else raw
+        val rawSegments = withoutDotPrefix.split('/')
         if (rawSegments.any { it == ".." }) return null
-        val cleanName = raw.trimStart('/')
-        val relativePath = if ('/' in cleanName) cleanName.substringAfter('/') else cleanName
+        val relativePath = if ('/' in withoutDotPrefix) withoutDotPrefix.substringAfter('/') else withoutDotPrefix
         if (relativePath.isBlank()) return null
         val relSegments = relativePath.split('/').filter { it.isNotEmpty() && it != "." }
         return if (relSegments.isEmpty()) null else relSegments.joinToString("/")
@@ -483,6 +632,12 @@ object ModelManager {
     internal fun recoverBackupIfNeeded(targetDir: File, backupDir: File) {
         if (!targetDir.exists() && backupDir.isDirectory) {
             backupDir.renameTo(targetDir)
+        }
+    }
+
+    internal fun recoverFileBackupIfNeeded(targetFile: File, backupFile: File) {
+        if (!targetFile.exists() && backupFile.isFile) {
+            backupFile.renameTo(targetFile)
         }
     }
 
@@ -509,4 +664,3 @@ object ModelManager {
             0L
         }
 }
-

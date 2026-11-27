@@ -3,6 +3,7 @@ package com.orion.voicelab.engine
 import com.orion.voicelab.model.DownloadSpec
 import com.orion.voicelab.model.ModelManager
 import com.orion.voicelab.model.ResumableHttpDownloader
+import kotlinx.coroutines.CancellationException
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import java.io.BufferedInputStream
@@ -53,6 +54,7 @@ object MoonshineModelManager {
         expectedExactBytes: Long? = null,
         expectedSha256: String? = null,
         requiredFreeBytes: Long = ASR_REQUIRED_FREE_BYTES,
+        shouldCancel: () -> Boolean = { Thread.currentThread().isInterrupted },
         onProgress: (Int) -> Unit,
         onExtracting: () -> Unit
     ) {
@@ -70,13 +72,19 @@ object MoonshineModelManager {
                         expectedExactBytes = expectedExactBytes,
                         expectedSha256 = expectedSha256,
                         connectTimeoutMs = 20_000,
-                        readTimeoutMs = 60_000
+                        readTimeoutMs = 60_000,
+                        shouldCancel = shouldCancel
                     ),
                     onProgress = { percent, _, _ -> onProgress(percent) }
                 )
+                if (shouldCancel() || Thread.currentThread().isInterrupted) {
+                    throw CancellationException("Descarga cancelada")
+                }
                 onExtracting()
                 extractModelArchive(partArchive, filesDir)
                 partArchive.delete()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (e.message?.contains("tar", ignoreCase = true) == true ||
                     e.message?.contains("bzip2", ignoreCase = true) == true ||
@@ -97,7 +105,7 @@ object MoonshineModelManager {
 
         ModelManager.recoverBackupIfNeeded(targetDir, backupDir)
         tempDir.deleteRecursively()
-        backupDir.deleteRecursively()
+        if (targetDir.exists()) backupDir.deleteRecursively()
         check(tempDir.mkdirs() || tempDir.isDirectory) { "No se pudo crear el directorio del modelo" }
 
         val canonicalRoot = tempDir.canonicalPath
@@ -130,7 +138,7 @@ object MoonshineModelManager {
                 check(targetDir.renameTo(backupDir)) { "No se pudo preparar la actualización del modelo" }
             }
             if (!tempDir.renameTo(targetDir)) {
-                if (hadTarget) backupDir.renameTo(targetDir)
+                if (hadTarget && backupDir.exists()) backupDir.renameTo(targetDir)
                 error("No se pudo activar el modelo descargado")
             }
             backupDir.deleteRecursively()

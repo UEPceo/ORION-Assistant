@@ -97,6 +97,7 @@ class ConversationEngine internal constructor(
     )
 
     private val session = ConversationSession()
+    private val sessionTransitionLock = Any()
     private val callActive = AtomicBoolean(false)
     private val callRequested = AtomicBoolean(false)
     private val turnInFlight = AtomicBoolean(false)
@@ -160,9 +161,10 @@ class ConversationEngine internal constructor(
     }
 
     fun startCall() {
-        if (callActive.get() || !callRequested.compareAndSet(false, true)) return
-
-        val sessionEpoch = callSessionEpoch.incrementAndGet()
+        val sessionEpoch = synchronized(sessionTransitionLock) {
+            if (callActive.get() || !callRequested.compareAndSet(false, true)) return
+            callSessionEpoch.incrementAndGet()
+        }
         updateState(
             ConversationState.PROCESSING,
             "Cargando ASR, LLM y voz TTS en memoria…"
@@ -186,6 +188,8 @@ class ConversationEngine internal constructor(
                 val activeVad = vad ?: vadFactory().also { vad = it }
                 activeVad.reset()
 
+                if (!isSessionValid(sessionEpoch)) return@launch
+
                 telemetry = telemetry.copy(
                     asrLoadMs = if (asrLoadMs > 0) asrLoadMs else telemetry.asrLoadMs,
                     ttsLoadMs = if (ttsLoadMs > 0) ttsLoadMs else telemetry.ttsLoadMs,
@@ -200,20 +204,31 @@ class ConversationEngine internal constructor(
                 routingStarted = audioRoutingController != null
                 updateAudioHardware { it.copy(audioOutputRoute = initialRoute) }
 
-                if (!isSessionValid(sessionEpoch)) {
-                    if (routingStarted) audioRoutingController?.stopCallRouting()
+                val promoted = synchronized(sessionTransitionLock) {
+                    if (!isSessionValid(sessionEpoch)) {
+                        false
+                    } else {
+                        echoSuppressUntilMs = 0L
+                        consecutiveBargeInWindows = 0
+                        callActive.set(true)
+                        true
+                    }
+                }
+                if (!promoted) {
+                    if (routingStarted && callSessionEpoch.get() == sessionEpoch) {
+                        audioRoutingController?.stopCallRouting()
+                    }
                     return@launch
                 }
-
-                echoSuppressUntilMs = 0L
-                consecutiveBargeInWindows = 0
-                callActive.set(true)
 
                 val started = inputEngine.start(object : VoiceInputEngine.Listener {
                     private var lastSpeechFlag = false
 
                     override fun onCaptureStarted(capabilities: AudioCaptureCapabilities) {
-                        if (!isSessionValid(sessionEpoch) || !callActive.get()) return
+                        if (!isSessionValid(sessionEpoch) || !callActive.get()) {
+                            inputEngine.stop()
+                            return
+                        }
                         updateAudioHardware {
                             it.copy(
                                 isCapturing = true,
@@ -306,28 +321,55 @@ class ConversationEngine internal constructor(
                 })
 
                 if (!started) {
-                    callActive.set(false)
-                    callRequested.set(false)
-                    if (routingStarted) audioRoutingController?.stopCallRouting()
-                    val msg = "No se pudo iniciar la captura de micrófono."
-                    callbacks?.onErrorRecorded(msg)
-                    updateState(ConversationState.ERROR, msg)
-                    callbacks?.onCallEnded()
+                    val stillCurrent = synchronized(sessionTransitionLock) {
+                        if (callSessionEpoch.get() == sessionEpoch) {
+                            callActive.set(false)
+                            callRequested.set(false)
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    if (stillCurrent) {
+                        if (routingStarted) audioRoutingController?.stopCallRouting()
+                        val msg = "No se pudo iniciar la captura de micrófono."
+                        callbacks?.onErrorRecorded(msg)
+                        updateState(ConversationState.ERROR, msg)
+                        callbacks?.onCallEnded()
+                    }
                 }
             } catch (e: CancellationException) {
-                if (routingStarted) audioRoutingController?.stopCallRouting()
-                callActive.set(false)
-                callRequested.set(false)
+                val stillCurrent = synchronized(sessionTransitionLock) {
+                    if (callSessionEpoch.get() == sessionEpoch) {
+                        callActive.set(false)
+                        callRequested.set(false)
+                        true
+                    } else {
+                        false
+                    }
+                }
+                if (stillCurrent && routingStarted) {
+                    audioRoutingController?.stopCallRouting()
+                }
                 notifyModelLoadStates()
                 throw e
             } catch (e: Exception) {
-                if (routingStarted) audioRoutingController?.stopCallRouting()
-                callActive.set(false)
-                callRequested.set(false)
-                turnInFlight.set(false)
+                val stillCurrent = synchronized(sessionTransitionLock) {
+                    if (callSessionEpoch.get() == sessionEpoch) {
+                        callActive.set(false)
+                        callRequested.set(false)
+                        turnInFlight.set(false)
+                        true
+                    } else {
+                        false
+                    }
+                }
+                if (stillCurrent) {
+                    if (routingStarted) audioRoutingController?.stopCallRouting()
+                }
                 notifyModelLoadStates()
                 val msg = "No se pudo iniciar la llamada: ${e.message ?: "error desconocido"}"
-                if (callSessionEpoch.get() == sessionEpoch) {
+                if (stillCurrent) {
                     callbacks?.onErrorRecorded(msg)
                     updateState(ConversationState.ERROR, msg)
                     callbacks?.onCallEnded()
@@ -556,11 +598,13 @@ class ConversationEngine internal constructor(
     }
 
     fun endCall(unloadModels: Boolean = false) {
-        callSessionEpoch.incrementAndGet()
-        callRequested.set(false)
-        callActive.set(false)
-        turnGeneration.incrementAndGet()
-        turnInFlight.set(false)
+        synchronized(sessionTransitionLock) {
+            callSessionEpoch.incrementAndGet()
+            callRequested.set(false)
+            callActive.set(false)
+            turnGeneration.incrementAndGet()
+            turnInFlight.set(false)
+        }
         startJob?.cancel()
         startJob = null
         activeTurnJob?.cancel()

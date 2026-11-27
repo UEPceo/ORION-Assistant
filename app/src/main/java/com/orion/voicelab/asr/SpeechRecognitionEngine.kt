@@ -104,10 +104,18 @@ class MoonshineSpeechRecognitionEngine(
         samples: FloatArray,
         sampleRate: Int
     ): AsrRecognitionResult = suspendCancellableCoroutine { cont ->
+        if (destroyed.get()) {
+            if (cont.isActive) cont.resumeWithException(IllegalStateException("El motor ASR ya fue cerrado"))
+            return@suspendCancellableCoroutine
+        }
         val audioMs = samples.size * 1000L / sampleRate
         try {
             asrExecutor.execute {
                 try {
+                    if (destroyed.get()) {
+                        if (cont.isActive) cont.resumeWithException(IllegalStateException("El motor ASR ya fue cerrado"))
+                        return@execute
+                    }
                     val active = recognizer ?: error("El motor ASR no está cargado")
                     val t0 = SystemClock.elapsedRealtime()
                     val stream = active.createStream()
@@ -126,8 +134,8 @@ class MoonshineSpeechRecognitionEngine(
                     if (cont.isActive) cont.resumeWithException(e)
                 }
             }
-        } catch (e: RejectedExecutionException) {
-            if (cont.isActive) cont.resumeWithException(e)
+        } catch (_: RejectedExecutionException) {
+            if (cont.isActive) cont.resumeWithException(IllegalStateException("El motor ASR ya fue cerrado"))
         }
     }
 
@@ -148,7 +156,7 @@ class MoonshineSpeechRecognitionEngine(
     }
 
     fun shutdown() {
-        destroyed.set(true)
+        if (!destroyed.compareAndSet(false, true)) return
         val toRelease = recognizer
         recognizer = null
         if (!asrExecutor.isShutdown) {

@@ -118,8 +118,11 @@ class VoiceInputEngine(
                     }
                 }
 
+                if (!running.get()) return@thread
                 Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
+                if (!running.get()) return@thread
                 audioRecord.startRecording()
+                if (!running.get()) return@thread
                 listener.onCaptureStarted(
                     AudioCaptureCapabilities(
                         audioSourceName = sourceName,

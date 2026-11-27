@@ -23,6 +23,7 @@ import com.orion.voicelab.engine.OrionVoiceEngine
 import com.orion.voicelab.llm.LlamaCppLanguageModel
 import com.orion.voicelab.model.ModelManager
 import com.orion.voicelab.tts.SherpaOnnxSpeechSynthesizer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -255,6 +256,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 MoonshineModelManager.downloadAndInstall(
                     filesDir = appContext.filesDir,
                     cacheDir = appContext.cacheDir,
+                    shouldCancel = { !isActive },
                     onProgress = { percent ->
                         _uiState.update {
                             it.copy(modelState = ModelInstallState.Downloading(percent))
@@ -271,6 +273,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 )
                 refreshModelState()
                 refreshMetrics()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 val msg = e.message ?: "error desconocido"
                 recordError("ASR descarga: $msg")
@@ -297,7 +301,10 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                ModelManager.downloadAndInstallLlm(appContext.filesDir) { percent, downMb, totalMb ->
+                ModelManager.downloadAndInstallLlm(
+                    filesDir = appContext.filesDir,
+                    shouldCancel = { !isActive }
+                ) { percent, downMb, totalMb ->
                     _uiState.update {
                         it.copy(
                             llmModelState = ComponentModelState.Downloading(
@@ -310,6 +317,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 }
                 refreshModelState()
                 refreshMetrics()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 val msg = e.message ?: "error desconocido"
                 recordError("LLM descarga: $msg")
@@ -345,6 +354,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 ModelManager.downloadAndInstallTts(
                     filesDir = appContext.filesDir,
                     cacheDir = appContext.cacheDir,
+                    shouldCancel = { !isActive },
                     onProgress = { percent, downMb, totalMb ->
                         _uiState.update {
                             it.copy(
@@ -367,6 +377,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 )
                 refreshModelState()
                 refreshMetrics()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 val msg = e.message ?: "error desconocido"
                 recordError("TTS descarga: $msg")
@@ -699,7 +711,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val callTel = state.callTelemetry
         val hw = state.audioHardwareStatus
         return buildString {
-            appendLine("ORION Voice Lab 0.4.1 — informe de diagnóstico")
+            appendLine("ORION Voice Lab 0.4.2 — informe de diagnóstico")
             appendLine(DeviceMetrics.deviceSummary())
             appendLine("Ahora:")
             appendLine(DeviceMetrics.describe(now))
