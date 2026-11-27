@@ -411,7 +411,7 @@ private fun GitHubConnectorCard(
                 }
                 if (!configured) {
                     Text(
-                        "Falta ORION_GITHUB_CLIENT_ID. Consulta docs/CONNECTORS_AUTHENTICATION.md para configurar la OAuth App.",
+                        "Falta ORION_GITHUB_CLIENT_ID. Consulta docs/CONNECTORS_AUTHENTICATION.md para configurar la GitHub App.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
                     )
