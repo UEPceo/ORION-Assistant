@@ -182,9 +182,10 @@ fun OrionSettingsScreen(
                             val startedAt = SystemClock.elapsedRealtime()
                             try {
                                 val samples = listOf(
-                                    "Prueba multilingüe de recuperación semántica para ORION.",
-                                    "Local semantic retrieval test for the ORION assistant.",
-                                    "Teste de pesquisa semântica local para o assistente ORION."
+                                    "ORION recupera documentos relevantes según el significado de las frases.",
+                                    "ORION retrieves relevant documents based on the meaning of sentences.",
+                                    "O ORION recupera documentos relevantes com base no significado das frases.",
+                                    "El mercado bursátil cerró con una caída generalizada de las acciones."
                                 )
                                 val vectors = mutableListOf<FloatArray>()
                                 for (sample in samples) {
@@ -199,8 +200,17 @@ fun OrionSettingsScreen(
                                 require(vectors.map { it.size }.distinct().size == 1) {
                                     "La dimensión de salida cambia entre idiomas."
                                 }
+                                fun cosine(left: FloatArray, right: FloatArray): Double {
+                                    val dot = left.indices.sumOf { left[it].toDouble() * right[it].toDouble() }
+                                    val leftNorm = kotlin.math.sqrt(left.sumOf { it.toDouble() * it.toDouble() })
+                                    val rightNorm = kotlin.math.sqrt(right.sumOf { it.toDouble() * it.toDouble() })
+                                    return if (leftNorm == 0.0 || rightNorm == 0.0) 0.0 else dot / (leftNorm * rightNorm)
+                                }
+                                val spanishEnglish = cosine(vectors[0], vectors[1])
+                                val spanishPortuguese = cosine(vectors[0], vectors[2])
+                                val unrelatedControl = cosine(vectors[0], vectors[3])
                                 val elapsed = SystemClock.elapsedRealtime() - startedAt
-                                embeddingStatus = "Prueba superada: español, inglés y portugués; ${vectors.first().size} dimensiones; vectores normalizados; ${elapsed} ms."
+                                embeddingStatus = "Prueba superada: 3 idiomas; ${vectors.first().size} dimensiones; vectores normalizados; similitud ES-EN ${"%.2f".format(Locale.ROOT, spanishEnglish)}, ES-PT ${"%.2f".format(Locale.ROOT, spanishPortuguese)}; control no relacionado ${"%.2f".format(Locale.ROOT, unrelatedControl)}; ${elapsed} ms."
                             } catch (error: Exception) {
                                 embeddingError = error.message ?: "Falló la prueba de inferencia ONNX."
                                 embeddingStatus = "El encoder está instalado, pero no ha superado la prueba."
