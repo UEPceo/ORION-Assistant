@@ -1,6 +1,6 @@
 package com.orion.voicelab.knowledge
 
-/** Splits long source documents into overlapping, citation-preserving retrieval passages. */
+/** Splits long source documents into bounded, overlapping retrieval passages. */
 object KnowledgeDocumentChunker {
     data class Chunk(val index: Int, val text: String)
 
@@ -11,39 +11,23 @@ object KnowledgeDocumentChunker {
         if (normalized.isEmpty()) return emptyList()
         if (normalized.length <= maxChars) return listOf(Chunk(0, normalized))
 
-        val paragraphs = normalized.split(Regex("\\n\\s*\\n"))
-            .flatMap { paragraph ->
-                if (paragraph.length <= maxChars) listOf(paragraph.trim())
-                else paragraph.split(Regex("(?<=[.!?])\\s+"))
-            }.filter(String::isNotBlank)
-
-        val result = mutableListOf<Chunk>()
-        var current = StringBuilder()
-        fun flush() {
-            if (current.isNotEmpty()) {
-                result += current.toString().trim()
-                current = StringBuilder()
+        val chunks = mutableListOf<String>()
+        var start = 0
+        while (start < normalized.length) {
+            var end = (start + maxChars).coerceAtMost(normalized.length)
+            if (end < normalized.length) {
+                val lowerBound = start + (maxChars * 0.65).toInt()
+                val paragraphBreak = normalized.lastIndexOf("\n\n", end).takeIf { it >= lowerBound }
+                val sentenceBreak = normalized.lastIndexOfAny(charArrayOf('.', '!', '?'), end - 1)
+                    .takeIf { it >= lowerBound }
+                val wordBreak = normalized.lastIndexOf(' ', end).takeIf { it >= lowerBound }
+                end = paragraphBreak?.plus(2) ?: sentenceBreak?.plus(1) ?: wordBreak ?: end
             }
+            if (end <= start) end = (start + maxChars).coerceAtMost(normalized.length)
+            chunks += normalized.substring(start, end).trim()
+            if (end == normalized.length) break
+            start = (end - overlapChars).coerceAtLeast(start + 1)
         }
-        paragraphs.forEach { paragraph ->
-            if (paragraph.length > maxChars) {
-                flush()
-                var start = 0
-                while (start < paragraph.length) {
-                    val end = (start + maxChars).coerceAtMost(paragraph.length)
-                    result += paragraph.substring(start, end).trim()
-                    if (end == paragraph.length) break
-                    start = (end - overlapChars).coerceAtLeast(start + 1)
-                }
-            } else if (current.length + paragraph.length + 2 > maxChars) {
-                flush()
-                current.append(paragraph)
-            } else {
-                if (current.isNotEmpty()) current.append("\n\n")
-                current.append(paragraph)
-            }
-        }
-        flush()
-        return result.mapIndexed { index, text -> Chunk(index, text) }
+        return chunks.mapIndexed { index, text -> Chunk(index, text) }
     }
 }
