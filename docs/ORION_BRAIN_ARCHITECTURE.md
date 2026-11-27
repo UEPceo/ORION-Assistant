@@ -246,7 +246,7 @@ Esta actualización incorpora las primeras implementaciones de los seis frentes 
 
 ### 1. Calidad del conocimiento y fuentes
 - Catálogo inicial de fuentes oficiales españolas y europeas y documentación técnica: BOE, EUR-Lex, AEMET, MITECO, Sanidad, INCIBE, AEPD, DGT, Junta de Andalucía, MAPA, Android, Kotlin, Python, OWASP, MDN y GitHub Docs.
-- El catálogo registra dominio, jurisdicción, autoridad y cadencia de revisión. Una URL de catálogo no se considera evidencia hasta recuperarla, fecharla y verificarla.
+- El catálogo registra dominio, jurisdicción, autoridad y cadencia de revisión. Las búsquedas sensibles se restringen preferentemente a los dominios oficiales registrados. Una URL de catálogo no se considera evidencia hasta recuperarla, fecharla y verificarla.
 - La recuperación local usa ponderación por coincidencia en título, extracto y cuerpo, frecuencia inversa de documento, cobertura de términos y desempate por autoridad/fecha. Es una mejora léxica tipo TF-IDF ponderado, no un motor vectorial ni búsqueda semántica.
 - Sigue pendiente extracción PDF, varios buscadores, corroboración avanzada, fecha de modificación robusta y defensa completa contra DNS rebinding.
 
