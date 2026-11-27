@@ -163,3 +163,10 @@ La comprobación no solicita permisos, no descarga ni repara modelos, no modific
 El motor de recuperación conserva ahora los fallos individuales de cada proveedor en `BrainContext.sourceFailures`. Registra únicamente el identificador acotado del proveedor y el tipo de excepción, nunca el mensaje bruto que podría contener URLs, credenciales u otros datos sensibles. Las cancelaciones de corrutinas siguen propagándose y no se convierten en errores de proveedor.
 
 Si todas las fuentes fallan y no hay documentos, el resultado se distingue de un corpus vacío mediante `BrainPresentation.SOURCE_FAILURE`. Si alguna fuente responde correctamente, su evidencia se conserva y el contexto incorpora además los proveedores que fallaron. El compositor del prompt instruye al modelo para que no confunda una consulta fallida con la inexistencia de información. Se añaden pruebas para ambos escenarios.
+
+
+### Programación de recordatorios y alarmas exactas v1.0
+
+El programador de tareas utiliza `setExactAndAllowWhileIdle` en Android 12 o superior cuando el acceso especial de alarmas exactas está concedido. En Android anteriores se mantiene el comportamiento compatible. Si el usuario no concede ese acceso, ORION no bloquea la creación de recordatorios: utiliza `setAndAllowWhileIdle` y el sistema puede diferir la entrega. La aplicación declara `SCHEDULE_EXACT_ALARM`, consulta `canScheduleExactAlarms()` antes de elegir la API y expone una intención para abrir el ajuste del sistema; esa intención debe lanzarse únicamente desde una acción explícita del usuario, nunca automáticamente.
+
+Cuando Android notifica un cambio en el acceso a alarmas exactas, el receptor vuelve a conciliar los recordatorios pendientes para aplicar el modo disponible. La precisión exacta depende del permiso especial y de las restricciones del sistema; no se promete puntualidad exacta cuando el permiso está denegado ni se utiliza `USE_EXACT_ALARM`, cuyo uso está sujeto a políticas restrictivas de distribución.
