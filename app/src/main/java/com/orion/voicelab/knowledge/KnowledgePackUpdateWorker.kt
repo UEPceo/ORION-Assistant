@@ -39,10 +39,11 @@ class KnowledgePackUpdateWorker(
                 require(expectedHash.matches(Regex("[a-f0-9]{64}"))) { "Hash SHA-256 inválido." }
 
                 val destination = File(updateDirectory, "$id.json")
-                val currentVersion = runCatching {
-                    JSONObject(destination.readText(Charsets.UTF_8)).optInt("version")
-                }.getOrDefault(0)
-                if (version <= currentVersion) continue
+                val cachedBytes = destination.takeIf { it.isFile }?.readBytes()
+                val cachedVersion = cachedBytes?.let {
+                    runCatching { JSONObject(it.toString(Charsets.UTF_8)).optInt("version") }.getOrDefault(0)
+                } ?: 0
+                if (cachedVersion == version && cachedBytes != null && sha256(cachedBytes) == expectedHash) continue
 
                 val bytes = downloadBytes(url, MAX_PACKAGE_BYTES)
                 require(sha256(bytes) == expectedHash) { "La integridad del paquete $id no coincide." }
@@ -55,6 +56,7 @@ class KnowledgePackUpdateWorker(
                 try {
                     output.write(bytes)
                     atomic.finishWrite(output)
+                    File(updateDirectory, "$id.sha256").writeText(expectedHash, Charsets.US_ASCII)
                 } catch (error: Exception) {
                     atomic.failWrite(output)
                     throw error
