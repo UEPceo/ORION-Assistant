@@ -197,7 +197,7 @@ class GitHubApiClient(
             setRequestProperty("X-GitHub-Api-Version", API_VERSION)
             setRequestProperty("User-Agent", "ORION-Android")
         }
-        try {
+        return try {
             val status = connection.responseCode
             if (status == 401) throw ReauthorizationRequiredException()
             if (status !in 200..299) throw GitHubApiException(status)
