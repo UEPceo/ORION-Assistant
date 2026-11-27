@@ -7,6 +7,11 @@
 - Se conserva el orden TTS → ASR → LLM, el progreso, la cancelación, la reanudación de descargas parciales y la verificación de integridad existente.
 - Una descarga fallida no bloquea los demás módulos de la aplicación: muestra el error y permite reintentar.
 
+## Estabilidad y diagnóstico de memoria
+
+- La aplicación registra eventos Android `onTrimMemory` y `onLowMemory` en el registro local de diagnóstico para correlacionar cierres y degradación con presión de memoria.
+- La inicialización de la clave de Android Keystore queda serializada para evitar carreras al guardar credenciales desde varios conectores.
+
 ## Autenticación inicial de conectores
 
 - GitHub incorpora OAuth App Device Flow para Android, sin client secret dentro del APK.
