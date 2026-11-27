@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -43,6 +44,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.orion.voicelab.brain.CapabilityBaseline
+import com.orion.voicelab.brain.PlanExecutionEntity
+import com.orion.voicelab.brain.PlanExecutionJsonCodec
+import com.orion.voicelab.brain.PlanRisk
+import com.orion.voicelab.brain.StepStatus
 import com.orion.voicelab.brain.CapabilityArea
 import com.orion.voicelab.data.AssistantIdentity
 import com.orion.voicelab.data.FormalityLevel
@@ -62,7 +67,10 @@ fun OrionSettingsScreen(
     onDownloadVoice: (String) -> Unit,
     onSaveIdentity: (AssistantIdentity) -> Unit,
     onSetMemoryEnabled: (Boolean) -> Unit,
-    onOpenDiagnostics: () -> Unit
+    onOpenDiagnostics: () -> Unit,
+    planExecutions: List<PlanExecutionEntity> = emptyList(),
+    onExecutePlan: (String, Set<String>, Set<String>) -> Unit = { _, _, _ -> },
+    onDeletePlan: (String) -> Unit = {}
 ) {
     val identity = state.assistantIdentity
     val capabilityEvaluation = remember { CapabilityBaseline.current() }
@@ -134,6 +142,90 @@ fun OrionSettingsScreen(
             )
         }
 
+
+        SettingsSection(title = "Planes y ejecuciones guardadas", subtitle = "Historial local, checkpoints y reanudación controlada. Las autorizaciones externas se solicitan de nuevo en cada ejecución.") {
+            if (planExecutions.isEmpty()) {
+                Text("Todavía no hay planes guardados.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                planExecutions.forEach { record ->
+                    val plan = remember(record.id, record.planJson) {
+                        runCatching { PlanExecutionJsonCodec.decodePlan(record.planJson) }.getOrNull()
+                    }
+                    val results = remember(record.id, record.resultsJson) {
+                        runCatching { PlanExecutionJsonCodec.decodeResults(record.resultsJson) }.getOrDefault(emptyMap())
+                    }
+                    var approvedIds by remember(record.id) { mutableStateOf(emptySet<String>()) }
+                    var retryIds by remember(record.id) { mutableStateOf(emptySet<String>()) }
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(record.goal, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text("Estado: ${record.status} · pasos: ${plan?.steps?.size ?: "datos no legibles"}", style = MaterialTheme.typography.bodySmall)
+                            if (plan == null) {
+                                Text("No se puede interpretar el plan guardado. No se ejecutará.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            } else {
+                                plan.steps.forEach { step ->
+                                    val result = results[step.id]
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text("${step.title} · ${result?.status ?: StepStatus.PENDING}", style = MaterialTheme.typography.bodyMedium)
+                                        if (!result?.summary.isNullOrBlank()) {
+                                            Text(result!!.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                        if ((step.requiresApproval || step.risk >= PlanRisk.MEDIUM) && result?.status != StepStatus.SUCCEEDED) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Checkbox(
+                                                    checked = step.id in approvedIds,
+                                                    onCheckedChange = { checked ->
+                                                        approvedIds = if (checked) approvedIds + step.id else approvedIds - step.id
+                                                    }
+                                                )
+                                                Text("Autorizar este paso para esta ejecución", style = MaterialTheme.typography.bodySmall)
+                                            }
+                                        }
+                                        if (result?.status == StepStatus.FAILED) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Checkbox(
+                                                    checked = step.id in retryIds,
+                                                    onCheckedChange = { checked ->
+                                                        retryIds = if (checked) retryIds + step.id else retryIds - step.id
+                                                    }
+                                                )
+                                                Text("He verificado el resultado y quiero reintentar", style = MaterialTheme.typography.bodySmall)
+                                            }
+                                        }
+                                    }
+                                }
+                                val connectorOnly = plan.steps.all { it.kind in setOf(
+                                    com.orion.voicelab.brain.PlanStepKind.CONNECTOR_READ,
+                                    com.orion.voicelab.brain.PlanStepKind.CONNECTOR_WRITE,
+                                    com.orion.voicelab.brain.PlanStepKind.SEND_MESSAGE,
+                                    com.orion.voicelab.brain.PlanStepKind.PLACE_CALL,
+                                    com.orion.voicelab.brain.PlanStepKind.DELETE_DATA,
+                                    com.orion.voicelab.brain.PlanStepKind.PURCHASE
+                                ) }
+                                Button(
+                                    enabled = connectorOnly && record.status !in setOf("COMPLETED", "RUNNING"),
+                                    onClick = { onExecutePlan(record.id, approvedIds, retryIds) },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Ejecutar / reanudar") }
+                                if (!connectorOnly) {
+                                    Text("Este plan contiene pasos locales cuyo ejecutor aún no está integrado; no se puede ejecutar desde esta pantalla.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(onClick = { onDeletePlan(record.id) }) { Text("Eliminar historial") }
+                            }
+                        }
+                    }
+                }
+            }
+            Text("La generación automática de planes desde la conversación y los ejecutores locales siguen pendientes; esta pantalla no presenta un plan como ejecutado por el mero hecho de guardarlo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
 
         SettingsSection(title = "Búsqueda semántica neuronal", subtitle = "Añade embeddings multilingües ONNX ejecutados localmente para mejorar la recuperación documental.") {
             Text(
