@@ -1,6 +1,8 @@
 package com.orion.voicelab.knowledge
 
 import android.content.Context
+import android.util.AtomicFile
+import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.Normalizer
@@ -14,10 +16,7 @@ import kotlinx.coroutines.withContext
  */
 class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeRepository {
     override val sourceId: String = "orion-local-corpus"
-    private val preferences = context.applicationContext.getSharedPreferences(
-        "orion_knowledge_corpus_v1",
-        Context.MODE_PRIVATE
-    )
+    private val corpusFile = AtomicFile(File(context.applicationContext.filesDir, "orion-knowledge-corpus.json"))
     private val lock = Any()
 
     override suspend fun search(query: BrainQuery, limit: Int): List<KnowledgeDocument> =
@@ -68,7 +67,9 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
     }
 
     private fun readAll(): List<KnowledgeDocument> = synchronized(lock) {
-        val raw = preferences.getString(KEY_DOCUMENTS, "[]") ?: "[]"
+        val raw = runCatching {
+            corpusFile.openRead().bufferedReader(Charsets.UTF_8).use { it.readText() }
+        }.getOrDefault("[]")
         runCatching {
             val array = JSONArray(raw)
             buildList {
@@ -134,8 +135,14 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                 put("conflictsWithIds", conflicts)
             })
         }
-        check(preferences.edit().putString(KEY_DOCUMENTS, array.toString()).commit()) {
-            "No se pudo guardar el corpus local de conocimiento."
+        var output: java.io.FileOutputStream? = null
+        try {
+            output = corpusFile.startWrite()
+            output.write(array.toString().toByteArray(Charsets.UTF_8))
+            corpusFile.finishWrite(output)
+        } catch (error: Exception) {
+            output?.let { corpusFile.failWrite(it) }
+            throw IllegalStateException("No se pudo guardar el corpus local de conocimiento.", error)
         }
     }
 
@@ -149,7 +156,6 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
     }
 
     private companion object {
-        const val KEY_DOCUMENTS = "documents"
         val STOP_WORDS = setOf(
             "que", "con", "para", "por", "una", "uno", "del", "las", "los",
             "como", "desde", "sobre", "esta", "este", "cuando", "donde"
