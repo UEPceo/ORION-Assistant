@@ -298,6 +298,8 @@ fun ConnectorsSectionScreen(
                         }
                     }
                 )
+            } else if (connector.id.name == "ANDROID_NOTES") {
+                GoogleKeepConnectorCard()
             } else {
                 ConnectorProviderCard(connector)
             }
