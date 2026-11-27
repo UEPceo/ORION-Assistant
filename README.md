@@ -55,7 +55,7 @@ Asistente personal y conversacional de voz en español para Android (`arm64-v8a`
    - Notificaciones locales de Android (canal `orion_task_reminders`) con permiso en tiempo de ejecución `POST_NOTIFICATIONS` en Android 13+.
    - Programación compatible con ahorro de batería/Doze mediante `AlarmManager.setAndAllowWhileIdle` (sin solicitar permisos restringidos `USE_EXACT_ALARM`/`SCHEDULE_EXACT_ALARM`) y prevención de alarmas duplicadas por tarea.
    - Acciones directas desde la notificación (**Completar**, **Posponer 1 h**, **Descartar**) y reprogramación automática tras cierre, reinicio del dispositivo (`BOOT_COMPLETED`), actualización de paquete (`MY_PACKAGE_REPLACED`) y cambios de hora/zona horaria.
-4. **Seguimiento integrado con Telefonía (`Teléfono` ↔ `Tareas`)**:
+4. **Seguimiento integrado con llamadas y tareas**:
    - Crear tareas vinculadas a llamadas por voz (*«Recuérdame llamar a Juan mañana»*, *«Tengo que devolver una llamada a María»*, *«Cuando termine la llamada, recuérdame enviarle el presupuesto»*) o mediante el botón **Recordar** en cada registro del historial telefónico, y lanzar llamadas confirmadas directamente desde una tarea asociada.
 5. **Nueva pestaña `Tareas`**:
    - Vistas filtrables (*Hoy*, *Próximas*, *Pendientes*, *Atrasadas*, *Completadas*, *Recordatorios*), buscador local, tarjetas con acciones rápidas (+1 h, Mañana, Llamar, Editar, Cancelar, Eliminar) y editor completo.
@@ -178,3 +178,8 @@ ORION incorpora módulos de dirección de arte, diseño, branding, copywriting, 
 La arquitectura define proveedores intercambiables para comprensión de imágenes/vídeos y generación de imágenes/vídeos. El motor local Qwen2.5 1.5B actual es textual; los proveedores de visión y generación multimedia todavía deben configurarse. ORION no afirmará que ha analizado o generado un archivo cuando no exista un motor activo. La estrategia social utiliza métricas observables y no promete viralidad ni inventa pesos de algoritmos.
 
 Diseño y límites: [docs/ORION_CREATIVE_MULTIMODAL_ARCHITECTURE.md](docs/ORION_CREATIVE_MULTIMODAL_ARCHITECTURE.md).
+
+
+## Navegación de llamadas
+
+La pestaña superior Teléfono se ha retirado. La pantalla inicial sigue siendo Contactos/Co-workers y ORION puede buscar contactos e iniciar llamadas desde la conversación, los co-workers y las tareas. La agenda nativa del dispositivo y el historial de llamadas permanecen accesibles desde **Más → Contactos del dispositivo y llamadas**.
