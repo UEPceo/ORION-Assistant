@@ -4,6 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URLEncoder
 import java.net.URL
@@ -87,8 +89,7 @@ class GmailApiClient(
             val status = connection.responseCode
             if (status == 401) throw ReauthorizationRequiredException()
             if (status !in 200..299) throw GmailApiException(status)
-            val body = connection.inputStream.use { it.readBytes() }
-            if (body.size > MAX_RESPONSE_BYTES) throw IllegalStateException("Respuesta de Gmail demasiado grande.")
+            val body = connection.inputStream.use { it.readBounded(MAX_RESPONSE_BYTES) }
             return JSONObject(String(body, Charsets.UTF_8))
         } finally {
             connection.disconnect()
@@ -108,4 +109,21 @@ class GmailApiClient(
         const val MAX_RESPONSE_BYTES = 1_000_000
         const val TIMEOUT_MS = 15_000
     }
+}
+
+
+private fun InputStream.readBounded(maxBytes: Int): ByteArray {
+    val output = ByteArrayOutputStream(minOf(maxBytes, 8_192))
+    val buffer = ByteArray(8_192)
+    var total = 0
+    while (true) {
+        val count = read(buffer)
+        if (count < 0) break
+        total += count
+        if (total > maxBytes) {
+            throw IllegalStateException("Respuesta del servicio externo demasiado grande.")
+        }
+        output.write(buffer, 0, count)
+    }
+    return output.toByteArray()
 }
