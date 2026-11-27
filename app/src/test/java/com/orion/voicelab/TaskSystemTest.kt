@@ -398,7 +398,7 @@ class TaskSystemTest {
 
         // First open: migrate v3 -> v4 and save a linked task
         val db1 = Room.databaseBuilder(app, OrionDatabase::class.java, dbName)
-            .addMigrations(OrionDatabase.MIGRATION_1_2, OrionDatabase.MIGRATION_2_3, OrionDatabase.MIGRATION_3_4)
+            .addMigrations(OrionDatabase.MIGRATION_1_2, OrionDatabase.MIGRATION_2_3, OrionDatabase.MIGRATION_3_4, OrionDatabase.MIGRATION_4_5)
             .allowMainThreadQueries()
             .build()
         val savedId: Long
@@ -421,7 +421,7 @@ class TaskSystemTest {
 
         // Second open (simulating app restart): tasks and call link survive cleanly
         val db2 = Room.databaseBuilder(app, OrionDatabase::class.java, dbName)
-            .addMigrations(OrionDatabase.MIGRATION_1_2, OrionDatabase.MIGRATION_2_3, OrionDatabase.MIGRATION_3_4)
+            .addMigrations(OrionDatabase.MIGRATION_1_2, OrionDatabase.MIGRATION_2_3, OrionDatabase.MIGRATION_3_4, OrionDatabase.MIGRATION_4_5)
             .allowMainThreadQueries()
             .build()
         try {
