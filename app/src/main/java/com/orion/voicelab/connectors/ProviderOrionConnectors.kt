@@ -74,7 +74,7 @@ class GitHubOrionConnector(
     override val descriptor = ConnectorDescriptor(
         id = ConnectorId.GITHUB,
         displayName = "GitHub",
-        description = "Consulta de repositorios e incidencias.",
+        description = "Consulta de repositorios, incidencias, commits, archivos y estado de CI.",
         capabilities = setOf(ConnectorCapability.SEARCH, ConnectorCapability.READ),
         isImplemented = true
     )
