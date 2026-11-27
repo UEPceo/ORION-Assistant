@@ -250,17 +250,19 @@ class OrionVoiceEngine {
         try {
             asrExecutor.execute {
                 val t0 = SystemClock.elapsedRealtime()
-                val stream = activeRecognizer.createStream()
                 try {
-                    stream.acceptWaveform(samples, SAMPLE_RATE)
-                    activeRecognizer.decode(stream)
-                    val text = activeRecognizer.getResult(stream).text.trim()
-                    val decodeMs = SystemClock.elapsedRealtime() - t0
-                    listener.onTranscriptReady(text, audioMs, decodeMs)
+                    val stream = activeRecognizer.createStream()
+                    try {
+                        stream.acceptWaveform(samples, SAMPLE_RATE)
+                        activeRecognizer.decode(stream)
+                        val text = activeRecognizer.getResult(stream).text.trim()
+                        val decodeMs = SystemClock.elapsedRealtime() - t0
+                        listener.onTranscriptReady(text, audioMs, decodeMs)
+                    } finally {
+                        try { stream.release() } catch (_: Exception) {}
+                    }
                 } catch (e: Exception) {
                     listener.onError("Error de reconocimiento: ${e.message ?: "desconocido"}")
-                } finally {
-                    try { stream.release() } catch (_: Exception) {}
                 }
             }
         } catch (_: RejectedExecutionException) {
