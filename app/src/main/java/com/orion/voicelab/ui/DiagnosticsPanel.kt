@@ -1,5 +1,7 @@
 package com.orion.voicelab.ui
 
+import com.orion.voicelab.R
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
