@@ -20,6 +20,7 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
     private val corpusFile = AtomicFile(File(context.applicationContext.filesDir, "orion-knowledge-corpus.json"))
     private val lock = Any()
     private val semanticIndex = KnowledgeSemanticIndex(context)
+    private val neuralIndex = NeuralEmbeddingIndex(context)
 
     override suspend fun search(query: BrainQuery, limit: Int): List<KnowledgeDocument> =
         withContext(Dispatchers.IO) {
@@ -46,16 +47,28 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
             if (documents.any { !semanticIndex.hasDocument(it.evidence.id) }) {
                 semanticIndex.rebuild(documents.map { it.evidence.id to chunksByDocument[it.evidence.id].orEmpty() })
             }
+            // Dense vectors are generated only when the optional, verified ONNX model is installed.
+            val neuralAvailable = neuralIndex.isAvailable()
+            if (neuralAvailable) {
+                documents.forEach { document ->
+                    val chunks = chunksByDocument[document.evidence.id].orEmpty()
+                    neuralIndex.ensureDocument(document.evidence.id, chunks, NeuralEmbeddingIndex.contentFingerprint(chunks))
+                }
+            }
+            val neuralQuery = if (neuralAvailable) neuralIndex.embedQuery(query.normalizedText) else null
             val documentFrequency = queryTerms.associateWith { term ->
                 fields.count { (title, excerpt, body) -> term in title || term in excerpt || term in body }
             }
             documents.mapIndexedNotNull { index, document ->
                 val (title, excerpt, body) = fields[index]
                 val chunks = chunksByDocument[document.evidence.id].orEmpty()
-                val bestChunk = chunks.maxByOrNull { chunk ->
+                val lexicalBestChunk = chunks.maxByOrNull { chunk ->
                     val chunkTerms = tokens(chunk)
                     queryTerms.count { it in chunkTerms }.toDouble() / queryTerms.size
                 } ?: document.evidence.content
+                val bestChunk = if (neuralQuery != null) {
+                    chunks.getOrNull(neuralIndex.bestChunkIndex(document.evidence.id, neuralQuery)) ?: lexicalBestChunk
+                } else lexicalBestChunk
                 val matched = queryTerms.count { term -> term in title || term in excerpt || term in body }
                 val n = documents.size.toDouble()
                 val score = queryTerms.sumOf { term ->
@@ -70,10 +83,16 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                 val coverage = matched.toDouble() / queryTerms.size
                 val lexical = ((score + phraseBoost) / (score + phraseBoost + 8.0)).coerceIn(0.0, 1.0)
                 val semantic = semanticIndex.score(document.evidence.id, query.normalizedText)
-                if (matched == 0 && semantic <= 0.01) return@mapIndexedNotNull null
+                val neural = neuralQuery?.let { neuralIndex.score(document.evidence.id, it) } ?: 0.0
+                if (matched == 0 && semantic <= 0.01 && neural <= 0.01) return@mapIndexedNotNull null
+                val combined = if (neuralQuery != null) {
+                    0.25 * lexical + 0.25 * semantic + 0.50 * neural
+                } else {
+                    0.55 * lexical + 0.45 * semantic
+                }
                 document.copy(
                     excerpt = bestChunk.take(1_600),
-                    relevance = (0.55 * lexical + 0.45 * semantic) * (0.65 + 0.35 * coverage)
+                    relevance = combined * (0.65 + 0.35 * coverage)
                 )
             }.sortedWith(
                 compareByDescending<KnowledgeDocument> { it.relevance }
@@ -109,6 +128,7 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
             synchronized(lock) {
                 writeAll(readAll().filterNot { it.evidence.id == documentId })
                 semanticIndex.remove(documentId)
+                neuralIndex.remove(documentId)
             }
         }
     }
