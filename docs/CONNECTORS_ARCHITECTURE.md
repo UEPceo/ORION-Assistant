@@ -47,7 +47,7 @@ Permitir que ORION trabaje con servicios externos sin acoplar la lógica de voz,
 
 - El núcleo de conversación, ASR, TTS, memoria y tareas debe seguir funcionando sin conexión.
 - Los conectores requieren Internet y no deben bloquear la conversación local si fallan.
-- El LLM local no decide por sí solo si una operación sensible está autorizada; el enrutador y la política determinista lo controlan.
+- El LLM local no decide por sí solo si una operación sensible está autorizada; el enrutador y la política determinista lo controlan. La política contrasta también el nombre de la operación para que una acción de escritura no pueda etiquetarse como lectura por error.
 - El catálogo no equivale a integración funcional: un proveedor solo estará disponible cuando exista un adaptador probado y una conexión válida.
 
 ## Estado de esta entrega
