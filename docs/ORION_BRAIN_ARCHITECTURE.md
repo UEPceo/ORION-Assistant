@@ -140,7 +140,7 @@ Se incorpora `OrionSelfDiagnosticRegistry`, que relaciona los subsistemas princi
 - Telefonía: `PhoneCallManager`, `CallIntentRouter` y APIs Android.
 - Conectores, conocimiento/RAG, multimedia y diagnóstico: runtime y adaptadores respectivos; se declaran expresamente los proveedores que aún requieren configuración.
 
-El registro correlaciona el último evento `OR-...`, su componente y causa, y extrae el primer/último marco Kotlin disponible con clase, archivo y línea. Incluye firmas heurísticas para OOM/LOW_MEMORY, JNI, archivos/modelos ausentes, integridad de descargas, permisos, red, ANR y cancelaciones. Una firma solo genera una pista: nunca se convierte automáticamente en causa confirmada. La localización exacta requiere una traza real; cuando no existe, el informe lo indica.
+El registro incorpora la versión instalada de ORION, API de Android, fabricante/modelo y ABI; correlaciona el último evento `OR-...`, su componente y causa, y extrae el último marco Kotlin disponible con clase, archivo y línea. Incluye firmas heurísticas para OOM/LOW_MEMORY, JNI, archivos/modelos ausentes, integridad de descargas, permisos, red, ANR y cancelaciones. Una firma solo genera una pista: nunca se convierte automáticamente en causa confirmada. La localización exacta requiere una traza real; cuando no existe, el informe lo indica.
 
 La recuperación recomendada se limita a acciones seguras y reversibles. No elimina modelos, no cambia permisos, no reintenta operaciones sensibles ni transmite registros por sí misma. El inventario se mantiene manualmente y debe revisarse cuando cambien módulos, versiones o dependencias; todavía no es un escáner automático del código ni un grafo de dependencias generado desde Gradle.
 
