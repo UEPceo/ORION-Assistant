@@ -1,24 +1,24 @@
 {
   "schema": 1,
-  "generatedAt": "2026-11-27T00:00:00Z",
+  "generatedAt": "2026-11-27T18:00:00Z",
   "packages": [
     {
       "id": "android-kotlin",
-      "version": 1,
+      "version": 2,
       "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/android-kotlin.json",
-      "sha256": "78c76882993c1decf510ba4792b7a72be7ba473898d2b8da67148cde75e62bcb"
+      "sha256": "0f55dce628adebc557b9c28eee1d3f973fbd9eeea9c9860ea63c2644b145e685"
     },
     {
       "id": "python-web",
-      "version": 2,
+      "version": 3,
       "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/python-web.json",
-      "sha256": "ef8d53b068133025203d50af30f5ad09115946537cb021893766c9aa222a23e1"
+      "sha256": "cdb16f034fbe538f94e953e45ad6684aa9ee3c4317cc0e22c125ca835424354f"
     },
     {
       "id": "es-cyber",
-      "version": 1,
+      "version": 2,
       "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/es-cyber.json",
-      "sha256": "739e8cd9bf5d7b0fe231c3904d26d31fd0ad32a817977a5f4596a099ab8daec7"
+      "sha256": "b3b42fb0abd0512c0dd1410fdda41645fb92ac58d9f1c7bd1015a38cb3ab6a5a"
     },
     {
       "id": "es-eu-law",
@@ -30,13 +30,13 @@
       "id": "es-safety",
       "version": 2,
       "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/es-safety.json",
-      "sha256": "d265a6f4721222f437cd5770d20d7178170b1eda89eda1b5d81ae7354d025162"
+      "sha256": "449b38ae338f28c9c6dff357a9774b05f7d9e92970d465e44885f9554e784665"
     },
     {
       "id": "andalucia-fishing",
       "version": 2,
       "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/andalucia-fishing.json",
-      "sha256": "43841a4a4637b88cd2d1cdc2e2155c097c6b07bc044e514871d34dc5c4f5f9e9"
+      "sha256": "d83a322229477edecf0416563a711456d7c2cf4926f76fd9706cfe9108261bbe"
     }
   ]
 }
