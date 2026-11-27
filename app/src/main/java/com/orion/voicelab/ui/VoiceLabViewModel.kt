@@ -91,6 +91,9 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     private val appContext = application.applicationContext
     private val connectorRuntime = OrionConnectorRuntime(appContext)
+    private val connectorPermissionManager = com.orion.voicelab.connectors.ConnectorPermissionManager()
+    @Volatile private var lastConnectorRepository: String? = null
+    @Volatile private var pendingConnectorInputAction: com.orion.voicelab.connectors.ConnectorAction? = null
     private val database = OrionDatabase.getInstance(appContext)
     private val conversationRepository = ConversationRepository(database.conversationDao())
     private val memoryRepository = MemoryRepository(database.memoryDao())
@@ -1616,6 +1619,35 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     }
 
     private suspend fun handleVoiceTurnCommand(userText: String): String? {
+        val pendingConfirmation = connectorPermissionManager.pendingAction()
+        if (pendingConfirmation != null) {
+            val normalized = userText.trim().lowercase()
+            if (normalized in setOf("sí", "si", "sí, confirma", "si confirma", "confirmo", "adelante", "hazlo")) {
+                val confirmed = connectorPermissionManager.confirm(userText) ?: return "La confirmación ha caducado. Solicita de nuevo la operación."
+                val result = connectorRuntime.dispatcher.dispatch(
+                    action = confirmed,
+                    userRequestedExactAction = true,
+                    userConfirmed = true
+                )
+                return connectorResultText(result)
+            }
+            if (normalized in setOf("no", "cancelar", "cancela", "no, cancelar", "olvídalo", "olvidalo")) {
+                connectorPermissionManager.cancel()
+                return "Acción externa cancelada. No se ha realizado ningún cambio."
+            }
+            connectorPermissionManager.cancel()
+        }
+
+        pendingConnectorInputAction?.let { pending ->
+            val repository = Regex("""[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}""").find(userText)?.value
+            if (repository != null) {
+                pendingConnectorInputAction = null
+                lastConnectorRepository = repository
+                val completed = pending.copy(arguments = pending.arguments + ("repository" to repository))
+                return connectorResultText(connectorRuntime.dispatcher.dispatch(completed, true))
+            }
+        }
+
         val hasPendingCall = synchronized(pendingCallLock) { pendingRequestSnapshot != null }
         if (hasPendingCall) {
             handleVoiceCallCommand(userText)?.let { return it }
@@ -1630,19 +1662,39 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         ) {
             handleVoiceCallCommand(userText)?.let { return it }
         }
-        ConnectorVoiceIntentRouter.route(userText)?.let { routed ->
+
+        ConnectorVoiceIntentRouter.route(userText, lastConnectorRepository)?.let { routed ->
+            val repository = routed.action.arguments["repository"]
+            if (!repository.isNullOrBlank()) lastConnectorRepository = repository
             val result = connectorRuntime.dispatcher.dispatch(
                 action = routed.action,
                 userRequestedExactAction = routed.userRequestedExactAction
             )
-            return when (result) {
-                is ConnectorResult.Success -> result.summary
-                is ConnectorResult.NeedsUserInput -> result.prompt
-                is ConnectorResult.Failure -> result.safeMessage
+            when (result) {
+                is ConnectorResult.Success -> return result.summary
+                is ConnectorResult.NeedsUserInput -> {
+                    pendingConnectorInputAction = routed.action
+                    return result.prompt
+                }
+                is ConnectorResult.ConfirmationRequired -> {
+                    connectorPermissionManager.request(result.action)
+                    return result.prompt
+                }
+                is ConnectorResult.Failure -> return result.safeMessage
             }
         }
         handleVoiceTaskCommand(userText)?.let { return it }
         return handleVoiceCallCommand(userText)
+    }
+
+    private fun connectorResultText(result: ConnectorResult): String = when (result) {
+        is ConnectorResult.Success -> result.summary
+        is ConnectorResult.NeedsUserInput -> result.prompt
+        is ConnectorResult.ConfirmationRequired -> {
+            connectorPermissionManager.request(result.action)
+            result.prompt
+        }
+        is ConnectorResult.Failure -> result.safeMessage
     }
 
     private suspend fun handleVoiceCallCommand(userText: String): String? {
