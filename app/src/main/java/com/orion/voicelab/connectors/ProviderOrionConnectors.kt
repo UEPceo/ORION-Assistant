@@ -23,9 +23,26 @@ class GmailOrionConnector(
         else ConnectorConnectionState.EXPIRED
 
     override suspend fun execute(action: ConnectorAction): ConnectorResult {
-        if (action.connectorId != ConnectorId.GMAIL || action.operation != "search_messages") {
+        if (action.connectorId != ConnectorId.GMAIL) {
             return ConnectorResult.Failure("Operación de Gmail no disponible.", false)
         }
+        if (action.operation == "get_message") {
+            val id = action.arguments["message_id"].orEmpty()
+            if (id.isBlank()) return ConnectorResult.NeedsUserInput("Indica el identificador del correo.")
+            return api.getMessage(id).fold(
+                onSuccess = { message ->
+                    ConnectorResult.Success("De: ${message.from}. Asunto: ${message.subject}. Fecha: ${message.date}. Resumen: ${message.snippet}")
+                },
+                onFailure = {
+                    ConnectorResult.Failure(
+                        if (it is GmailApiClient.ReauthorizationRequiredException) "La conexión de Gmail ha caducado. Vuelve a conectar la cuenta."
+                        else "No se pudo abrir ese correo.",
+                        true
+                    )
+                }
+            )
+        }
+        if (action.operation != "search_messages") return ConnectorResult.Failure("Operación de Gmail no disponible.", false)
         val query = action.arguments["query"].orEmpty().trim()
         if (query.isBlank()) return ConnectorResult.NeedsUserInput("¿Qué correo o remitente quieres buscar?")
         return api.searchMessages(query, action.arguments["limit"]?.toIntOrNull() ?: 5)
@@ -83,6 +100,20 @@ class GitHubOrionConnector(
                 },
                 onFailure = { githubFailure(it) }
             )
+            "get_issue" -> {
+                val repository = action.arguments["repository"].orEmpty()
+                val number = action.arguments["number"]?.toIntOrNull()
+                    ?: return ConnectorResult.NeedsUserInput("Indica el número de la incidencia.")
+                if (repository.isBlank()) return ConnectorResult.NeedsUserInput("¿De qué repositorio es la incidencia?")
+                api.getIssue(repository, number).fold(
+                    onSuccess = { issue ->
+                        ConnectorResult.Success(
+                            "#${issue.number}: ${issue.title}. Estado: ${issue.state}. Autor: ${issue.author}. Actualizada: ${issue.updatedAt}. Descripción: ${issue.body}"
+                        )
+                    },
+                    onFailure = { githubFailure(it) }
+                )
+            }
             "list_commits" -> {
                 val repository = action.arguments["repository"].orEmpty()
                 if (repository.isBlank()) return ConnectorResult.NeedsUserInput("¿De qué repositorio quieres consultar los commits?")
