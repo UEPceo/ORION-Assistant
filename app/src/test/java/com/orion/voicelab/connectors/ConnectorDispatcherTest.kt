@@ -31,7 +31,7 @@ class ConnectorDispatcherTest {
         )
 
         val pending = dispatcher.dispatch(action, userRequestedExactAction = true)
-        assertTrue(pending is ConnectorResult.NeedsUserInput)
+        assertTrue(pending is ConnectorResult.ConfirmationRequired)
         assertEquals(0, connector.executions)
 
         val confirmed = dispatcher.dispatch(
