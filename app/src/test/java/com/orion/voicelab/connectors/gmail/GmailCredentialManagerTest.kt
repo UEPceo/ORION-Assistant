@@ -15,13 +15,16 @@ class GmailCredentialManagerTest {
         val store = FakeCredentialStore()
         val manager = GmailCredentialManager(store) { now }
 
-        manager.save("temporary-access-token", expiresInSeconds = 60)
+        manager.save("temporary-access-token", expiresInSeconds = 120)
         assertTrue(manager.isConnected())
         assertEquals("temporary-access-token", manager.getValidAccessToken())
 
         now += 61_000L
-        assertFalse(manager.isConnected())
+        assertTrue(manager.isConnected())
         assertEquals(null, manager.getValidAccessToken())
+
+        now += 60_000L
+        assertFalse(manager.isConnected())
 
         manager.disconnect()
         assertFalse(manager.isConnected())
