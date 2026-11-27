@@ -83,6 +83,45 @@ class GitHubOrionConnector(
                 },
                 onFailure = { githubFailure(it) }
             )
+            "list_commits" -> {
+                val repository = action.arguments["repository"].orEmpty()
+                if (repository.isBlank()) return ConnectorResult.NeedsUserInput("¿De qué repositorio quieres consultar los commits?")
+                api.listCommits(repository).fold(
+                    onSuccess = { commits ->
+                        if (commits.isEmpty()) ConnectorResult.Success("No he encontrado commits.")
+                        else ConnectorResult.Success(commits.take(10).joinToString("\n") {
+                            "\${it.sha} — \${it.message} — \${it.author} — \${it.committedAt}"
+                        })
+                    },
+                    onFailure = { githubFailure(it) }
+                )
+            }
+            "list_workflow_runs" -> {
+                val repository = action.arguments["repository"].orEmpty()
+                if (repository.isBlank()) return ConnectorResult.NeedsUserInput("¿De qué repositorio quieres consultar los CI?")
+                api.listWorkflowRuns(repository).fold(
+                    onSuccess = { runs ->
+                        if (runs.isEmpty()) ConnectorResult.Success("No hay ejecuciones de GitHub Actions disponibles.")
+                        else ConnectorResult.Success(runs.take(10).joinToString("\n") {
+                            "\${it.name}: \${it.status}\${it.conclusion.takeIf(String::isNotBlank)?.let { value -> " ($value)" }.orEmpty()} — rama \${it.branch} — \${it.updatedAt}"
+                        })
+                    },
+                    onFailure = { githubFailure(it) }
+                )
+            }
+            "list_files" -> {
+                val repository = action.arguments["repository"].orEmpty()
+                if (repository.isBlank()) return ConnectorResult.NeedsUserInput("¿De qué repositorio quieres listar archivos?")
+                api.listFiles(repository, action.arguments["path"].orEmpty()).fold(
+                    onSuccess = { files ->
+                        if (files.isEmpty()) ConnectorResult.Success("La ruta no contiene archivos o no existe.")
+                        else ConnectorResult.Success(files.take(30).joinToString("\n") {
+                            "\${it.type}: \${it.path}"
+                        })
+                    },
+                    onFailure = { githubFailure(it) }
+                )
+            }
             "list_issues" -> {
                 val repository = action.arguments["repository"].orEmpty()
                 if (repository.isBlank()) return ConnectorResult.NeedsUserInput(
