@@ -37,7 +37,7 @@ sealed interface GitHubDeviceAuthorizationResult {
 /**
  * GitHub App Device Flow for installed Android apps.
  *
- * The OAuth App must have Device Flow enabled in GitHub settings. The client ID is public;
+ * The GitHub App must have Device Flow enabled in GitHub settings. The client ID is public;
  * no client secret is embedded in the APK. Device codes remain in memory and are never logged.
  */
 class GitHubDeviceFlowAuthenticator(
