@@ -93,6 +93,14 @@ object OrionSelfDiagnosticRegistry {
             "configurar proveedor compatible; obtener consentimiento específico antes de transmitir archivos"
         ),
         ModuleProfile(
+            "PLANNING",
+            "Planificación y ejecución multipaso",
+            "PlanningContracts, PlanExecutionPersistence, ConnectorPlanStepRunner, VoiceLabViewModel",
+            "Room plan_executions; migración 4→5; ConnectorDispatcher y puerta de confirmación",
+            "validación del grafo, estado de checkpoints, pasos RUNNING interrumpidos, autorizaciones pendientes y referencias de resultado",
+            "revisar pasos fallidos con resultado incierto; no repetir escrituras externas sin verificar; reautorizar cada paso protegido al reanudar"
+        ),
+        ModuleProfile(
             "DIAGNOSTICS",
             "Registro y diagnóstico",
             "OrionCrashDiagnostics",
@@ -251,6 +259,7 @@ object OrionSelfDiagnosticRegistry {
         "CONNECTORS" -> listOf("gmail", "github", "calendar", "maps", "keep", "conector").any(component::contains)
         "KNOWLEDGE" -> listOf("knowledge", "conocimiento", "rag", "fuente", "onnx", "embedding", "encoder neuronal").any(component::contains)
         "MEDIA" -> listOf("media", "multimedia", "creative", "imagen", "video", "vídeo").any(component::contains)
+        "PLANNING" -> listOf("planning", "plan", "orquestacion", "orquestación", "ejecucion multipaso", "ejecución multipaso").any(component::contains)
         "DIAGNOSTICS" -> listOf("diagn", "crash", "log").any(component::contains)
         else -> false
     }
