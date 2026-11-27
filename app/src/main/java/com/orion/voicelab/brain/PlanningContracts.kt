@@ -149,7 +149,7 @@ class PlanExecutionCoordinator {
                         withTimeout(remainingMs) { runner.run(item, plan.budget) }
                     } catch (cancelled: CancellationException) {
                         if (cancelled is TimeoutCancellationException) {
-                            StepExecution(StepStatus.FAILED, "El paso superó el tiempo disponible.")
+                            StepExecution(StepStatus.FAILED, "El paso superó el tiempo disponible. El resultado externo puede ser incierto; verifica antes de reintentar.")
                         } else throw cancelled
                     } catch (error: Exception) {
                         StepExecution(StepStatus.FAILED, "Fallo controlado: ${error::class.java.simpleName}.")
