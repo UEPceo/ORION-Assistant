@@ -5,18 +5,37 @@ import android.media.AudioFormat
 import android.media.AudioTrack
 import java.util.concurrent.atomic.AtomicBoolean
 
-class AudioPlaybackEngine {
+interface AudioOutputSink {
+    val isPlaying: Boolean
+    fun setPlaybackStateListener(listener: ((Boolean) -> Unit)?)
+    fun beginSession(sampleRate: Int)
+    fun writeSamples(samples: FloatArray, sampleRate: Int): Boolean
+    fun finishSessionGracefully()
+    fun stopImmediately()
+    fun release()
+}
+
+class AudioPlaybackEngine(
+    onPlaybackStateChanged: ((Boolean) -> Unit)? = null
+) : AudioOutputSink {
 
     private val lock = Any()
     private val cancelled = AtomicBoolean(false)
     private val playing = AtomicBoolean(false)
 
+    @Volatile
+    private var playbackStateListener: ((Boolean) -> Unit)? = onPlaybackStateChanged
+
     private var audioTrack: AudioTrack? = null
     private var currentSampleRate: Int = 0
 
-    val isPlaying: Boolean get() = playing.get()
+    override val isPlaying: Boolean get() = playing.get()
 
-    fun beginSession(sampleRate: Int) {
+    override fun setPlaybackStateListener(listener: ((Boolean) -> Unit)?) {
+        playbackStateListener = listener
+    }
+
+    override fun beginSession(sampleRate: Int) {
         cancelled.set(false)
         synchronized(lock) {
             if (audioTrack != null && currentSampleRate == sampleRate) {
@@ -24,7 +43,7 @@ class AudioPlaybackEngine {
                     audioTrack?.pause()
                     audioTrack?.flush()
                     audioTrack?.play()
-                    playing.set(true)
+                    setPlayingState(true)
                     return
                 } catch (_: Exception) {
                     releaseLocked()
@@ -33,11 +52,12 @@ class AudioPlaybackEngine {
                 releaseLocked()
             }
 
-            val minBuf = AudioTrack.getMinBufferSize(
+            val rawMin = AudioTrack.getMinBufferSize(
                 sampleRate,
                 AudioFormat.CHANNEL_OUT_MONO,
                 AudioFormat.ENCODING_PCM_FLOAT
-            ).coerceAtLeast(sampleRate / 2)
+            )
+            val minBuf = if (rawMin <= 0) sampleRate else rawMin.coerceAtLeast(sampleRate / 2)
 
             val track = AudioTrack.Builder()
                 .setAudioAttributes(
@@ -60,7 +80,7 @@ class AudioPlaybackEngine {
             track.play()
             audioTrack = track
             currentSampleRate = sampleRate
-            playing.set(true)
+            setPlayingState(true)
         }
     }
 
@@ -68,7 +88,7 @@ class AudioPlaybackEngine {
      * Writes synthesized PCM float samples synchronously to AudioTrack.
      * Returns false if playback was cancelled mid-stream.
      */
-    fun writeSamples(samples: FloatArray, sampleRate: Int): Boolean {
+    override fun writeSamples(samples: FloatArray, sampleRate: Int): Boolean {
         if (cancelled.get() || samples.isEmpty()) return !cancelled.get()
 
         val track = synchronized(lock) {
@@ -95,7 +115,7 @@ class AudioPlaybackEngine {
         return !cancelled.get()
     }
 
-    fun finishSessionGracefully() {
+    override fun finishSessionGracefully() {
         synchronized(lock) {
             try {
                 if (!cancelled.get()) {
@@ -103,14 +123,14 @@ class AudioPlaybackEngine {
                 }
             } catch (_: Exception) {
             } finally {
-                playing.set(false)
+                setPlayingState(false)
             }
         }
     }
 
-    fun stopImmediately() {
+    override fun stopImmediately() {
         cancelled.set(true)
-        playing.set(false)
+        setPlayingState(false)
         synchronized(lock) {
             try {
                 audioTrack?.pause()
@@ -121,11 +141,18 @@ class AudioPlaybackEngine {
         }
     }
 
-    fun release() {
+    override fun release() {
         cancelled.set(true)
-        playing.set(false)
+        setPlayingState(false)
         synchronized(lock) {
             releaseLocked()
+        }
+    }
+
+    private fun setPlayingState(active: Boolean) {
+        val prev = playing.getAndSet(active)
+        if (prev != active) {
+            playbackStateListener?.invoke(active)
         }
     }
 
@@ -144,3 +171,4 @@ class AudioPlaybackEngine {
         currentSampleRate = 0
     }
 }
+

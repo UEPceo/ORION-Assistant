@@ -11,27 +11,57 @@ android {
         applicationId = "com.aistudio.orionvoicelab.kxrqmw"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.4"
+        versionCode = 5
+        versionName = "0.4.1"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
 
+    val localDebugKeystore = file("${rootDir}/debug.keystore")
+    val releaseStoreFilePath = providers.gradleProperty("ORION_RELEASE_STORE_FILE").orNull
+        ?: System.getenv("ORION_RELEASE_STORE_FILE")
+    val releaseStorePassword = providers.gradleProperty("ORION_RELEASE_STORE_PASSWORD").orNull
+        ?: System.getenv("ORION_RELEASE_STORE_PASSWORD")
+    val releaseKeyAlias = providers.gradleProperty("ORION_RELEASE_KEY_ALIAS").orNull
+        ?: System.getenv("ORION_RELEASE_KEY_ALIAS")
+    val releaseKeyPassword = providers.gradleProperty("ORION_RELEASE_KEY_PASSWORD").orNull
+        ?: System.getenv("ORION_RELEASE_KEY_PASSWORD")
+
+    val hasReleaseSigning = !releaseStoreFilePath.isNullOrBlank() &&
+        file(releaseStoreFilePath).isFile &&
+        !releaseStorePassword.isNullOrBlank() &&
+        !releaseKeyAlias.isNullOrBlank() &&
+        !releaseKeyPassword.isNullOrBlank()
+
     signingConfigs {
-        getByName("debug") {
-            storeFile = file("${rootDir}/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+        if (localDebugKeystore.isFile) {
+            getByName("debug") {
+                storeFile = localDebugKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = file(releaseStoreFilePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                null
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

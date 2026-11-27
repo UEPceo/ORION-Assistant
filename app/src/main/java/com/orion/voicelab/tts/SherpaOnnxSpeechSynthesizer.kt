@@ -11,6 +11,7 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
 
 class SherpaOnnxSpeechSynthesizer(
@@ -42,6 +43,7 @@ class SherpaOnnxSpeechSynthesizer(
     }
     private val ttsDispatcher = ttsExecutor.asCoroutineDispatcher()
     private val cancelled = AtomicBoolean(false)
+    private val destroyed = AtomicBoolean(false)
 
     @Volatile
     private var tts: OfflineTts? = null
@@ -67,6 +69,7 @@ class SherpaOnnxSpeechSynthesizer(
     override fun modelSizeMb(): Long = ModelManager.ttsSizeMb(filesDir)
 
     override suspend fun load(): Long = withContext(ttsDispatcher) {
+        if (destroyed.get()) error("El motor TTS ya fue cerrado")
         if (tts != null) return@withContext 0L
         check(isModelInstalled()) {
             "El modelo de voz TTS en español no está instalado."
@@ -90,22 +93,31 @@ class SherpaOnnxSpeechSynthesizer(
             model = modelConfig,
             maxNumSentences = 1
         )
-        tts = OfflineTts(config = config)
+        val created = OfflineTts(config = config)
+        if (destroyed.get()) {
+            try {
+                created.release()
+            } catch (_: Exception) {
+            }
+            error("Carga TTS cancelada al cerrar la sesión")
+        }
+        tts = created
         SystemClock.elapsedRealtime() - t0
     }
 
     override suspend fun synthesize(
         text: String,
         onChunk: (samples: FloatArray, sampleRate: Int) -> Boolean
-    ): Long = withContext(ttsDispatcher) {
+    ): SynthesisResult = withContext(ttsDispatcher) {
         val activeTts = tts ?: error("El motor TTS no está cargado")
         val cleanText = text.trim()
-        if (cleanText.isEmpty()) return@withContext 0L
+        if (cleanText.isEmpty()) return@withContext SynthesisResult(0L, 0L)
 
         cancelled.set(false)
         val t0 = SystemClock.elapsedRealtime()
         val sr = activeTts.sampleRate()
         val speakerId = currentVoice.speakerId.coerceIn(0, maxOf(0, activeTts.numSpeakers() - 1))
+        var totalSamples = 0L
 
         activeTts.generateWithCallback(
             text = cleanText,
@@ -115,11 +127,14 @@ class SherpaOnnxSpeechSynthesizer(
             if (cancelled.get()) {
                 0
             } else {
+                totalSamples += chunk.size.toLong()
                 val keepGoing = onChunk(chunk, sr)
                 if (keepGoing && !cancelled.get()) 1 else 0
             }
         }
-        SystemClock.elapsedRealtime() - t0
+        val synthMs = SystemClock.elapsedRealtime() - t0
+        val audioMs = if (sr > 0) (totalSamples * 1000L) / sr else 0L
+        SynthesisResult(synthMs = synthMs, audioDurationMs = audioMs)
     }
 
     override fun cancel() {
@@ -131,20 +146,27 @@ class SherpaOnnxSpeechSynthesizer(
         val toRelease = tts
         tts = null
         if (toRelease != null && !ttsExecutor.isShutdown) {
-            ttsExecutor.execute {
-                try {
-                    toRelease.release()
-                } catch (_: Exception) {
+            try {
+                ttsExecutor.execute {
+                    try {
+                        toRelease.release()
+                    } catch (_: Exception) {
+                    }
                 }
+            } catch (_: RejectedExecutionException) {
             }
         }
     }
 
     fun shutdown() {
+        destroyed.set(true)
         unload()
         if (!ttsExecutor.isShutdown) {
-            ttsExecutor.execute {
-                ttsExecutor.shutdown()
+            try {
+                ttsExecutor.execute {
+                    ttsExecutor.shutdown()
+                }
+            } catch (_: RejectedExecutionException) {
             }
         }
     }

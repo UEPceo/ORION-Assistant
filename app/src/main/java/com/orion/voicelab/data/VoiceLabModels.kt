@@ -83,7 +83,12 @@ data class VoiceLabUiState(
     val availableVoices: List<VoiceProfile> = emptyList(),
     val selectedVoiceId: String = "sharvard_f",
     val callTelemetry: CallTelemetry = CallTelemetry(),
-    val areLoadedModelsInRam: Boolean = false
+    val areLoadedModelsInRam: Boolean = false,
+    val asrLoaded: Boolean = false,
+    val llmLoaded: Boolean = false,
+    val ttsLoaded: Boolean = false,
+    val audioHardwareStatus: AudioHardwareStatus = AudioHardwareStatus(),
+    val recentErrors: List<String> = emptyList()
 ) {
     val isModelReady: Boolean
         get() = modelState is ModelInstallState.Installed

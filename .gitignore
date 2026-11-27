@@ -2,31 +2,52 @@
 .gradle/
 .kotlin/
 .build-outputs/
+.cxx/
 build/
+*/build/
 app/build/
 captures/
 *.iml
 
-# Local environment & secrets
+# Local environment, secrets & signing keystores
 local.properties
+keystore.properties
+release.properties
 .env
+.env.*
+!.env.example
 *.jks
 *.keystore
-!debug.keystore
+*.p12
+*.pfx
+*.pem
+*.pk8
+*.key
+*.mobileprovision
 
 # IDE & OS
 .idea/
+.vscode/
+*.swp
 .DS_Store
+Thumbs.db
 
-# Heavy downloaded models & binaries (never commit)
+# Heavy downloaded models, archives & build artifacts (never commit)
 *.gguf
 *.litertlm
 *.task
 *.ort
+*.onnx
 *.tar.bz2
+*.tar.gz
+*.tar
+*.zip
 *.bin
+*.part
 *.apk
 *.aab
 
-# Keep bundled lightweight Silero VAD model
+# Keep legitimate repository assets & Gradle Wrapper binary
 !app/src/main/assets/silero_vad.onnx
+!gradle/wrapper/gradle-wrapper.jar
+

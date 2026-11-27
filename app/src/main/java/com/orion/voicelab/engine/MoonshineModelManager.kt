@@ -1,18 +1,20 @@
 package com.orion.voicelab.engine
 
+import com.orion.voicelab.model.DownloadSpec
+import com.orion.voicelab.model.ModelManager
+import com.orion.voicelab.model.ResumableHttpDownloader
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 
 object MoonshineModelManager {
     const val MODEL_DIR_NAME = "sherpa-onnx-moonshine-base-es-quantized-2026-02-27"
     private const val MODEL_ARCHIVE = "$MODEL_DIR_NAME.tar.bz2"
     private const val MODEL_URL =
         "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/$MODEL_ARCHIVE"
+    private const val ASR_REQUIRED_FREE_BYTES = 320L * 1024L * 1024L
 
     private val allowedFiles = setOf(
         "encoder_model.ort",
@@ -20,14 +22,19 @@ object MoonshineModelManager {
         "tokens.txt",
         "LICENSE"
     )
+    private val installLock = Any()
 
     fun modelDirectory(filesDir: File): File = File(filesDir, "models/$MODEL_DIR_NAME")
 
     fun modelFilesPresent(filesDir: File): Boolean {
+        ModelManager.recoverBackupIfNeeded(
+            targetDir = modelDirectory(filesDir),
+            backupDir = File(filesDir, "models/$MODEL_DIR_NAME.bak")
+        )
         val dir = modelDirectory(filesDir)
-        return File(dir, "encoder_model.ort").isFile &&
-            File(dir, "decoder_model_merged.ort").isFile &&
-            File(dir, "tokens.txt").isFile
+        return File(dir, "encoder_model.ort").let { it.isFile && it.length() > 1_000_000L } &&
+            File(dir, "decoder_model_merged.ort").let { it.isFile && it.length() > 1_000_000L } &&
+            File(dir, "tokens.txt").let { it.isFile && it.length() > 1_000L }
     }
 
     fun modelSizeMb(filesDir: File): Long {
@@ -42,47 +49,44 @@ object MoonshineModelManager {
     fun downloadAndInstall(
         filesDir: File,
         cacheDir: File,
+        url: String = MODEL_URL,
+        expectedExactBytes: Long? = null,
+        expectedSha256: String? = null,
+        requiredFreeBytes: Long = ASR_REQUIRED_FREE_BYTES,
         onProgress: (Int) -> Unit,
         onExtracting: () -> Unit
     ) {
-        val archive = File(cacheDir, MODEL_ARCHIVE)
-        var connection: HttpURLConnection? = null
-        try {
-            connection = (URL(MODEL_URL).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 20_000
-                readTimeout = 60_000
-                instanceFollowRedirects = true
-                connect()
-            }
-            if (connection.responseCode !in 200..299) {
-                error("Descarga HTTP ${connection.responseCode}")
-            }
-            val total = connection.contentLengthLong
-            var lastPercent = -1
-            connection.inputStream.use { input ->
-                FileOutputStream(archive).use { output ->
-                    val buffer = ByteArray(64 * 1024)
-                    var count: Int
-                    var copied = 0L
-                    while (input.read(buffer).also { count = it } >= 0) {
-                        if (count == 0) continue
-                        output.write(buffer, 0, count)
-                        copied += count
-                        if (total > 0) {
-                            val percent = ((copied * 100) / total).toInt().coerceIn(0, 100)
-                            if (percent != lastPercent) {
-                                lastPercent = percent
-                                onProgress(percent)
-                            }
-                        }
-                    }
+        synchronized(installLock) {
+            // Limpieza de posibles residuos antiguos en cacheDir
+            File(cacheDir, MODEL_ARCHIVE).delete()
+            val partArchive = File(ModelManager.downloadsDirectory(filesDir), "$MODEL_ARCHIVE.part")
+
+            try {
+                ResumableHttpDownloader.download(
+                    spec = DownloadSpec(
+                        url = url,
+                        destinationPartFile = partArchive,
+                        minRequiredFreeBytes = requiredFreeBytes,
+                        expectedExactBytes = expectedExactBytes,
+                        expectedSha256 = expectedSha256,
+                        connectTimeoutMs = 20_000,
+                        readTimeoutMs = 60_000
+                    ),
+                    onProgress = { percent, _, _ -> onProgress(percent) }
+                )
+                onExtracting()
+                extractModelArchive(partArchive, filesDir)
+                partArchive.delete()
+            } catch (e: Exception) {
+                if (e.message?.contains("tar", ignoreCase = true) == true ||
+                    e.message?.contains("bzip2", ignoreCase = true) == true ||
+                    e.message?.contains("Corrupt", ignoreCase = true) == true ||
+                    e.message?.contains("Falta", ignoreCase = true) == true
+                ) {
+                    partArchive.delete()
                 }
+                throw e
             }
-            onExtracting()
-            extractModelArchive(archive, filesDir)
-        } finally {
-            archive.delete()
-            connection?.disconnect()
         }
     }
 
@@ -90,19 +94,28 @@ object MoonshineModelManager {
         val targetDir = modelDirectory(filesDir)
         val tempDir = File(filesDir, "models/$MODEL_DIR_NAME.tmp")
         val backupDir = File(filesDir, "models/$MODEL_DIR_NAME.bak")
+
+        ModelManager.recoverBackupIfNeeded(targetDir, backupDir)
         tempDir.deleteRecursively()
         backupDir.deleteRecursively()
         check(tempDir.mkdirs() || tempDir.isDirectory) { "No se pudo crear el directorio del modelo" }
 
+        val canonicalRoot = tempDir.canonicalPath
         try {
             BZip2CompressorInputStream(BufferedInputStream(archive.inputStream())).use { bz ->
                 TarArchiveInputStream(bz).use { tar ->
                     while (true) {
                         val entry = tar.nextTarEntry ?: break
                         if (!entry.isFile) continue
-                        val name = entry.name.substringAfterLast('/')
+                        val safeRelPath = ModelManager.sanitizeArchiveEntryPath(entry) ?: continue
+                        val name = safeRelPath.substringAfterLast('/')
                         if (name !in allowedFiles) continue
+
                         val target = File(tempDir, name)
+                        val canonicalTarget = target.canonicalPath
+                        check(canonicalTarget.startsWith("$canonicalRoot${File.separator}")) {
+                            "Ruta insegura en archivo ASR: ${entry.name}"
+                        }
                         FileOutputStream(target).use { out -> tar.copyTo(out) }
                     }
                 }
@@ -127,3 +140,4 @@ object MoonshineModelManager {
         }
     }
 }
+

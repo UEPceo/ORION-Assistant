@@ -11,9 +11,9 @@ import com.orion.voicelab.ui.VoiceLabViewModel
 import com.orion.voicelab.ui.theme.OrionTheme
 
 /**
- * ORION Voice Lab 0.3
- * Español offline: Silero VAD (segmentación) + Moonshine Base ES v2 (reconocimiento) con sherpa-onnx,
- * más un panel de medición para la Fase 0 (latencia, RAM, batería, temperatura).
+ * ORION Voice Lab 0.4.1
+ * Núcleo conversacional offline en español (Silero VAD + Moonshine Base ES + llama.cpp Qwen2.5 + Piper TTS)
+ * y panel de medición y diagnóstico local en dispositivo.
  */
 class MainActivity : ComponentActivity() {
 
@@ -29,6 +29,13 @@ class MainActivity : ComponentActivity() {
             OrionTheme {
                 OrionVoiceLabScreen(viewModel = viewModel)
             }
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) {
+            viewModel.onAppBackgrounded()
         }
     }
 }

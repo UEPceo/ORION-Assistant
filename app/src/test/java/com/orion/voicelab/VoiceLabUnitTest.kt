@@ -8,17 +8,40 @@ import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
 import com.k2fsa.sherpa.onnx.SileroVadModelConfig
 import com.k2fsa.sherpa.onnx.VadModelConfig
+import com.orion.voicelab.asr.AsrRecognitionResult
+import com.orion.voicelab.asr.SpeechRecognitionEngine
+import com.orion.voicelab.audio.AudioCaptureCapabilities
+import com.orion.voicelab.audio.AudioOutputSink
+import com.orion.voicelab.audio.VoiceActivityDetector
+import com.orion.voicelab.audio.VoiceInputController
+import com.orion.voicelab.audio.VoiceInputEngine
+import com.orion.voicelab.conversation.ConversationEngine
 import com.orion.voicelab.conversation.ConversationSession
 import com.orion.voicelab.conversation.SpeechSentenceChunker
 import com.orion.voicelab.data.AsrStats
+import com.orion.voicelab.data.CallTelemetry
 import com.orion.voicelab.data.ChatMessage
 import com.orion.voicelab.data.ChatRole
+import com.orion.voicelab.data.ConversationState
+import com.orion.voicelab.data.ConversationTurn
 import com.orion.voicelab.data.DeviceMetrics
 import com.orion.voicelab.data.TurnLatencyMetrics
+import com.orion.voicelab.data.VoiceProfile
 import com.orion.voicelab.engine.MoonshineModelManager
 import com.orion.voicelab.engine.OrionVoiceEngine
 import com.orion.voicelab.llm.ChatPromptFormatter
+import com.orion.voicelab.llm.LlamaCppLanguageModel
+import com.orion.voicelab.llm.LlamaRuntimeBridge
+import com.orion.voicelab.llm.LlmGenerationResult
+import com.orion.voicelab.llm.LocalLanguageModel
 import com.orion.voicelab.model.ModelManager
+import com.orion.voicelab.tts.LocalSpeechSynthesizer
+import com.orion.voicelab.tts.SynthesisResult
+import com.sun.net.httpserver.HttpServer
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
@@ -26,15 +49,35 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import org.nehuatl.llamacpp.LlamaAndroid
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.net.InetSocketAddress
 import java.security.MessageDigest
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.io.path.createTempDirectory
 
 class VoiceLabUnitTest {
+
+    private fun sha256Hex(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+
+    private fun buildValidGgufPayload(size: Int = 64_000): ByteArray {
+        val bytes = ByteArray(size) { ((it * 31) % 251).toByte() }
+        bytes[0] = 'G'.code.toByte()
+        bytes[1] = 'G'.code.toByte()
+        bytes[2] = 'U'.code.toByte()
+        bytes[3] = 'F'.code.toByte()
+        bytes[4] = 3
+        return bytes
+    }
 
     @Test
     fun `asr stats calculates average decode time and real time factor`() {
@@ -62,12 +105,9 @@ class VoiceLabUnitTest {
 
         val bytes = assetFile!!.readBytes()
         assertEquals(643_854, bytes.size)
-
-        val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
-        val hex = digest.joinToString("") { "%02x".format(it) }
         assertEquals(
             "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6",
-            hex
+            sha256Hex(bytes)
         )
     }
 
@@ -112,7 +152,7 @@ class VoiceLabUnitTest {
     }
 
     @Test
-    fun `model manager extracts allowed files safely and ignores unexpected entries`() {
+    fun `model manager extracts allowed files safely and blocks symlinks and path traversal`() {
         val rootDir = createTempDirectory("orion_model_test").toFile()
         try {
             val archive = File(rootDir, "test_model.tar.bz2")
@@ -132,6 +172,11 @@ class VoiceLabUnitTest {
                         addFile("model/tokens.txt", ByteArray(2_000) { 3 })
                         addFile("model/LICENSE", "Moonshine AI Community License".toByteArray())
                         addFile("model/../../evil.sh", "rm -rf /".toByteArray())
+
+                        val symlinkEntry = TarArchiveEntry("model/tokens_link", TarArchiveEntry.LF_SYMLINK)
+                        symlinkEntry.linkName = "/etc/passwd"
+                        tar.putArchiveEntry(symlinkEntry)
+                        tar.closeArchiveEntry()
                     }
                 }
             }
@@ -146,6 +191,7 @@ class VoiceLabUnitTest {
             assertTrue(File(modelDir, "LICENSE").isFile)
             assertFalse(File(rootDir, "evil.sh").exists())
             assertFalse(File(modelDir, "evil.sh").exists())
+            assertFalse(File(modelDir, "tokens_link").exists())
             assertTrue(MoonshineModelManager.modelSizeMb(filesDir) >= 2L)
         } finally {
             rootDir.deleteRecursively()
@@ -200,8 +246,12 @@ class VoiceLabUnitTest {
             asrMs = 210L,
             llmFirstTokenMs = 340L,
             llmTotalMs = 1500L,
+            llmTokensGenerated = 24,
+            llmTokensPerSec = 16.0,
             ttsSynthMs = 280L,
-            endToSpeechStartMs = 890L
+            synthesizedAudioMs = 1800L,
+            endToSpeechStartMs = 890L,
+            responseDurationMs = 1950L
         )
         val a1 = session.addAssistantMessage("Buenos días, ¿en qué trabajamos?", latency)
         session.addUserMessage("Revisa el proyecto", audioMs = 1400L, decodeMs = 240L)
@@ -295,5 +345,655 @@ class VoiceLabUnitTest {
         assertTrue(methodNames.contains("stopCompletion"))
         assertTrue(methodNames.contains("releaseContext"))
     }
-}
 
+    @Test
+    fun `resumable download handles 206 resume, 416 complete or corrupt, and sha256 verification`() {
+        val rootDir = createTempDirectory("orion_download_resume").toFile()
+        val payload = buildValidGgufPayload(48_000)
+        val expectedSha = sha256Hex(payload)
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        try {
+            val mode = AtomicInteger(0) // 0=206 resume, 1=416 exact complete, 2=416 mismatch -> 200 retry
+            server.createContext("/model.gguf") { ex ->
+                val rangeHeader = ex.requestHeaders.getFirst("Range")
+                when (mode.get()) {
+                    0 -> {
+                        val start = rangeHeader?.removePrefix("bytes=")?.removeSuffix("-")?.toIntOrNull() ?: 0
+                        val slice = payload.copyOfRange(start, payload.size)
+                        ex.responseHeaders.add("Content-Range", "bytes $start-${payload.size - 1}/${payload.size}")
+                        ex.sendResponseHeaders(206, slice.size.toLong())
+                        ex.responseBody.use { it.write(slice) }
+                    }
+                    1 -> {
+                        ex.responseHeaders.add("Content-Range", "bytes */${payload.size}")
+                        ex.sendResponseHeaders(416, -1)
+                        ex.close()
+                    }
+                    else -> {
+                        if (rangeHeader != null) {
+                            ex.responseHeaders.add("Content-Range", "bytes */${payload.size}")
+                            ex.sendResponseHeaders(416, -1)
+                            ex.close()
+                        } else {
+                            ex.sendResponseHeaders(200, payload.size.toLong())
+                            ex.responseBody.use { it.write(payload) }
+                        }
+                    }
+                }
+            }
+            server.start()
+            val url = "http://127.0.0.1:${server.address.port}/model.gguf"
+
+            // 1. Resume from partial download via HTTP 206 + SHA-256 verification
+            val filesDir1 = File(rootDir, "case206").apply { mkdirs() }
+            val partFile1 = File(ModelManager.downloadsDirectory(filesDir1), "${ModelManager.LLM_FILE_NAME}.part")
+            partFile1.parentFile?.mkdirs()
+            partFile1.writeBytes(payload.copyOfRange(0, 16_000))
+            assertTrue(ModelManager.hasLlmPartialDownload(filesDir1))
+
+            ModelManager.downloadAndInstallLlm(
+                filesDir = filesDir1,
+                url = url,
+                expectedExactBytes = payload.size.toLong(),
+                expectedSha256 = expectedSha,
+                requiredFreeBytes = 1_024L
+            ) { _, _, _ -> }
+            assertEquals(expectedSha, sha256Hex(ModelManager.llmModelFile(filesDir1).readBytes()))
+            assertFalse(partFile1.exists())
+
+            // 2. HTTP 416 when .part is already exact remote total
+            mode.set(1)
+            val filesDir2 = File(rootDir, "case416_complete").apply { mkdirs() }
+            val partFile2 = File(ModelManager.downloadsDirectory(filesDir2), "${ModelManager.LLM_FILE_NAME}.part")
+            partFile2.parentFile?.mkdirs()
+            partFile2.writeBytes(payload)
+
+            ModelManager.downloadAndInstallLlm(
+                filesDir = filesDir2,
+                url = url,
+                expectedExactBytes = payload.size.toLong(),
+                expectedSha256 = expectedSha,
+                requiredFreeBytes = 1_024L
+            ) { _, _, _ -> }
+            assertTrue(ModelManager.llmModelFile(filesDir2).isFile)
+
+            // 3. HTTP 416 when .part is larger/corrupt -> wipes .part and retries from byte 0
+            mode.set(2)
+            val filesDir3 = File(rootDir, "case416_corrupt").apply { mkdirs() }
+            val partFile3 = File(ModelManager.downloadsDirectory(filesDir3), "${ModelManager.LLM_FILE_NAME}.part")
+            partFile3.parentFile?.mkdirs()
+            partFile3.writeBytes(ByteArray(payload.size + 512) { 9 })
+
+            ModelManager.downloadAndInstallLlm(
+                filesDir = filesDir3,
+                url = url,
+                expectedExactBytes = payload.size.toLong(),
+                expectedSha256 = expectedSha,
+                requiredFreeBytes = 1_024L
+            ) { _, _, _ -> }
+            assertEquals(expectedSha, sha256Hex(ModelManager.llmModelFile(filesDir3).readBytes()))
+        } finally {
+            server.stop(0)
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `resumable download rejects wrong sha256, html errors, truncated streams and insufficient space`() {
+        val rootDir = createTempDirectory("orion_download_errors").toFile()
+        val payload = buildValidGgufPayload(32_000)
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        try {
+            server.createContext("/ok") { ex ->
+                ex.sendResponseHeaders(200, payload.size.toLong())
+                ex.responseBody.use { it.write(payload) }
+            }
+            server.createContext("/html") { ex ->
+                val html = "<html><body>Captive Portal</body></html>".toByteArray()
+                ex.responseHeaders.add("Content-Type", "text/html; charset=utf-8")
+                ex.sendResponseHeaders(200, html.size.toLong())
+                ex.responseBody.use { it.write(html) }
+            }
+            server.createContext("/truncated") { ex ->
+                ex.sendResponseHeaders(200, payload.size.toLong())
+                ex.responseBody.write(payload.copyOfRange(0, 8_000))
+                ex.close()
+            }
+            server.createContext("/notfound") { ex ->
+                ex.sendResponseHeaders(404, -1)
+                ex.close()
+            }
+            server.start()
+            val baseUrl = "http://127.0.0.1:${server.address.port}"
+
+            // Wrong SHA-256 deletes file & fails cleanly
+            val f1 = File(rootDir, "bad_sha").apply { mkdirs() }
+            try {
+                ModelManager.downloadAndInstallLlm(
+                    filesDir = f1,
+                    url = "$baseUrl/ok",
+                    expectedExactBytes = payload.size.toLong(),
+                    expectedSha256 = "0".repeat(64),
+                    requiredFreeBytes = 1_024L
+                ) { _, _, _ -> }
+                fail("Expected SHA-256 mismatch failure")
+            } catch (e: IllegalStateException) {
+                assertTrue(e.message!!.contains("SHA-256"))
+                assertFalse(ModelManager.llmModelFile(f1).exists())
+            }
+
+            // HTML captive portal response rejected cleanly
+            val f2 = File(rootDir, "html_err").apply { mkdirs() }
+            try {
+                ModelManager.downloadAndInstallLlm(
+                    filesDir = f2,
+                    url = "$baseUrl/html",
+                    expectedExactBytes = null,
+                    expectedSha256 = null,
+                    requiredFreeBytes = 1_024L
+                ) { _, _, _ -> }
+                fail("Expected HTML error rejection")
+            } catch (e: IllegalStateException) {
+                assertTrue(e.message!!.contains("HTML"))
+            }
+
+            // Truncated stream fails and does not promote target
+            val f3 = File(rootDir, "trunc").apply { mkdirs() }
+            try {
+                ModelManager.downloadAndInstallLlm(
+                    filesDir = f3,
+                    url = "$baseUrl/truncated",
+                    expectedExactBytes = payload.size.toLong(),
+                    expectedSha256 = null,
+                    requiredFreeBytes = 1_024L
+                ) { _, _, _ -> }
+                fail("Expected incomplete download failure")
+            } catch (_: Exception) {
+                assertFalse(ModelManager.llmModelFile(f3).exists())
+            }
+
+            // HTTP 404 fails cleanly
+            val f4 = File(rootDir, "http404").apply { mkdirs() }
+            try {
+                ModelManager.downloadAndInstallLlm(
+                    filesDir = f4,
+                    url = "$baseUrl/notfound",
+                    expectedExactBytes = null,
+                    expectedSha256 = null,
+                    requiredFreeBytes = 1_024L
+                ) { _, _, _ -> }
+                fail("Expected HTTP 404 error")
+            } catch (e: IllegalStateException) {
+                assertTrue(e.message!!.contains("404"))
+            }
+
+            // Insufficient space before starting
+            val f5 = File(rootDir, "nospace").apply { mkdirs() }
+            try {
+                ModelManager.downloadAndInstallLlm(
+                    filesDir = f5,
+                    url = "$baseUrl/ok",
+                    expectedExactBytes = payload.size.toLong(),
+                    expectedSha256 = null,
+                    requiredFreeBytes = Long.MAX_VALUE / 4
+                ) { _, _, _ -> }
+                fail("Expected insufficient space failure")
+            } catch (e: IllegalStateException) {
+                assertTrue(e.message!!.contains("Espacio insuficiente"))
+            }
+        } finally {
+            server.stop(0)
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `llama cpp language model prevents double release, duplicate contexts and mid-generation cancellation`() = runBlocking {
+        val rootDir = createTempDirectory("orion_llama_bridge").toFile()
+        try {
+            val gguf = File(rootDir, "model.gguf").apply { writeBytes(buildValidGgufPayload(1_024)) }
+            val startCalls = AtomicInteger(0)
+            val stopCalls = AtomicInteger(0)
+            val releaseCalls = AtomicInteger(0)
+            var nextContextError: String? = null
+            val completionStarted = CompletableDeferred<Unit>()
+            val allowCompletionFinish = CompletableDeferred<Unit>()
+
+            val fakeBridge = object : LlamaRuntimeBridge {
+                private var tokenCallback: ((String) -> Unit)? = null
+
+                override fun openModelDescriptor(modelFile: File): Pair<String, Int> =
+                    modelFile.toURI().toString() to 42
+
+                override suspend fun startEngine(
+                    params: Map<String, Any>,
+                    onToken: (String) -> Unit
+                ): Map<String, Any> {
+                    startCalls.incrementAndGet()
+                    tokenCallback = onToken
+                    return if (nextContextError != null) {
+                        mapOf("error" to nextContextError!!, "contextId" to 77)
+                    } else {
+                        mapOf("contextId" to 10)
+                    }
+                }
+
+                override suspend fun launchCompletion(
+                    contextId: Int,
+                    params: Map<String, Any>
+                ): Map<String, Any> {
+                    completionStarted.complete(Unit)
+                    tokenCallback?.invoke("Hola ")
+                    allowCompletionFinish.await()
+                    return mapOf("text" to "Hola", "tokens_predicted" to 1)
+                }
+
+                override suspend fun stopCompletion(contextId: Int) {
+                    stopCalls.incrementAndGet()
+                    allowCompletionFinish.complete(Unit)
+                }
+
+                override suspend fun releaseContext(contextId: Int) {
+                    releaseCalls.incrementAndGet()
+                }
+            }
+
+            val clock = AtomicLong(1000L)
+
+            // 1. Native error on startEngine releases leaked contextId and reports error
+            nextContextError = "out_of_memory"
+            val failingLlm = LlamaCppLanguageModel(
+                modelFile = gguf,
+                bridge = fakeBridge,
+                clockMs = { clock.getAndAdd(10) }
+            )
+            try {
+                failingLlm.load()
+                fail("Expected native error to propagate")
+            } catch (e: IllegalStateException) {
+                assertTrue(e.message!!.contains("out_of_memory"))
+            }
+            assertEquals(1, releaseCalls.get())
+            failingLlm.shutdown()
+
+            // 2. Duplicate load, mid-generation cancel, and single context release
+            nextContextError = null
+            startCalls.set(0)
+            releaseCalls.set(0)
+            stopCalls.set(0)
+
+            val llm = LlamaCppLanguageModel(
+                modelFile = gguf,
+                bridge = fakeBridge,
+                clockMs = { clock.getAndAdd(25) }
+            )
+            llm.load()
+            llm.load()
+            assertEquals(1, startCalls.get())
+            assertTrue(llm.isLoaded())
+
+            val tokensSeen = CopyOnWriteArrayList<String>()
+            val genJob = async {
+                llm.generateReply("Eres ORION", listOf(ChatMessage(ChatRole.USER, "Hola"))) { tok ->
+                    tokensSeen.add(tok)
+                }
+            }
+            completionStarted.await()
+            llm.cancelGeneration()
+            val result = genJob.await()
+            assertTrue(result.cancelled)
+            assertEquals(listOf("Hola "), tokensSeen.toList())
+            assertTrue(stopCalls.get() >= 1)
+
+            // Repeated unload must release context strictly once
+            llm.unload()
+            llm.unload()
+            llm.shutdown()
+            delay(150)
+            assertFalse(llm.isLoaded())
+            assertEquals(1, releaseCalls.get())
+        } finally {
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `conversation engine handles load failures, single turn, barge-in interruption and session reset`() = runBlocking {
+        // 1. Model load failure transitions cleanly to ERROR and notifies recorded errors
+        val badAsr = FakeSpeechRecognizer(loadFailure = IllegalStateException("Modelo ASR ausente"))
+        val badEngine = ConversationEngine(
+            speechRecognizer = badAsr,
+            languageModel = FakeLanguageModel(),
+            speechSynthesizer = FakeSpeechSynthesizer(),
+            playbackEngine = FakeAudioOutputSink(),
+            vadFactory = { FakeVad() },
+            clockMs = { 100L },
+            inputFactory = { FakeVoiceInputController() }
+        )
+        val errors = CopyOnWriteArrayList<String>()
+        val endedLatch = CountDownLatch(1)
+        badEngine.attachCallbacks(object : ConversationEngine.Callbacks {
+            override fun onStateChanged(state: ConversationState, statusText: String) {}
+            override fun onSpeechDetectedChanged(detected: Boolean) {}
+            override fun onAudioLevel(level: Float) {}
+            override fun onTurnsUpdated(turns: List<ConversationTurn>) {}
+            override fun onStreamingText(text: String) {}
+            override fun onTelemetryUpdated(telemetry: CallTelemetry) {}
+            override fun onModelsInRamChanged(loaded: Boolean) {}
+            override fun onErrorRecorded(message: String) {
+                errors.add(message)
+            }
+            override fun onCallEnded() {
+                endedLatch.countDown()
+            }
+        })
+        badEngine.startCall()
+        assertTrue(endedLatch.await(3, TimeUnit.SECONDS))
+        assertEquals(ConversationState.ERROR, badEngine.state.value)
+        assertFalse(badEngine.isCallActive())
+        assertTrue(errors.any { it.contains("Modelo ASR ausente") })
+        badEngine.shutdown()
+
+        // 2. Full turn orchestration + duplicate frame protection + reset + barge-in interrupt
+        val fakeInput = FakeVoiceInputController()
+        val fakeVad = FakeVad()
+        val fakeAsr = FakeSpeechRecognizer()
+        val gateLlm = CompletableDeferred<Unit>()
+        val fakeLlm = FakeLanguageModel(generationGate = gateLlm)
+        val fakeTts = FakeSpeechSynthesizer()
+        val fakePlayback = FakeAudioOutputSink()
+        val nowMs = AtomicLong(1_000L)
+
+        val engine = ConversationEngine(
+            speechRecognizer = fakeAsr,
+            languageModel = fakeLlm,
+            speechSynthesizer = fakeTts,
+            playbackEngine = fakePlayback,
+            vadFactory = { fakeVad },
+            clockMs = { nowMs.addAndGet(20L) },
+            inputFactory = { fakeInput }
+        )
+
+        val turnsSeen = CopyOnWriteArrayList<List<ConversationTurn>>()
+        val listeningLatch = CountDownLatch(1)
+        val telemetryLatch = CountDownLatch(1)
+        val turn1ReturnedToListening = CompletableDeferred<Unit>()
+        val interruptedLatch = CountDownLatch(1)
+        val statesSeen = CopyOnWriteArrayList<ConversationState>()
+
+        engine.attachCallbacks(object : ConversationEngine.Callbacks {
+            override fun onStateChanged(state: ConversationState, statusText: String) {
+                statesSeen.add(state)
+                if (state == ConversationState.LISTENING) {
+                    listeningLatch.countDown()
+                    if (telemetryLatch.count == 0L) {
+                        turn1ReturnedToListening.complete(Unit)
+                    }
+                }
+                if (state == ConversationState.INTERRUPTED) interruptedLatch.countDown()
+            }
+            override fun onSpeechDetectedChanged(detected: Boolean) {}
+            override fun onAudioLevel(level: Float) {}
+            override fun onTurnsUpdated(turns: List<ConversationTurn>) {
+                turnsSeen.add(turns)
+            }
+            override fun onStreamingText(text: String) {}
+            override fun onTelemetryUpdated(telemetry: CallTelemetry) {
+                if (telemetry.llmTurnsCount > 0) telemetryLatch.countDown()
+            }
+            override fun onModelsInRamChanged(loaded: Boolean) {}
+            override fun onCallEnded() {}
+        })
+
+        engine.startCall()
+        assertTrue(listeningLatch.await(3, TimeUnit.SECONDS))
+
+        // Enqueue speech segment -> trigger 2 frames rapidly; only 1 turn should run
+        fakeVad.enqueueSegment(FloatArray(8_000) { 0.2f })
+        fakeInput.emitFrame(FloatArray(512) { 0.2f }, 0.3f)
+        fakeInput.emitFrame(FloatArray(512) { 0.2f }, 0.3f)
+
+        gateLlm.complete(Unit)
+        assertTrue(telemetryLatch.await(4, TimeUnit.SECONDS))
+        turn1ReturnedToListening.await()
+        assertEquals(1, fakeAsr.transcribeCalls.get())
+        assertTrue(turnsSeen.last().size == 2)
+
+        // Reset session clears conversation turns cleanly
+        engine.resetSession()
+        assertTrue(turnsSeen.last().isEmpty())
+
+        // Advance fake clock past ECHO_COOLDOWN_MS and start turn 2
+        nowMs.addAndGet(500L)
+
+        // Test manual barge-in interrupt while turn 2 is generating
+        val blockedGate = CompletableDeferred<Unit>()
+        val secondGenStarted = CompletableDeferred<Unit>()
+        fakeLlm.setNextGate(blockedGate, secondGenStarted)
+        fakeVad.enqueueSegment(FloatArray(8_000) { 0.2f })
+        fakeInput.emitFrame(FloatArray(512) { 0.2f }, 0.3f)
+        secondGenStarted.await()
+        engine.interruptSpeaking()
+        blockedGate.complete(Unit)
+
+        assertTrue(interruptedLatch.await(3, TimeUnit.SECONDS))
+        assertTrue(fakeLlm.cancelCount.get() >= 1)
+        assertTrue(fakeTts.cancelCount.get() >= 1)
+        assertTrue(fakePlayback.stopCount.get() >= 1)
+
+        engine.shutdown()
+    }
+
+    private class FakeVoiceInputController : VoiceInputController {
+        override val isRunning: Boolean get() = active
+        override val isMuted: Boolean get() = muted
+        private var active = false
+        private var muted = false
+        private var listener: VoiceInputEngine.Listener? = null
+
+        override fun setMuted(value: Boolean) {
+            muted = value
+        }
+
+        override fun start(listener: VoiceInputEngine.Listener): Boolean {
+            active = true
+            this.listener = listener
+            listener.onCaptureStarted(
+                AudioCaptureCapabilities(
+                    audioSourceName = "VOICE_COMMUNICATION",
+                    sampleRateHz = 16_000,
+                    aecAvailable = true,
+                    aecActive = true,
+                    nsAvailable = true,
+                    nsActive = true
+                )
+            )
+            return true
+        }
+
+        fun emitFrame(samples: FloatArray, rms: Float) {
+            listener?.onAudioFrame(samples, rms)
+        }
+
+        override fun stop() {
+            active = false
+            listener?.onCaptureStopped()
+        }
+    }
+
+    private class FakeVad : VoiceActivityDetector {
+        private val pending = ArrayDeque<FloatArray>()
+        private var speech = false
+
+        fun enqueueSegment(segment: FloatArray) {
+            pending.addLast(segment)
+        }
+
+        override fun acceptWaveform(samples: FloatArray) {
+            speech = pending.isNotEmpty()
+        }
+
+        override fun isSpeechDetected(): Boolean = speech
+
+        override fun drainSegments(minSamples: Int): List<FloatArray> {
+            val out = pending.filter { it.size >= minSamples }
+            pending.clear()
+            speech = false
+            return out
+        }
+
+        override fun flush() {}
+        override fun reset() {
+            pending.clear()
+            speech = false
+        }
+        override fun release() {
+            pending.clear()
+        }
+    }
+
+    private class FakeSpeechRecognizer(
+        private val loadFailure: Exception? = null
+    ) : SpeechRecognitionEngine {
+        private var loaded = false
+        val transcribeCalls = AtomicInteger(0)
+
+        override fun isLoaded(): Boolean = loaded
+
+        override suspend fun load(): Long {
+            loadFailure?.let { throw it }
+            loaded = true
+            return 15L
+        }
+
+        override suspend fun transcribe(samples: FloatArray, sampleRate: Int): AsrRecognitionResult {
+            transcribeCalls.incrementAndGet()
+            return AsrRecognitionResult(text = "Hola ORION", audioMs = 500L, decodeMs = 45L)
+        }
+
+        override fun release() {
+            loaded = false
+        }
+    }
+
+    private class FakeLanguageModel(
+        private var generationGate: CompletableDeferred<Unit> = CompletableDeferred<Unit>().apply { complete(Unit) }
+    ) : LocalLanguageModel {
+        override val modelDisplayName: String = "FakeQwen"
+        override val modelLicense: String = "Apache 2.0"
+        private var loaded = false
+        val cancelCount = AtomicInteger(0)
+        @Volatile
+        private var cancelled = false
+        @Volatile
+        private var startedSignal: CompletableDeferred<Unit>? = null
+
+        fun setNextGate(gate: CompletableDeferred<Unit>, onStarted: CompletableDeferred<Unit>? = null) {
+            generationGate = gate
+            startedSignal = onStarted
+        }
+
+        override fun isModelInstalled(): Boolean = true
+        override fun isLoaded(): Boolean = loaded
+        override fun modelSizeMb(): Long = 1065L
+
+        override suspend fun load(): Long {
+            loaded = true
+            return 25L
+        }
+
+        override suspend fun generateReply(
+            systemPrompt: String,
+            history: List<ChatMessage>,
+            onToken: (String) -> Unit
+        ): LlmGenerationResult {
+            cancelled = false
+            startedSignal?.complete(Unit)
+            generationGate.await()
+            if (cancelled) {
+                return LlmGenerationResult("", 0L, 10L, 0, true)
+            }
+            val reply = "Hola, estoy listo para ayudarte."
+            onToken(reply)
+            return LlmGenerationResult(reply, 30L, 120L, 8, false)
+        }
+
+        override fun cancelGeneration() {
+            cancelled = true
+            cancelCount.incrementAndGet()
+        }
+
+        override fun unload() {
+            loaded = false
+        }
+    }
+
+    private class FakeSpeechSynthesizer : LocalSpeechSynthesizer {
+        override val engineDisplayName: String = "FakePiper"
+        override val engineLicense: String = "MIT"
+        private var loaded = false
+        val cancelCount = AtomicInteger(0)
+
+        override fun availableVoices(): List<VoiceProfile> = emptyList()
+        override fun selectedVoice(): VoiceProfile = VoiceProfile("f", "F", 0, "F")
+        override fun selectVoice(voiceId: String) {}
+        override fun isModelInstalled(): Boolean = true
+        override fun isLoaded(): Boolean = loaded
+        override fun modelSizeMb(): Long = 24L
+
+        override suspend fun load(): Long {
+            loaded = true
+            return 10L
+        }
+
+        override suspend fun synthesize(
+            text: String,
+            onChunk: (samples: FloatArray, sampleRate: Int) -> Boolean
+        ): SynthesisResult {
+            onChunk(FloatArray(2205) { 0.1f }, 22050)
+            return SynthesisResult(synthMs = 20L, audioDurationMs = 100L)
+        }
+
+        override fun cancel() {
+            cancelCount.incrementAndGet()
+        }
+
+        override fun unload() {
+            loaded = false
+        }
+    }
+
+    private class FakeAudioOutputSink : AudioOutputSink {
+        private var playing = false
+        private var listener: ((Boolean) -> Unit)? = null
+        val stopCount = AtomicInteger(0)
+
+        override val isPlaying: Boolean get() = playing
+
+        override fun setPlaybackStateListener(listener: ((Boolean) -> Unit)?) {
+            this.listener = listener
+        }
+
+        override fun beginSession(sampleRate: Int) {
+            playing = true
+            listener?.invoke(true)
+        }
+
+        override fun writeSamples(samples: FloatArray, sampleRate: Int): Boolean = true
+
+        override fun finishSessionGracefully() {
+            playing = false
+            listener?.invoke(false)
+        }
+
+        override fun stopImmediately() {
+            stopCount.incrementAndGet()
+            playing = false
+            listener?.invoke(false)
+        }
+
+        override fun release() {
+            playing = false
+        }
+    }
+}

@@ -3,16 +3,23 @@ package com.orion.voicelab.conversation
 import android.content.res.AssetManager
 import android.os.SystemClock
 import com.orion.voicelab.asr.SpeechRecognitionEngine
+import com.orion.voicelab.audio.AudioCaptureCapabilities
+import com.orion.voicelab.audio.AudioOutputSink
 import com.orion.voicelab.audio.AudioPlaybackEngine
+import com.orion.voicelab.audio.AudioRoutingController
 import com.orion.voicelab.audio.SileroVoiceActivityDetector
 import com.orion.voicelab.audio.VoiceActivityDetector
+import com.orion.voicelab.audio.VoiceInputController
 import com.orion.voicelab.audio.VoiceInputEngine
+import com.orion.voicelab.data.AudioHardwareStatus
 import com.orion.voicelab.data.CallTelemetry
 import com.orion.voicelab.data.ConversationState
 import com.orion.voicelab.data.ConversationTurn
 import com.orion.voicelab.data.TurnLatencyMetrics
 import com.orion.voicelab.llm.LocalLanguageModel
 import com.orion.voicelab.tts.LocalSpeechSynthesizer
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,15 +35,39 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
-class ConversationEngine(
-    private val assets: AssetManager,
+class ConversationEngine internal constructor(
     private val speechRecognizer: SpeechRecognitionEngine,
     private val languageModel: LocalLanguageModel,
     private val speechSynthesizer: LocalSpeechSynthesizer,
-    private val playbackEngine: AudioPlaybackEngine = AudioPlaybackEngine(),
-    private val vadFactory: () -> VoiceActivityDetector = { SileroVoiceActivityDetector(assets) },
-    private val sampleRate: Int = SileroVoiceActivityDetector.SAMPLE_RATE
+    private val playbackEngine: AudioOutputSink = AudioPlaybackEngine(),
+    private val audioRoutingController: AudioRoutingController? = null,
+    private val vadFactory: () -> VoiceActivityDetector,
+    private val sampleRate: Int = SileroVoiceActivityDetector.SAMPLE_RATE,
+    private val clockMs: () -> Long = { SystemClock.elapsedRealtime() },
+    private val workerDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    inputFactory: (() -> VoiceInputController)? = null
 ) {
+    constructor(
+        assets: AssetManager,
+        speechRecognizer: SpeechRecognitionEngine,
+        languageModel: LocalLanguageModel,
+        speechSynthesizer: LocalSpeechSynthesizer,
+        audioRoutingController: AudioRoutingController? = null,
+        playbackEngine: AudioPlaybackEngine = AudioPlaybackEngine(),
+        vadFactory: () -> VoiceActivityDetector = { SileroVoiceActivityDetector(assets) },
+        sampleRate: Int = SileroVoiceActivityDetector.SAMPLE_RATE
+    ) : this(
+        speechRecognizer = speechRecognizer,
+        languageModel = languageModel,
+        speechSynthesizer = speechSynthesizer,
+        playbackEngine = playbackEngine,
+        audioRoutingController = audioRoutingController,
+        vadFactory = vadFactory,
+        sampleRate = sampleRate,
+        clockMs = { SystemClock.elapsedRealtime() }
+    )
+
     companion object {
         private const val MIN_SEGMENT_SAMPLES = 4_000 // 250 ms at 16 kHz
         private const val BARGE_IN_CONSECUTIVE_WINDOWS = 10 // ~320 ms sustained speech
@@ -52,11 +83,14 @@ class ConversationEngine(
         fun onStreamingText(text: String)
         fun onTelemetryUpdated(telemetry: CallTelemetry)
         fun onModelsInRamChanged(loaded: Boolean)
+        fun onModelLoadStatesChanged(asrLoaded: Boolean, llmLoaded: Boolean, ttsLoaded: Boolean) {}
+        fun onAudioHardwareChanged(status: AudioHardwareStatus) {}
+        fun onErrorRecorded(message: String) {}
         fun onCallEnded()
     }
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val inputEngine = VoiceInputEngine(
+    private val scope = CoroutineScope(SupervisorJob() + workerDispatcher)
+    private val inputEngine: VoiceInputController = inputFactory?.invoke() ?: VoiceInputEngine(
         sampleRate = sampleRate,
         windowSamples = SileroVoiceActivityDetector.VAD_WINDOW,
         useVoiceCommunicationSource = true
@@ -64,7 +98,9 @@ class ConversationEngine(
 
     private val session = ConversationSession()
     private val callActive = AtomicBoolean(false)
-    private val startingOrStopping = AtomicBoolean(false)
+    private val callRequested = AtomicBoolean(false)
+    private val turnInFlight = AtomicBoolean(false)
+    private val callSessionEpoch = AtomicLong(0L)
     private val turnGeneration = AtomicLong(0L)
     private val _state = MutableStateFlow(ConversationState.IDLE)
     val state: StateFlow<ConversationState> = _state.asStateFlow()
@@ -74,24 +110,39 @@ class ConversationEngine(
     @Volatile
     private var activeTurnJob: Job? = null
     @Volatile
+    private var startJob: Job? = null
+    @Volatile
     private var callbacks: Callbacks? = null
     @Volatile
     private var telemetry = CallTelemetry()
+    @Volatile
+    private var audioHardware = AudioHardwareStatus(sampleRateHz = sampleRate)
     @Volatile
     private var echoSuppressUntilMs = 0L
     @Volatile
     private var consecutiveBargeInWindows = 0
 
-    fun attachCallbacks(listener: Callbacks?) {
-        callbacks = listener
+    init {
+        playbackEngine.setPlaybackStateListener { playing ->
+            updateAudioHardware { it.copy(isPlaying = playing) }
+        }
     }
 
-    fun isCallActive(): Boolean = callActive.get()
+    fun attachCallbacks(listener: Callbacks?) {
+        callbacks = listener
+        listener?.let {
+            notifyModelLoadStates()
+            it.onAudioHardwareChanged(audioHardware)
+        }
+    }
+
+    fun isCallActive(): Boolean = callActive.get() || callRequested.get()
 
     fun isMuted(): Boolean = inputEngine.isMuted
 
     fun setMuted(muted: Boolean) {
         inputEngine.setMuted(muted)
+        updateAudioHardware { it.copy(isMuted = muted) }
         if (muted) {
             callbacks?.onSpeechDetectedChanged(false)
             callbacks?.onAudioLevel(0f)
@@ -109,18 +160,29 @@ class ConversationEngine(
     }
 
     fun startCall() {
-        if (callActive.get() || !startingOrStopping.compareAndSet(false, true)) return
+        if (callActive.get() || !callRequested.compareAndSet(false, true)) return
 
-        scope.launch {
+        val sessionEpoch = callSessionEpoch.incrementAndGet()
+        updateState(
+            ConversationState.PROCESSING,
+            "Cargando ASR, LLM y voz TTS en memoria…"
+        )
+
+        startJob = scope.launch {
+            var routingStarted = false
             try {
-                updateState(
-                    ConversationState.PROCESSING,
-                    "Cargando ASR, LLM y voz TTS en memoria…"
-                )
-
                 val asrLoadMs = speechRecognizer.load()
+                notifyModelLoadStates()
+                if (!isSessionValid(sessionEpoch)) return@launch
+
                 val ttsLoadMs = speechSynthesizer.load()
+                notifyModelLoadStates()
+                if (!isSessionValid(sessionEpoch)) return@launch
+
                 val llmLoadMs = languageModel.load()
+                notifyModelLoadStates()
+                if (!isSessionValid(sessionEpoch)) return@launch
+
                 val activeVad = vad ?: vadFactory().also { vad = it }
                 activeVad.reset()
 
@@ -132,27 +194,49 @@ class ConversationEngine(
                 callbacks?.onTelemetryUpdated(telemetry)
                 callbacks?.onModelsInRamChanged(true)
 
-                callActive.set(true)
+                val initialRoute = audioRoutingController?.startCallRouting { route ->
+                    updateAudioHardware { it.copy(audioOutputRoute = route) }
+                } ?: audioHardware.audioOutputRoute
+                routingStarted = audioRoutingController != null
+                updateAudioHardware { it.copy(audioOutputRoute = initialRoute) }
+
+                if (!isSessionValid(sessionEpoch)) {
+                    if (routingStarted) audioRoutingController?.stopCallRouting()
+                    return@launch
+                }
+
                 echoSuppressUntilMs = 0L
                 consecutiveBargeInWindows = 0
+                callActive.set(true)
 
                 val started = inputEngine.start(object : VoiceInputEngine.Listener {
                     private var lastSpeechFlag = false
 
-                    override fun onCaptureStarted() {
-                        if (callActive.get()) {
-                            updateState(
-                                ConversationState.LISTENING,
-                                "En llamada · Escuchando en español…"
+                    override fun onCaptureStarted(capabilities: AudioCaptureCapabilities) {
+                        if (!isSessionValid(sessionEpoch) || !callActive.get()) return
+                        updateAudioHardware {
+                            it.copy(
+                                isCapturing = true,
+                                isMuted = inputEngine.isMuted,
+                                audioSourceName = capabilities.audioSourceName,
+                                sampleRateHz = capabilities.sampleRateHz,
+                                aecAvailable = capabilities.aecAvailable,
+                                aecActive = capabilities.aecActive,
+                                nsAvailable = capabilities.nsAvailable,
+                                nsActive = capabilities.nsActive
                             )
                         }
+                        updateState(
+                            ConversationState.LISTENING,
+                            "En llamada · Escuchando en español…"
+                        )
                     }
 
                     override fun onAudioFrame(samples: FloatArray, rmsNormalized: Float) {
-                        if (!callActive.get()) return
+                        if (!callActive.get() || callSessionEpoch.get() != sessionEpoch) return
                         callbacks?.onAudioLevel(rmsNormalized)
 
-                        val now = SystemClock.elapsedRealtime()
+                        val now = clockMs()
                         if (now < echoSuppressUntilMs) {
                             return
                         }
@@ -178,7 +262,6 @@ class ConversationEngine(
                                 } else {
                                     consecutiveBargeInWindows = 0
                                     if (currentState == ConversationState.SPEAKING) {
-                                        // Discard speaker bleed segments while ORION speaks unless barge-in occurred
                                         currentVad.drainSegments(MIN_SEGMENT_SAMPLES)
                                     }
                                 }
@@ -187,11 +270,13 @@ class ConversationEngine(
                             ConversationState.LISTENING, ConversationState.INTERRUPTED -> {
                                 consecutiveBargeInWindows = 0
                                 val segments = currentVad.drainSegments(MIN_SEGMENT_SAMPLES)
-                                if (segments.isNotEmpty() && _state.value != ConversationState.PROCESSING) {
-                                    // Process the latest spoken segment cleanly
+                                if (segments.isNotEmpty() &&
+                                    _state.value != ConversationState.PROCESSING &&
+                                    !turnInFlight.get()
+                                ) {
                                     val segment = segments.last()
-                                    val speechEndedMs = SystemClock.elapsedRealtime()
-                                    startTurnPipeline(segment, speechEndedMs)
+                                    val speechEndedMs = clockMs()
+                                    startTurnPipeline(segment, speechEndedMs, sessionEpoch)
                                 }
                             }
 
@@ -202,12 +287,19 @@ class ConversationEngine(
                     }
 
                     override fun onError(message: String) {
+                        if (callSessionEpoch.get() != sessionEpoch) return
                         callActive.set(false)
+                        callRequested.set(false)
+                        turnInFlight.set(false)
+                        audioRoutingController?.stopCallRouting()
+                        updateAudioHardware { it.copy(isCapturing = false, isPlaying = false) }
+                        callbacks?.onErrorRecorded("Error de audio: $message")
                         updateState(ConversationState.ERROR, "Error de audio: $message")
                         callbacks?.onCallEnded()
                     }
 
                     override fun onCaptureStopped() {
+                        updateAudioHardware { it.copy(isCapturing = false) }
                         callbacks?.onSpeechDetectedChanged(false)
                         callbacks?.onAudioLevel(0f)
                     }
@@ -215,18 +307,31 @@ class ConversationEngine(
 
                 if (!started) {
                     callActive.set(false)
-                    updateState(ConversationState.ERROR, "No se pudo iniciar la captura de micrófono.")
+                    callRequested.set(false)
+                    if (routingStarted) audioRoutingController?.stopCallRouting()
+                    val msg = "No se pudo iniciar la captura de micrófono."
+                    callbacks?.onErrorRecorded(msg)
+                    updateState(ConversationState.ERROR, msg)
                     callbacks?.onCallEnded()
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) {
+                if (routingStarted) audioRoutingController?.stopCallRouting()
                 callActive.set(false)
-                updateState(
-                    ConversationState.ERROR,
-                    "No se pudo iniciar la llamada: ${e.message ?: "error desconocido"}"
-                )
-                callbacks?.onCallEnded()
-            } finally {
-                startingOrStopping.set(false)
+                callRequested.set(false)
+                notifyModelLoadStates()
+                throw e
+            } catch (e: Exception) {
+                if (routingStarted) audioRoutingController?.stopCallRouting()
+                callActive.set(false)
+                callRequested.set(false)
+                turnInFlight.set(false)
+                notifyModelLoadStates()
+                val msg = "No se pudo iniciar la llamada: ${e.message ?: "error desconocido"}"
+                if (callSessionEpoch.get() == sessionEpoch) {
+                    callbacks?.onErrorRecorded(msg)
+                    updateState(ConversationState.ERROR, msg)
+                    callbacks?.onCallEnded()
+                }
             }
         }
     }
@@ -242,6 +347,7 @@ class ConversationEngine(
             return
         }
         turnGeneration.incrementAndGet()
+        turnInFlight.set(false)
         activeTurnJob?.cancel()
         activeTurnJob = null
 
@@ -259,15 +365,25 @@ class ConversationEngine(
         }
     }
 
-    private fun startTurnPipeline(samples: FloatArray, speechEndedMs: Long) {
+    private fun startTurnPipeline(
+        samples: FloatArray,
+        speechEndedMs: Long,
+        sessionEpoch: Long
+    ) {
+        if (!turnInFlight.compareAndSet(false, true)) return
         val myGeneration = turnGeneration.incrementAndGet()
         activeTurnJob?.cancel()
+        updateState(ConversationState.PROCESSING, "Transcribiendo tu voz…")
 
         activeTurnJob = scope.launch {
             try {
-                updateState(ConversationState.PROCESSING, "Transcribiendo tu voz…")
                 val asrResult = speechRecognizer.transcribe(samples, sampleRate)
-                if (!callActive.get() || turnGeneration.get() != myGeneration) return@launch
+                if (!callActive.get() ||
+                    callSessionEpoch.get() != sessionEpoch ||
+                    turnGeneration.get() != myGeneration
+                ) {
+                    return@launch
+                }
 
                 val userText = asrResult.text.trim()
                 if (userText.isBlank() || userText.none { it.isLetterOrDigit() }) {
@@ -288,14 +404,24 @@ class ConversationEngine(
                 val streamedDisplay = StringBuilder()
 
                 var firstAudioStartMs = -1L
+                var firstAudioClockMs = -1L
                 var totalTtsMs = 0L
+                var totalSynthAudioMs = 0L
 
-                val ttsConsumer = async(Dispatchers.IO) {
+                val ttsConsumer = async(ioDispatcher) {
                     var sessionBegun = false
                     for (sentence in sentenceChannel) {
-                        if (!callActive.get() || turnGeneration.get() != myGeneration) break
-                        val synthMs = speechSynthesizer.synthesize(sentence) { pcmChunk, sr ->
-                            if (!callActive.get() || turnGeneration.get() != myGeneration) {
+                        if (!callActive.get() ||
+                            callSessionEpoch.get() != sessionEpoch ||
+                            turnGeneration.get() != myGeneration
+                        ) {
+                            break
+                        }
+                        val synthResult = speechSynthesizer.synthesize(sentence) { pcmChunk, sr ->
+                            if (!callActive.get() ||
+                                callSessionEpoch.get() != sessionEpoch ||
+                                turnGeneration.get() != myGeneration
+                            ) {
                                 false
                             } else {
                                 if (!sessionBegun) {
@@ -303,15 +429,22 @@ class ConversationEngine(
                                     playbackEngine.beginSession(sr)
                                 }
                                 if (firstAudioStartMs < 0L) {
-                                    firstAudioStartMs = SystemClock.elapsedRealtime() - speechEndedMs
+                                    val now = clockMs()
+                                    firstAudioClockMs = now
+                                    firstAudioStartMs = now - speechEndedMs
                                     updateState(ConversationState.SPEAKING, "ORION está hablando…")
                                 }
                                 playbackEngine.writeSamples(pcmChunk, sr)
                             }
                         }
-                        totalTtsMs += synthMs
+                        totalTtsMs += synthResult.synthMs
+                        totalSynthAudioMs += synthResult.audioDurationMs
                     }
-                    if (sessionBegun && callActive.get() && turnGeneration.get() == myGeneration) {
+                    if (sessionBegun &&
+                        callActive.get() &&
+                        callSessionEpoch.get() == sessionEpoch &&
+                        turnGeneration.get() == myGeneration
+                    ) {
                         playbackEngine.finishSessionGracefully()
                     }
                 }
@@ -320,7 +453,12 @@ class ConversationEngine(
                     systemPrompt = session.systemPrompt,
                     history = session.historySnapshot()
                 ) { token ->
-                    if (!callActive.get() || turnGeneration.get() != myGeneration) return@generateReply
+                    if (!callActive.get() ||
+                        callSessionEpoch.get() != sessionEpoch ||
+                        turnGeneration.get() != myGeneration
+                    ) {
+                        return@generateReply
+                    }
                     streamedDisplay.append(token)
                     callbacks?.onStreamingText(streamedDisplay.toString())
                     val readySentences = chunker.appendToken(token)
@@ -329,7 +467,11 @@ class ConversationEngine(
                     }
                 }
 
-                if (!llmResult.cancelled && callActive.get() && turnGeneration.get() == myGeneration) {
+                if (!llmResult.cancelled &&
+                    callActive.get() &&
+                    callSessionEpoch.get() == sessionEpoch &&
+                    turnGeneration.get() == myGeneration
+                ) {
                     val trailing = chunker.flush()
                     if (trailing != null) {
                         sentenceChannel.trySend(trailing)
@@ -340,23 +482,37 @@ class ConversationEngine(
                 sentenceChannel.close()
                 ttsConsumer.await()
 
-                if (!callActive.get() || turnGeneration.get() != myGeneration || llmResult.cancelled) {
+                if (!callActive.get() ||
+                    callSessionEpoch.get() != sessionEpoch ||
+                    turnGeneration.get() != myGeneration ||
+                    llmResult.cancelled
+                ) {
                     return@launch
                 }
 
                 val replyText = llmResult.text.ifBlank { streamedDisplay.toString().trim() }
                 if (replyText.isNotBlank()) {
+                    val now = clockMs()
                     val endToSpeech = if (firstAudioStartMs >= 0L) {
                         firstAudioStartMs
                     } else {
-                        SystemClock.elapsedRealtime() - speechEndedMs
+                        now - speechEndedMs
+                    }
+                    val responseDurationMs = if (firstAudioClockMs >= 0L) {
+                        (now - firstAudioClockMs).coerceAtLeast(0L)
+                    } else {
+                        totalSynthAudioMs
                     }
                     val turnMetrics = TurnLatencyMetrics(
                         asrMs = asrResult.decodeMs,
                         llmFirstTokenMs = llmResult.firstTokenMs,
                         llmTotalMs = llmResult.totalMs,
+                        llmTokensGenerated = llmResult.tokensGenerated,
+                        llmTokensPerSec = llmResult.tokensPerSecond,
                         ttsSynthMs = totalTtsMs,
-                        endToSpeechStartMs = endToSpeech
+                        synthesizedAudioMs = totalSynthAudioMs,
+                        endToSpeechStartMs = endToSpeech,
+                        responseDurationMs = responseDurationMs
                     )
                     session.addAssistantMessage(replyText, turnMetrics)
                     telemetry = telemetry.withTurn(turnMetrics)
@@ -365,35 +521,48 @@ class ConversationEngine(
                 }
 
                 callbacks?.onStreamingText("")
-                // Prevent ORION's trailing speaker echo from re-triggering VAD
-                echoSuppressUntilMs = SystemClock.elapsedRealtime() + ECHO_COOLDOWN_MS
+                echoSuppressUntilMs = clockMs() + ECHO_COOLDOWN_MS
                 vad?.reset()
                 delay(ECHO_COOLDOWN_MS)
-                if (callActive.get() && turnGeneration.get() == myGeneration) {
+                if (callActive.get() &&
+                    callSessionEpoch.get() == sessionEpoch &&
+                    turnGeneration.get() == myGeneration
+                ) {
                     updateState(ConversationState.LISTENING, "En llamada · Escuchando en español…")
                 }
-            } catch (e: kotlinx.coroutines.CancellationException) {
+            } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                if (callActive.get() && turnGeneration.get() == myGeneration) {
+                if (callActive.get() &&
+                    callSessionEpoch.get() == sessionEpoch &&
+                    turnGeneration.get() == myGeneration
+                ) {
                     callbacks?.onStreamingText("")
-                    updateState(
-                        ConversationState.ERROR,
-                        "Error en turno de conversación: ${e.message ?: "error desconocido"}"
-                    )
+                    val msg = "Error en turno de conversación: ${e.message ?: "error desconocido"}"
+                    callbacks?.onErrorRecorded(msg)
+                    updateState(ConversationState.ERROR, msg)
                     delay(1200L)
-                    if (callActive.get()) {
+                    if (callActive.get() && callSessionEpoch.get() == sessionEpoch) {
                         vad?.reset()
                         updateState(ConversationState.LISTENING, "En llamada · Escuchando en español…")
                     }
+                }
+            } finally {
+                if (turnGeneration.get() == myGeneration) {
+                    turnInFlight.set(false)
                 }
             }
         }
     }
 
     fun endCall(unloadModels: Boolean = false) {
+        callSessionEpoch.incrementAndGet()
+        callRequested.set(false)
         callActive.set(false)
         turnGeneration.incrementAndGet()
+        turnInFlight.set(false)
+        startJob?.cancel()
+        startJob = null
         activeTurnJob?.cancel()
         activeTurnJob = null
 
@@ -401,12 +570,20 @@ class ConversationEngine(
         playbackEngine.stopImmediately()
         speechSynthesizer.cancel()
         languageModel.cancelGeneration()
+        audioRoutingController?.stopCallRouting()
         vad?.reset()
 
         if (unloadModels) {
             releaseLoadedModels()
         }
 
+        updateAudioHardware {
+            it.copy(
+                isCapturing = false,
+                isPlaying = false,
+                audioOutputRoute = audioRoutingController?.currentRouteLabel() ?: "Altavoz"
+            )
+        }
         callbacks?.onStreamingText("")
         callbacks?.onSpeechDetectedChanged(false)
         callbacks?.onAudioLevel(0f)
@@ -421,12 +598,30 @@ class ConversationEngine(
         speechSynthesizer.unload()
         languageModel.unload()
         playbackEngine.release()
+        notifyModelLoadStates()
         callbacks?.onModelsInRamChanged(false)
     }
 
     fun shutdown() {
         endCall(unloadModels = true)
         scope.cancel()
+    }
+
+    private fun isSessionValid(sessionEpoch: Long): Boolean =
+        callRequested.get() && callSessionEpoch.get() == sessionEpoch
+
+    private fun notifyModelLoadStates() {
+        val asr = speechRecognizer.isLoaded()
+        val llm = languageModel.isLoaded()
+        val tts = speechSynthesizer.isLoaded()
+        callbacks?.onModelLoadStatesChanged(asrLoaded = asr, llmLoaded = llm, ttsLoaded = tts)
+        callbacks?.onModelsInRamChanged(asr || llm || tts)
+    }
+
+    private fun updateAudioHardware(transform: (AudioHardwareStatus) -> AudioHardwareStatus) {
+        val updated = transform(audioHardware)
+        audioHardware = updated
+        callbacks?.onAudioHardwareChanged(updated)
     }
 
     private fun updateState(newState: ConversationState, message: String) {

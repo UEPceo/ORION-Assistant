@@ -5,8 +5,10 @@ import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.orion.voicelab.asr.MoonshineSpeechRecognitionEngine
+import com.orion.voicelab.audio.AudioRoutingController
 import com.orion.voicelab.conversation.ConversationEngine
 import com.orion.voicelab.data.AsrStats
+import com.orion.voicelab.data.AudioHardwareStatus
 import com.orion.voicelab.data.CallTelemetry
 import com.orion.voicelab.data.ComponentModelState
 import com.orion.voicelab.data.ConversationState
@@ -30,6 +32,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class VoiceLabViewModel(application: Application) : AndroidViewModel(application) {
@@ -37,10 +41,12 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     companion object {
         private const val METRICS_TICK_MS = 15_000L
         private const val CALL_TIMER_TICK_MS = 1_000L
+        private const val MAX_RECENT_ERRORS = 8
     }
 
     private val appContext = application.applicationContext
     private val engine = OrionVoiceEngine()
+    private val audioRoutingController = AudioRoutingController(appContext)
 
     private val speechRecognizer = MoonshineSpeechRecognitionEngine(
         modelDirectory = ModelManager.asrDirectory(appContext.filesDir)
@@ -56,7 +62,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         assets = appContext.assets,
         speechRecognizer = speechRecognizer,
         languageModel = languageModel,
-        speechSynthesizer = speechSynthesizer
+        speechSynthesizer = speechSynthesizer,
+        audioRoutingController = audioRoutingController
     )
 
     private var tickerJob: Job? = null
@@ -121,6 +128,29 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             override fun onModelsInRamChanged(loaded: Boolean) {
                 _uiState.update { it.copy(areLoadedModelsInRam = loaded) }
                 refreshMetrics()
+            }
+
+            override fun onModelLoadStatesChanged(
+                asrLoaded: Boolean,
+                llmLoaded: Boolean,
+                ttsLoaded: Boolean
+            ) {
+                _uiState.update {
+                    it.copy(
+                        asrLoaded = asrLoaded,
+                        llmLoaded = llmLoaded,
+                        ttsLoaded = ttsLoaded,
+                        areLoadedModelsInRam = asrLoaded || llmLoaded || ttsLoaded
+                    )
+                }
+            }
+
+            override fun onAudioHardwareChanged(status: AudioHardwareStatus) {
+                _uiState.update { it.copy(audioHardwareStatus = status) }
+            }
+
+            override fun onErrorRecorded(message: String) {
+                recordError(message)
             }
 
             override fun onCallEnded() {
@@ -243,6 +273,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 refreshMetrics()
             } catch (e: Exception) {
                 val msg = e.message ?: "error desconocido"
+                recordError("ASR descarga: $msg")
                 _uiState.update {
                     it.copy(
                         modelState = ModelInstallState.Error(msg),
@@ -281,6 +312,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 refreshMetrics()
             } catch (e: Exception) {
                 val msg = e.message ?: "error desconocido"
+                recordError("LLM descarga: $msg")
                 _uiState.update {
                     it.copy(
                         llmModelState = ComponentModelState.Error(msg),
@@ -337,6 +369,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 refreshMetrics()
             } catch (e: Exception) {
                 val msg = e.message ?: "error desconocido"
+                recordError("TTS descarga: $msg")
                 _uiState.update {
                     it.copy(
                         ttsModelState = ComponentModelState.Error(msg),
@@ -428,11 +461,32 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onPermissionDenied() {
+        recordError("Permiso RECORD_AUDIO denegado")
         _uiState.update {
             it.copy(
                 statusMessage = "Permiso de micrófono denegado.",
                 callStatusMessage = "Permiso de micrófono requerido para hablar con ORION."
             )
+        }
+    }
+
+    fun onAppBackgrounded() {
+        if (conversationEngine.isCallActive()) {
+            endCall()
+        }
+        if (engine.isRunning) {
+            stopListening()
+        }
+    }
+
+    private fun recordError(message: String) {
+        val clean = message.trim()
+        if (clean.isEmpty()) return
+        val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        val formatted = "[$timestamp] $clean"
+        _uiState.update { current ->
+            val updated = (listOf(formatted) + current.recentErrors).take(MAX_RECENT_ERRORS)
+            current.copy(recentErrors = updated)
         }
     }
 
@@ -527,6 +581,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 override fun onError(message: String) {
+                    recordError("Lab ASR: $message")
                     _uiState.update {
                         it.copy(
                             statusMessage = if (message.startsWith("Error")) {
@@ -642,12 +697,25 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val llmMb = ModelManager.llmSizeMb(appContext.filesDir)
         val ttsMb = ModelManager.ttsSizeMb(appContext.filesDir)
         val callTel = state.callTelemetry
+        val hw = state.audioHardwareStatus
         return buildString {
-            appendLine("ORION Voice Lab 0.4 — informe de medición")
+            appendLine("ORION Voice Lab 0.4.1 — informe de diagnóstico")
             appendLine(DeviceMetrics.deviceSummary())
             appendLine("Ahora:")
             appendLine(DeviceMetrics.describe(now))
-            appendLine("Modelos en disco: ASR ${state.modelSizeMb} MB · LLM $llmMb MB · TTS $ttsMb MB")
+            appendLine(
+                "Modelos en disco: ASR ${state.modelSizeMb} MB (${if (state.isModelReady) "instalado" else "pendiente"}) · " +
+                    "LLM $llmMb MB (${if (state.llmModelState is ComponentModelState.Installed) "instalado" else "pendiente"}) · " +
+                    "TTS $ttsMb MB (${if (state.ttsModelState is ComponentModelState.Installed) "instalado" else "pendiente"})"
+            )
+            appendLine(
+                "Modelos en RAM: ASR=${state.asrLoaded} · LLM=${state.llmLoaded} · TTS=${state.ttsLoaded}"
+            )
+            appendLine(
+                "Audio HW: captura=${hw.isCapturing} (silencio=${hw.isMuted}) · fuente=${hw.audioSourceName} @ ${hw.sampleRateHz} Hz · " +
+                    "AEC=${hw.aecActive}/${hw.aecAvailable} · NS=${hw.nsActive}/${hw.nsAvailable} · " +
+                    "reproducción=${hw.isPlaying} · ruta=${hw.audioOutputRoute}"
+            )
             appendLine(
                 if (state.modelLoadMs >= 0) {
                     "Carga ASR + VAD (Lab): ${state.modelLoadMs} ms"
@@ -672,9 +740,20 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             }
             if (callTel.llmTurnsCount > 0) {
                 appendLine(
-                    "Turnos conversacionales: ${callTel.llmTurnsCount} · LLM media ${callTel.avgLlmMs} ms · " +
-                        "último 1er token ${callTel.lastLlmFirstTokenMs} ms · TTS ${callTel.lastTtsSynthMs} ms · " +
-                        "voz→respuesta ${callTel.lastEndToSpeechMs} ms"
+                    String.format(
+                        Locale.getDefault(),
+                        "Turnos llamada: %d · último ASR %d ms · LLM 1er token %d ms · %.1f tok/s · LLM total %d ms (media %d ms) · TTS %d ms (audio %d ms) · 1er audio %d ms · respuesta %d ms",
+                        callTel.llmTurnsCount,
+                        callTel.lastAsrMs,
+                        callTel.lastLlmFirstTokenMs,
+                        callTel.lastLlmTokensPerSec,
+                        callTel.lastLlmTotalMs,
+                        callTel.avgLlmMs,
+                        callTel.lastTtsSynthMs,
+                        callTel.lastSynthesizedAudioMs,
+                        callTel.lastEndToSpeechMs,
+                        callTel.lastResponseDurationMs
+                    )
                 )
             }
             val begin = state.startSnapshot
@@ -703,6 +782,10 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 }
             } else {
                 appendLine("Sesión de escucha: sin datos todavía")
+            }
+            if (state.recentErrors.isNotEmpty()) {
+                appendLine("Últimos errores:")
+                state.recentErrors.forEach { appendLine("  $it") }
             }
             appendLine(
                 "Parámetros VAD: umbral ${OrionVoiceEngine.VAD_THRESHOLD} · " +
@@ -751,6 +834,9 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         stopMetricsTicker()
         engine.destroy()
         conversationEngine.shutdown()
+        speechRecognizer.shutdown()
+        languageModel.shutdown()
+        speechSynthesizer.shutdown()
         super.onCleared()
     }
 }

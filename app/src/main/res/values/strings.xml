@@ -2,9 +2,10 @@
 <resources>
     <string name="app_name">ORION Voice Lab</string>
     <string name="brand_title">ORION</string>
-    <string name="brand_subtitle">VOICE LAB 0.4 · NÚCLEO CONVERSACIONAL OFFLINE</string>
+    <string name="brand_subtitle">VOICE LAB 0.4.1 · NÚCLEO CONVERSACIONAL OFFLINE</string>
     <string name="tab_call">Llamada</string>
     <string name="tab_lab">Laboratorio</string>
+    <string name="section_diagnostics">DIAGNÓSTICO LOCAL · 0.4.1</string>
 
     <!-- Voice Lab 0.3 preserved strings -->
     <string name="status_model_ready">Moonshine Base ES instalado. Reconocimiento local disponible sin Internet.</string>

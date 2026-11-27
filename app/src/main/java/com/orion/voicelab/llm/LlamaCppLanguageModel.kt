@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -17,8 +18,11 @@ import kotlinx.coroutines.withContext
 import org.nehuatl.llamacpp.LlamaAndroid
 import java.io.File
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 object ChatPromptFormatter {
 
@@ -69,10 +73,62 @@ object ChatPromptFormatter {
     }
 }
 
-class LlamaCppLanguageModel(
-    private val contentResolver: ContentResolver,
-    private val modelFile: File
+internal interface LlamaRuntimeBridge {
+    fun openModelDescriptor(modelFile: File): Pair<String, Int>
+    suspend fun startEngine(params: Map<String, Any>, onToken: (String) -> Unit): Map<String, Any>?
+    suspend fun launchCompletion(contextId: Int, params: Map<String, Any>): Map<String, Any>?
+    suspend fun stopCompletion(contextId: Int)
+    suspend fun releaseContext(contextId: Int)
+}
+
+internal class AndroidLlamaRuntimeBridge(
+    private val contentResolver: ContentResolver
+) : LlamaRuntimeBridge {
+
+    private val llamaAndroid by lazy { LlamaAndroid(contentResolver) }
+
+    override fun openModelDescriptor(modelFile: File): Pair<String, Int> {
+        val uri = Uri.fromFile(modelFile)
+        val pfd = contentResolver.openFileDescriptor(uri, "r")
+            ?: error("No se pudo abrir el descriptor del archivo GGUF")
+        return uri.toString() to pfd.detachFd()
+    }
+
+    override suspend fun startEngine(
+        params: Map<String, Any>,
+        onToken: (String) -> Unit
+    ): Map<String, Any>? = llamaAndroid.startEngine(params, onToken)
+
+    override suspend fun launchCompletion(
+        contextId: Int,
+        params: Map<String, Any>
+    ): Map<String, Any>? = llamaAndroid.launchCompletion(contextId, params)
+
+    override suspend fun stopCompletion(contextId: Int) {
+        llamaAndroid.stopCompletion(contextId)
+    }
+
+    override suspend fun releaseContext(contextId: Int) {
+        llamaAndroid.releaseContext(contextId)
+    }
+}
+
+class LlamaCppLanguageModel internal constructor(
+    private val modelFile: File,
+    private val bridge: LlamaRuntimeBridge,
+    private val modelInstalledCheck: (File) -> Boolean = { file ->
+        file.isFile && ModelManager.hasGgufMagicHeader(file)
+    },
+    private val clockMs: () -> Long = { SystemClock.elapsedRealtime() }
 ) : LocalLanguageModel {
+
+    constructor(
+        contentResolver: ContentResolver,
+        modelFile: File
+    ) : this(
+        modelFile = modelFile,
+        bridge = AndroidLlamaRuntimeBridge(contentResolver)
+    )
 
     companion object {
         private const val CONTEXT_SIZE = 2048
@@ -94,38 +150,37 @@ class LlamaCppLanguageModel(
     private val controlScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutex = Mutex()
 
-    private val llamaAndroid by lazy { LlamaAndroid(contentResolver) }
+    private val contextIdRef = AtomicReference<Int?>(null)
     private val cancelled = AtomicBoolean(false)
-
-    @Volatile
-    private var contextId: Int? = null
+    private val generating = AtomicBoolean(false)
+    private val unloadRequested = AtomicBoolean(false)
+    private val destroyed = AtomicBoolean(false)
+    private val generationEpoch = AtomicLong(0L)
 
     @Volatile
     private var activeTokenSink: ((String) -> Unit)? = null
 
-    override fun isModelInstalled(): Boolean =
-        modelFile.isFile && ModelManager.hasGgufMagicHeader(modelFile)
+    override fun isModelInstalled(): Boolean = modelInstalledCheck(modelFile)
 
-    override fun isLoaded(): Boolean = contextId != null
+    override fun isLoaded(): Boolean = contextIdRef.get() != null
 
     override fun modelSizeMb(): Long =
         if (modelFile.isFile) modelFile.length() / (1024L * 1024L) else 0L
 
     override suspend fun load(): Long = mutex.withLock {
+        if (destroyed.get()) error("El motor LLM ya fue cerrado")
+        unloadRequested.set(false)
         withContext(llamaDispatcher) {
-            if (contextId != null) return@withContext 0L
+            if (contextIdRef.get() != null) return@withContext 0L
             check(isModelInstalled()) {
-                "El modelo LLM local no está instalado."
+                "El modelo LLM local no está instalado o está corrupto."
             }
 
-            val t0 = SystemClock.elapsedRealtime()
-            val uri = Uri.fromFile(modelFile)
-            val pfd = contentResolver.openFileDescriptor(uri, "r")
-                ?: error("No se pudo abrir el descriptor del archivo GGUF")
-            val fd = pfd.detachFd()
+            val t0 = clockMs()
+            val (modelUri, fd) = bridge.openModelDescriptor(modelFile)
 
             val params = mapOf(
-                "model" to uri.toString(),
+                "model" to modelUri,
                 "model_fd" to fd,
                 "use_mmap" to true,
                 "use_mlock" to false,
@@ -135,15 +190,46 @@ class LlamaCppLanguageModel(
                 "n_gpu_layers" to 0
             )
 
-            val result = llamaAndroid.startEngine(params) { token ->
+            val result = bridge.startEngine(params) { token ->
                 if (!cancelled.get()) {
                     activeTokenSink?.invoke(token)
                 }
             }
+
+            val nativeError = result?.get("error")?.toString()?.takeIf { it.isNotBlank() }
             val id = (result?.get("contextId") as? Number)?.toInt()
-                ?: error("No se obtuvo contextId de llama.cpp")
-            contextId = id
-            SystemClock.elapsedRealtime() - t0
+
+            if (nativeError != null) {
+                if (id != null) {
+                    try {
+                        bridge.releaseContext(id)
+                    } catch (_: Exception) {
+                    }
+                }
+                error("Error nativo al iniciar llama.cpp: $nativeError")
+            }
+
+            if (id == null) {
+                error("No se obtuvo contextId de llama.cpp")
+            }
+
+            if (unloadRequested.get() || destroyed.get()) {
+                try {
+                    bridge.releaseContext(id)
+                } catch (_: Exception) {
+                }
+                error("Carga LLM cancelada al liberar memoria")
+            }
+
+            if (!contextIdRef.compareAndSet(null, id)) {
+                try {
+                    bridge.releaseContext(id)
+                } catch (_: Exception) {
+                }
+                return@withContext 0L
+            }
+
+            clockMs() - t0
         }
     }
 
@@ -151,102 +237,147 @@ class LlamaCppLanguageModel(
         systemPrompt: String,
         history: List<ChatMessage>,
         onToken: (String) -> Unit
-    ): LlmGenerationResult = mutex.withLock {
-        withContext(llamaDispatcher) {
-            val activeId = contextId ?: error("El modelo LLM no está cargado en memoria")
-            cancelled.set(false)
+    ): LlmGenerationResult {
+        val callEpoch = generationEpoch.get()
+        return mutex.withLock {
+            withContext(llamaDispatcher) {
+                val activeId = contextIdRef.get()
+                    ?: error("El modelo LLM no está cargado en memoria")
+                if (destroyed.get() || unloadRequested.get() || generationEpoch.get() != callEpoch) {
+                    return@withContext LlmGenerationResult(
+                        text = "",
+                        firstTokenMs = 0L,
+                        totalMs = 0L,
+                        tokensGenerated = 0,
+                        cancelled = true
+                    )
+                }
 
-            val prompt = ChatPromptFormatter.formatChatMl(systemPrompt, history)
-            val startMs = SystemClock.elapsedRealtime()
-            var firstTokenMs = -1L
-            val tokenCounter = AtomicInteger(0)
-            val buffer = StringBuilder()
+                cancelled.set(false)
+                generating.set(true)
 
-            activeTokenSink = { rawToken ->
-                if (!cancelled.get() && rawToken.isNotEmpty()) {
-                    if (firstTokenMs < 0L) {
-                        firstTokenMs = SystemClock.elapsedRealtime() - startMs
+                val prompt = ChatPromptFormatter.formatChatMl(systemPrompt, history)
+                val startMs = clockMs()
+                var firstTokenMs = -1L
+                val tokenCounter = AtomicInteger(0)
+                val buffer = StringBuilder()
+
+                activeTokenSink = { rawToken ->
+                    if (!cancelled.get() && rawToken.isNotEmpty()) {
+                        if (firstTokenMs < 0L) {
+                            firstTokenMs = clockMs() - startMs
+                        }
+                        tokenCounter.incrementAndGet()
+                        buffer.append(rawToken)
+                        val filtered = filterStopFragment(rawToken)
+                        if (filtered.isNotEmpty()) {
+                            onToken(filtered)
+                        }
                     }
-                    tokenCounter.incrementAndGet()
-                    buffer.append(rawToken)
-                    val filtered = filterStopFragment(rawToken)
-                    if (filtered.isNotEmpty()) {
-                        onToken(filtered)
+                }
+
+                try {
+                    val params = mapOf(
+                        "prompt" to prompt,
+                        "temperature" to TEMPERATURE,
+                        "top_k" to 40,
+                        "top_p" to TOP_P,
+                        "min_p" to 0.05,
+                        "n_threads" to THREADS_LOAD_AND_GEN,
+                        "n_predict" to MAX_PREDICT_TOKENS,
+                        "penalty_last_n" to 64,
+                        "penalty_repeat" to REPEAT_PENALTY,
+                        "emit_partial_completion" to true,
+                        "stop" to ChatPromptFormatter.STOP_TOKENS
+                    )
+
+                    val completionResult = bridge.launchCompletion(activeId, params)
+                    val totalMs = clockMs() - startMs
+                    val nativeError = completionResult?.get("error")?.toString()?.takeIf { it.isNotBlank() }
+                    if (nativeError != null && !cancelled.get()) {
+                        error("Error nativo en llama.cpp: $nativeError")
                     }
-                }
-            }
 
-            try {
-                val params = mapOf(
-                    "prompt" to prompt,
-                    "temperature" to TEMPERATURE,
-                    "top_k" to 40,
-                    "top_p" to TOP_P,
-                    "min_p" to 0.05,
-                    "n_threads" to THREADS_LOAD_AND_GEN,
-                    "n_predict" to MAX_PREDICT_TOKENS,
-                    "penalty_last_n" to 64,
-                    "penalty_repeat" to REPEAT_PENALTY,
-                    "emit_partial_completion" to true,
-                    "stop" to ChatPromptFormatter.STOP_TOKENS
-                )
-
-                val completionResult = llamaAndroid.launchCompletion(activeId, params)
-                val totalMs = SystemClock.elapsedRealtime() - startMs
-                val rawOut = if (buffer.isNotEmpty()) {
-                    buffer.toString()
-                } else {
-                    (completionResult?.get("text") as? String).orEmpty()
+                    val rawOut = if (buffer.isNotEmpty()) {
+                        buffer.toString()
+                    } else {
+                        (completionResult?.get("text") as? String).orEmpty()
+                    }
+                    val cleaned = ChatPromptFormatter.cleanAssistantText(rawOut)
+                    val count = tokenCounter.get().let {
+                        if (it > 0) it else (completionResult?.get("tokens_predicted") as? Number)?.toInt() ?: 0
+                    }
+                    LlmGenerationResult(
+                        text = cleaned,
+                        firstTokenMs = if (firstTokenMs >= 0L) firstTokenMs else totalMs,
+                        totalMs = totalMs,
+                        tokensGenerated = count,
+                        cancelled = cancelled.get() || generationEpoch.get() != callEpoch
+                    )
+                } finally {
+                    generating.set(false)
+                    activeTokenSink = null
                 }
-                val cleaned = ChatPromptFormatter.cleanAssistantText(rawOut)
-                val count = tokenCounter.get().let {
-                    if (it > 0) it else (completionResult?.get("tokens_predicted") as? Number)?.toInt() ?: 0
-                }
-                LlmGenerationResult(
-                    text = cleaned,
-                    firstTokenMs = if (firstTokenMs >= 0L) firstTokenMs else totalMs,
-                    totalMs = totalMs,
-                    tokensGenerated = count,
-                    cancelled = cancelled.get()
-                )
-            } finally {
-                activeTokenSink = null
             }
         }
     }
 
     override fun cancelGeneration() {
+        generationEpoch.incrementAndGet()
         cancelled.set(true)
         activeTokenSink = null
-        val activeId = contextId ?: return
-        controlScope.launch {
-            try {
-                llamaAndroid.stopCompletion(activeId)
-            } catch (_: Exception) {
-            }
-        }
-    }
-
-    override fun unload() {
-        cancelled.set(true)
-        activeTokenSink = null
-        val idToRelease = contextId
-        contextId = null
-        if (idToRelease != null && !llamaExecutor.isShutdown) {
-            llamaExecutor.execute {
+        val activeId = contextIdRef.get() ?: return
+        if (generating.get() && !destroyed.get()) {
+            controlScope.launch {
                 try {
-                    llamaAndroid.releaseContext(idToRelease)
+                    bridge.stopCompletion(activeId)
                 } catch (_: Exception) {
                 }
             }
         }
     }
 
-    fun shutdown() {
-        unload()
+    override fun unload() {
+        unloadRequested.set(true)
+        generationEpoch.incrementAndGet()
+        cancelled.set(true)
+        activeTokenSink = null
+        val idToRelease = contextIdRef.getAndSet(null) ?: return
+
+        if (generating.get() && !destroyed.get()) {
+            controlScope.launch {
+                try {
+                    bridge.stopCompletion(idToRelease)
+                } catch (_: Exception) {
+                }
+            }
+        }
+
         if (!llamaExecutor.isShutdown) {
-            llamaExecutor.execute {
-                llamaExecutor.shutdown()
+            try {
+                llamaExecutor.execute {
+                    kotlinx.coroutines.runBlocking {
+                        try {
+                            bridge.releaseContext(idToRelease)
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
+            } catch (_: RejectedExecutionException) {
+            }
+        }
+    }
+
+    fun shutdown() {
+        destroyed.set(true)
+        unload()
+        controlScope.cancel()
+        if (!llamaExecutor.isShutdown) {
+            try {
+                llamaExecutor.execute {
+                    llamaExecutor.shutdown()
+                }
+            } catch (_: RejectedExecutionException) {
             }
         }
     }
@@ -260,3 +391,4 @@ class LlamaCppLanguageModel(
         return token
     }
 }
+

@@ -5,6 +5,7 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.AudioEffect
 import android.media.audiofx.NoiseSuppressor
 import android.os.Process
 import java.util.concurrent.atomic.AtomicBoolean
@@ -12,13 +13,30 @@ import kotlin.concurrent.thread
 import kotlin.math.abs
 import kotlin.math.sqrt
 
+data class AudioCaptureCapabilities(
+    val audioSourceName: String,
+    val sampleRateHz: Int,
+    val aecAvailable: Boolean,
+    val aecActive: Boolean,
+    val nsAvailable: Boolean,
+    val nsActive: Boolean
+)
+
+interface VoiceInputController {
+    val isRunning: Boolean
+    val isMuted: Boolean
+    fun setMuted(value: Boolean)
+    fun start(listener: VoiceInputEngine.Listener): Boolean
+    fun stop()
+}
+
 class VoiceInputEngine(
     private val sampleRate: Int = 16_000,
     private val windowSamples: Int = 512,
     private val useVoiceCommunicationSource: Boolean = true
-) {
+) : VoiceInputController {
     interface Listener {
-        fun onCaptureStarted()
+        fun onCaptureStarted(capabilities: AudioCaptureCapabilities)
         fun onAudioFrame(samples: FloatArray, rmsNormalized: Float)
         fun onError(message: String)
         fun onCaptureStopped()
@@ -27,15 +45,15 @@ class VoiceInputEngine(
     private val running = AtomicBoolean(false)
     private val muted = AtomicBoolean(false)
 
-    val isRunning: Boolean get() = running.get()
-    val isMuted: Boolean get() = muted.get()
+    override val isRunning: Boolean get() = running.get()
+    override val isMuted: Boolean get() = muted.get()
 
-    fun setMuted(value: Boolean) {
+    override fun setMuted(value: Boolean) {
         muted.set(value)
     }
 
     @SuppressLint("MissingPermission")
-    fun start(listener: Listener): Boolean {
+    override fun start(listener: Listener): Boolean {
         if (!running.compareAndSet(false, true)) return false
 
         thread(name = "OrionVoiceInput") {
@@ -55,6 +73,11 @@ class VoiceInputEngine(
                 } else {
                     MediaRecorder.AudioSource.VOICE_RECOGNITION
                 }
+                val sourceName = if (useVoiceCommunicationSource) {
+                    "VOICE_COMMUNICATION"
+                } else {
+                    "VOICE_RECOGNITION"
+                }
 
                 audioRecord = AudioRecord(
                     source,
@@ -67,26 +90,46 @@ class VoiceInputEngine(
                     "No se pudo inicializar el micrófono"
                 }
 
-                if (useVoiceCommunicationSource) {
+                val aecAvail = AcousticEchoCanceler.isAvailable()
+                var aecActive = false
+                if (useVoiceCommunicationSource && aecAvail) {
                     try {
-                        if (AcousticEchoCanceler.isAvailable()) {
-                            aec = AcousticEchoCanceler.create(audioRecord.audioSessionId)?.apply {
-                                enabled = true
-                            }
+                        aec = AcousticEchoCanceler.create(audioRecord.audioSessionId)
+                        if (aec != null) {
+                            val rc = aec.setEnabled(true)
+                            aecActive = (rc == AudioEffect.SUCCESS) && aec.enabled
                         }
-                    } catch (_: Exception) {}
+                    } catch (_: Exception) {
+                        aecActive = false
+                    }
+                }
+
+                val nsAvail = NoiseSuppressor.isAvailable()
+                var nsActive = false
+                if (useVoiceCommunicationSource && nsAvail) {
                     try {
-                        if (NoiseSuppressor.isAvailable()) {
-                            ns = NoiseSuppressor.create(audioRecord.audioSessionId)?.apply {
-                                enabled = true
-                            }
+                        ns = NoiseSuppressor.create(audioRecord.audioSessionId)
+                        if (ns != null) {
+                            val rc = ns.setEnabled(true)
+                            nsActive = (rc == AudioEffect.SUCCESS) && ns.enabled
                         }
-                    } catch (_: Exception) {}
+                    } catch (_: Exception) {
+                        nsActive = false
+                    }
                 }
 
                 Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
                 audioRecord.startRecording()
-                listener.onCaptureStarted()
+                listener.onCaptureStarted(
+                    AudioCaptureCapabilities(
+                        audioSourceName = sourceName,
+                        sampleRateHz = sampleRate,
+                        aecAvailable = aecAvail,
+                        aecActive = aecActive,
+                        nsAvailable = nsAvail,
+                        nsActive = nsActive
+                    )
+                )
 
                 val shortBuffer = ShortArray(windowSamples)
                 val floatBuffer = FloatArray(windowSamples)
@@ -136,7 +179,8 @@ class VoiceInputEngine(
         return true
     }
 
-    fun stop() {
+    override fun stop() {
         running.set(false)
     }
 }
+

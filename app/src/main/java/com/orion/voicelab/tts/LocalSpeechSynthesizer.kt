@@ -2,6 +2,11 @@ package com.orion.voicelab.tts
 
 import com.orion.voicelab.data.VoiceProfile
 
+data class SynthesisResult(
+    val synthMs: Long,
+    val audioDurationMs: Long
+)
+
 interface LocalSpeechSynthesizer {
     val engineDisplayName: String
     val engineLicense: String
@@ -19,12 +24,11 @@ interface LocalSpeechSynthesizer {
     /**
      * Synthesizes text into PCM float audio chunks.
      * The callback returns true to continue or false to abort synthesis immediately.
-     * Returns total synthesis time in ms.
      */
     suspend fun synthesize(
         text: String,
         onChunk: (samples: FloatArray, sampleRate: Int) -> Boolean
-    ): Long
+    ): SynthesisResult
 
     fun cancel()
     fun unload()

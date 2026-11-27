@@ -8,7 +8,14 @@ data class LlmGenerationResult(
     val totalMs: Long,
     val tokensGenerated: Int,
     val cancelled: Boolean
-)
+) {
+    val tokensPerSecond: Double
+        get() = if (totalMs > 0L && tokensGenerated > 0) {
+            tokensGenerated * 1000.0 / totalMs.toDouble()
+        } else {
+            0.0
+        }
+}
 
 interface LocalLanguageModel {
     val modelDisplayName: String
