@@ -121,7 +121,7 @@ class GitHubOrionConnector(
                     onSuccess = { commits ->
                         if (commits.isEmpty()) ConnectorResult.Success("No he encontrado commits.")
                         else ConnectorResult.Success(commits.take(10).joinToString("\n") {
-                            "\${it.sha} — \${it.message} — \${it.author} — \${it.committedAt}"
+                            "${it.sha} — ${it.message} — ${it.author} — ${it.committedAt}"
                         })
                     },
                     onFailure = { githubFailure(it) }
@@ -134,7 +134,7 @@ class GitHubOrionConnector(
                     onSuccess = { runs ->
                         if (runs.isEmpty()) ConnectorResult.Success("No hay ejecuciones de GitHub Actions disponibles.")
                         else ConnectorResult.Success(runs.take(10).joinToString("\n") {
-                            "\${it.name}: \${it.status}\${it.conclusion.takeIf(String::isNotBlank)?.let { value -> " ($value)" }.orEmpty()} — rama \${it.branch} — \${it.updatedAt}"
+                            "${it.name}: ${it.status}${it.conclusion.takeIf(String::isNotBlank)?.let { value -> " ($value)" }.orEmpty()} — rama ${it.branch} — ${it.updatedAt}"
                         })
                     },
                     onFailure = { githubFailure(it) }
@@ -147,7 +147,7 @@ class GitHubOrionConnector(
                     onSuccess = { files ->
                         if (files.isEmpty()) ConnectorResult.Success("La ruta no contiene archivos o no existe.")
                         else ConnectorResult.Success(files.take(30).joinToString("\n") {
-                            "\${it.type}: \${it.path}"
+                            "${it.type}: ${it.path}"
                         })
                     },
                     onFailure = { githubFailure(it) }
