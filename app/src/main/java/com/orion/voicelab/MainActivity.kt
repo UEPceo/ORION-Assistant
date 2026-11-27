@@ -16,7 +16,7 @@ import com.orion.voicelab.ui.VoiceLabViewModel
 import com.orion.voicelab.ui.theme.OrionTheme
 
 /**
- * ORION 0.7.0 — Personal Assistant & Task Management
+ * ORION 0.7.1 — Personal Assistant & Task Management
  * Núcleo conversacional offline en español (Silero VAD + Moonshine Base ES + llama.cpp Qwen2.5 + Piper TTS)
  * con memoria persistente (Room), agenda de Co-workers, telefonía real y gestión local de tareas y recordatorios.
  */
@@ -27,7 +27,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        OrionCrashDiagnostics.install(applicationContext)
         requestedInitialTab = intent?.getStringExtra(AndroidTaskReminderScheduler.EXTRA_OPEN_TAB)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
