@@ -2,6 +2,7 @@ package com.orion.voicelab.brain
 
 import com.orion.voicelab.connectors.ConnectorId
 import org.json.JSONObject
+import java.util.Locale
 
 sealed interface PlanProposalParseResult {
     data class Valid(val plan: OrionPlan) : PlanProposalParseResult
@@ -46,7 +47,7 @@ object PlanProposalParser {
                     val id = item.optString("id").trim().take(80)
                     val title = item.optString("title").trim().take(180)
                     val rationale = item.optString("rationale").trim().take(MAX_TEXT_FIELD)
-                    val kind = runCatching { PlanStepKind.valueOf(item.optString("kind").uppercase()) }.getOrNull()
+                    val kind = runCatching { PlanStepKind.valueOf(item.optString("kind").uppercase(Locale.ROOT)) }.getOrNull()
                         ?: return PlanProposalParseResult.Invalid(listOf("Tipo de paso desconocido en la posición ${index + 1}."))
                     val risk = runCatching { PlanRisk.valueOf(item.optString("risk").uppercase()) }.getOrNull()
                         ?: return PlanProposalParseResult.Invalid(listOf("Riesgo desconocido en la posición ${index + 1}."))
@@ -70,7 +71,7 @@ object PlanProposalParser {
                     }
                     val connectorId = item.optString("connectorId").takeUnless { it.isBlank() || it == "null" }
                         ?.let { name ->
-                            runCatching { ConnectorId.valueOf(name.uppercase()) }.getOrNull()
+                            runCatching { ConnectorId.valueOf(name.uppercase(Locale.ROOT)) }.getOrNull()
                                 ?: return PlanProposalParseResult.Invalid(listOf("Conector no reconocido en el paso $id."))
                         }
                     val operation = item.optString("connectorOperation").takeUnless { it.isBlank() || it == "null" }?.take(100)
