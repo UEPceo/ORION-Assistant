@@ -12,6 +12,6 @@
 ## Runtime
 - ONNX Runtime Android: https://github.com/microsoft/onnxruntime — MIT.
 - ONNX Runtime Extensions Android: https://github.com/microsoft/onnxruntime-extensions — MIT.
-- Versiones integradas: ONNX Runtime Android 1.22.0 y Extensions Android 0.13.0.
+- Versiones integradas: ONNX Runtime Android 1.28.0 y Extensions Android 0.13.0.
 
 Las licencias y procedencia se documentan para trazabilidad. Antes de actualizar el modelo debe revisarse de nuevo la licencia del artefacto, la licencia del modelo base, la revisión, el tamaño, el formato de entrada/salida y el SHA-256. No se debe cambiar la revisión remota sin actualizar el pin y el digest tras una verificación independiente.
