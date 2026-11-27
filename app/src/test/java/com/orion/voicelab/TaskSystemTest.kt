@@ -339,6 +339,15 @@ class TaskSystemTest {
             assertEquals(futureTask.reminderAtMs, shadowAlarm.nextScheduledAlarm.triggerAtTime)
             assertEquals(1, shadowNm.allNotifications.size)
 
+            // Re-running boot reconciliation must leave the already-visible overdue notification alone.
+            TaskReminderReceiver.handleIntentSuspend(
+                context = app,
+                intent = Intent(Intent.ACTION_BOOT_COMPLETED),
+                database = db,
+                scheduler = AndroidTaskReminderScheduler(app, clockMs = { now })
+            )
+            assertEquals(1, shadowNm.allNotifications.size)
+
             // 5. Snooze via receiver action reschedules future alarm and clears notification
             TaskReminderReceiver.handleIntentSuspend(
                 context = app,
