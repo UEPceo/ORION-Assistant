@@ -2763,7 +2763,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             appendLine("ORION Voice Lab $versionName — informe técnico de diagnóstico")
             appendLine("Generado: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())}")
             appendLine("Formato: texto UTF-8 · exportación local solicitada por el usuario")
-            appendLine("Privacidad: no se incluyen mensajes, transcripciones, nombres de contactos ni números de teléfono.")
+            appendLine("Privacidad: no se incluyen intencionadamente transcripciones, nombres ni números de contacto; los registros de errores pueden contener detalles técnicos de excepciones.")
             appendLine(DeviceMetrics.deviceSummary())
             appendLine(
                 "Telefonía local: soporte=${state.isTelephonySupported} · permisoContactos=${state.hasContactsPermission} · " +
