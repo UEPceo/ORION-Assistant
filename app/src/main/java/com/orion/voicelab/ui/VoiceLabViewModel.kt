@@ -731,7 +731,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 throw e
             } catch (e: Exception) {
                 val msg = e.message ?: "error desconocido"
-                recordError("ASR descarga: $msg")
+                recordError("ASR descarga: $msg", e)
                 _uiState.update {
                     it.copy(
                         modelState = ModelInstallState.Error(msg),
@@ -785,7 +785,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 throw e
             } catch (e: Exception) {
                 val msg = e.message ?: "error desconocido"
-                recordError("LLM descarga: $msg")
+                recordError("LLM descarga: $msg", e)
                 _uiState.update {
                     it.copy(
                         llmModelState = ComponentModelState.Error(msg),
@@ -855,7 +855,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 throw e
             } catch (e: Exception) {
                 val msg = e.message ?: "error desconocido"
-                recordError("TTS descarga: $msg")
+                recordError("TTS descarga: $msg", e)
                 _uiState.update {
                     it.copy(
                         ttsModelState = ComponentModelState.Error(msg),
@@ -1104,6 +1104,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                     ) }
                     throw cancelled
                 } catch (error: Exception) {
+                    recordError("Voz TTS: ${error.message ?: error.javaClass.simpleName}", error)
                     _uiState.update { it.copy(
                         voiceDownloadingId = null,
                         voiceDownloadError = error.message ?: "No se pudo instalar la voz.",
