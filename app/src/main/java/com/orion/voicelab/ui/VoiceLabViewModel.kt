@@ -53,6 +53,11 @@ import com.orion.voicelab.llm.LlamaCppLanguageModel
 import com.orion.voicelab.llm.ModelProfilePromptComposer
 import com.orion.voicelab.knowledge.OrionBrainRuntime
 import com.orion.voicelab.brain.PlanningPromptComposer
+import com.orion.voicelab.brain.OrionPlan
+import com.orion.voicelab.brain.PlanExecutionEntity
+import com.orion.voicelab.brain.PlanExecutionRepository
+import com.orion.voicelab.brain.PersistentPlanExecutionService
+import com.orion.voicelab.brain.ConnectorPlanStepRunner
 import com.orion.voicelab.knowledge.BrainPromptComposer
 import com.orion.voicelab.memory.ContextPromptBuilder
 import com.orion.voicelab.memory.MemoryCandidateExtractor
@@ -80,6 +85,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -116,6 +122,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private val phoneCallManager = PhoneCallManager(appContext)
     private val taskReminderScheduler = AndroidTaskReminderScheduler(appContext)
     private val taskRepository = TaskRepository(database.taskDao(), taskReminderScheduler)
+    private val planExecutionRepository = PlanExecutionRepository(database.planExecutionDao())
+    private val planExecutionService = PersistentPlanExecutionService(planExecutionRepository)
     private val persistenceMutex = Mutex()
     private val asrDownloadMutex = Mutex()
     private val ttsDownloadMutex = Mutex()
@@ -279,6 +287,9 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private val _audioLevel = MutableStateFlow(0f)
     val audioLevel: StateFlow<Float> = _audioLevel.asStateFlow()
 
+    private val _planExecutionRecords = MutableStateFlow<List<PlanExecutionEntity>>(emptyList())
+    val planExecutionRecords: StateFlow<List<PlanExecutionEntity>> = _planExecutionRecords.asStateFlow()
+
     init {
         speechSynthesizer.selectVoice(settingsPreferences.getString("selected_voice_id", "sharvard_f").orEmpty())
         val speakerEnabled = settingsPreferences.getBoolean("speaker_enabled", false)
@@ -289,6 +300,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         ) }
         attachConversationCallbacks()
         observePersistenceFlows()
+        observePlanExecutions()
         initializePersistence()
         refreshPhonePermissions()
         startObservingTelephonyState()
@@ -296,6 +308,38 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         refreshModelState()
         refreshMetrics()
         ensureInitialModelsDownloaded()
+    }
+
+    private fun observePlanExecutions() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { planExecutionService.recoverInterruptedExecutions() }
+            planExecutionRepository.observeAll().collect { records ->
+                _planExecutionRecords.value = records
+            }
+        }
+    }
+
+    /** Stores a validated plan locally before any step is allowed to execute. */
+    fun savePlanExecution(plan: OrionPlan): Job = viewModelScope.launch(Dispatchers.IO) {
+        planExecutionService.create(plan)
+    }
+
+    /** Each invocation requires fresh approval for every unfinished protected step. */
+    fun executePlanExecution(
+        planId: String,
+        approvedStepIds: Set<String>,
+        retryStepIds: Set<String> = emptySet()
+    ): Job = viewModelScope.launch(Dispatchers.IO) {
+        planExecutionService.execute(
+            planId = planId,
+            approvedStepIds = approvedStepIds,
+            runner = ConnectorPlanStepRunner(connectorRuntime.dispatcher),
+            retryStepIds = retryStepIds
+        )
+    }
+
+    fun deletePlanExecution(planId: String): Job = viewModelScope.launch(Dispatchers.IO) {
+        planExecutionRepository.delete(planId)
     }
 
     private fun observePersistenceFlows() {
