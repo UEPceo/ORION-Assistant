@@ -1,70 +1,70 @@
 package com.orion.voicelab.connectors
 
-/** Deterministic, narrow voice-command parser. It never lets the LLM invent provider actions. */
+/** Deterministic connector intent parser. It accepts natural phrasing but emits only typed allowlisted actions. */
 object ConnectorVoiceIntentRouter {
     data class RoutedAction(
         val action: ConnectorAction,
         val userRequestedExactAction: Boolean = true
     )
 
-    fun route(text: String): RoutedAction? {
+    private val repositoryPattern = Regex("""([A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100})""")
+
+    fun route(text: String, lastRepository: String? = null): RoutedAction? {
         val normalized = text.trim().lowercase()
         if (normalized.isBlank()) return null
 
-        val gmailTrigger = listOf(
-            "busca en gmail", "busca en mi correo", "buscar correo",
-            "busca un correo", "revisa gmail", "consulta gmail"
-        ).any(normalized::startsWith)
-        if (gmailTrigger) {
+        if (containsAny(normalized, "gmail", "mi correo", "mis correos", "correo electrónico", "emails")) {
             val query = text.substringAfter(':', "").trim().takeIf { it.isNotBlank() }
-                ?: extractAfterTrigger(text, listOf(
-                    "busca en gmail", "busca en mi correo", "buscar correo",
-                    "busca un correo", "revisa gmail", "consulta gmail"
-                )).orEmpty()
-            if (query.isBlank()) {
-                return RoutedAction(
-                    ConnectorAction(ConnectorId.GMAIL, "search_messages", mapOf("query" to ""))
-                )
+                ?: stripLeadingIntent(text, listOf(
+                    "busca", "buscar", "encuentra", "localiza", "muestra", "enséñame",
+                    "revisa", "consulta", "lee", "últimos correos", "ultimos correos"
+                ))
+            val gmailQuery = when {
+                query.isBlank() -> "in:anywhere"
+                query.lowercase().contains("último") || query.lowercase().contains("ultimo") ||
+                    query.lowercase().contains("reciente") -> "newer_than:7d $query".take(256)
+                else -> query.take(256)
             }
-            return RoutedAction(
-                ConnectorAction(
-                    connectorId = ConnectorId.GMAIL,
-                    operation = "search_messages",
-                    arguments = mapOf("query" to query.take(256), "limit" to "5")
-                )
-            )
+            return RoutedAction(ConnectorAction(
+                connectorId = ConnectorId.GMAIL,
+                operation = "search_messages",
+                arguments = mapOf("query" to gmailQuery, "limit" to "8")
+            ))
         }
 
-        if (listOf("lista mis repositorios", "muestra mis repositorios", "consulta mis repositorios",
-                "lista los repositorios de github").any(normalized::startsWith)
-        ) {
-            return RoutedAction(
-                ConnectorAction(
-                    ConnectorId.GITHUB,
-                    "list_repositories",
-                    mapOf("limit" to "10")
-                )
-            )
+        if (containsAny(normalized, "mis repositorios", "repositorios de github", "repos de github", "lista mis repos")) {
+            return RoutedAction(ConnectorAction(
+                ConnectorId.GITHUB, "list_repositories", mapOf("limit" to "10")
+            ))
         }
 
-        val issueMatch = Regex(
-            """(?:lista|muestra|consulta|busca) (?:las )?(?:incidencias|issues) (?:de|del repositorio) ([a-z0-9_.-]{1,100}/[a-z0-9_.-]{1,100})""",
-            RegexOption.IGNORE_CASE
-        ).find(text)
-        if (issueMatch != null) {
-            return RoutedAction(
-                ConnectorAction(
-                    ConnectorId.GITHUB,
-                    "list_issues",
-                    mapOf("repository" to issueMatch.groupValues[1], "state" to "open")
-                )
-            )
+        val repository = repositoryPattern.find(text)?.value ?: lastRepository
+        val operation = when {
+            containsAny(normalized, "commit", "commits", "cambios recientes", "últimos cambios", "ultimos cambios", "historial de cambios") -> "list_commits"
+            containsAny(normalized, "ci", "compilación", "compilacion", "workflow", "actions", "integración continua", "integracion continua", "ha terminado de compilar") -> "list_workflow_runs"
+            containsAny(normalized, "archivos", "carpetas", "estructura del repo", "estructura del repositorio", "contenido del repositorio") -> "list_files"
+            containsAny(normalized, "incidencias", "issues", "problemas abiertos", "tareas abiertas") -> "list_issues"
+            else -> null
+        } ?: return null
+
+        val repo = repository.orEmpty()
+        val args = buildMap {
+            if (repo.isNotBlank()) put("repository", repo)
+            if (operation == "list_issues") put("state", if (normalized.contains("cerrad")) "closed" else "open")
+            if (operation == "list_files") {
+                val pathMatch = Regex("""(?:en la ruta|en carpeta|carpeta|directorio)\s+([A-Za-z0-9_./-]{1,250})""", RegexOption.IGNORE_CASE).find(text)
+                if (pathMatch != null) put("path", pathMatch.groupValues[1].trim('/'))
+            }
         }
-        return null
+        return RoutedAction(ConnectorAction(ConnectorId.GITHUB, operation, args))
     }
 
-    private fun extractAfterTrigger(text: String, triggers: List<String>): String? {
-        val trigger = triggers.firstOrNull { text.lowercase().startsWith(it) } ?: return null
-        return text.drop(trigger.length).trim().trimStart(':', ',', ' ')
+    private fun containsAny(text: String, vararg phrases: String): Boolean =
+        phrases.any(text::contains)
+
+    private fun stripLeadingIntent(text: String, prefixes: List<String>): String {
+        val lower = text.lowercase()
+        val prefix = prefixes.firstOrNull { lower.startsWith(it) } ?: return text.trim()
+        return text.drop(prefix.length).trim().trimStart(':', ',', ' ')
     }
 }
