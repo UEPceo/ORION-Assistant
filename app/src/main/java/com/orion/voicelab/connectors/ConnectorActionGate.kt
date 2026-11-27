@@ -63,12 +63,6 @@ object ConnectorActionGate {
 
     private fun isReadOnlyOperation(operation: String): Boolean {
         val normalized = operation.trim().lowercase()
-        return normalized in readOnlyOperations ||
-            normalized.startsWith("search_") ||
-            normalized.startsWith("list_") ||
-            normalized.startsWith("get_") ||
-            normalized.startsWith("fetch_") ||
-            normalized.startsWith("read_") ||
-            normalized.startsWith("inspect_")
+        return normalized in readOnlyOperations
     }
 }
