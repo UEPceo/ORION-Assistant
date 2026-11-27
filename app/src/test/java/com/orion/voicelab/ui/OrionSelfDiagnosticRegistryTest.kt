@@ -19,6 +19,14 @@ class OrionSelfDiagnosticRegistryTest {
     }
 
     @Test
+    fun reportIncludesRuntimeEnvironmentAndMapsComponentAliases() {
+        val log = "[2026-11-27 12:00:00.000] ERROR: eventId=OR-125 component=ASR descarga cause=missing model"
+        val report = OrionSelfDiagnosticRegistry.composeReport(VoiceLabUiState(), log)
+        assertTrue(report.contains("Android API="))
+        assertTrue(report.contains("Detalle del módulo VOICE_ASR"))
+    }
+
+    @Test
     fun reportCorrelatesOperationalEventAndSourceLine() {
         val log = """
             [2026-11-27 12:00:00.000] ERROR: eventId=OR-123 component=LLM cause=java.lang.OutOfMemoryError
