@@ -2,7 +2,7 @@ package com.orion.voicelab.creative
 
 /** Adds domain-specific operating rules to the existing LLM context without replacing it. */
 object CreativeBrainPromptComposer {
-    fun compose(userText: String, skill: CreativeSkill, activeRole: String? = null): String {
+    fun compose(userText: String, skill: CreativeSkill, activeRole: String? = null, mediaStatus: MediaCapabilityStatus? = null): String {
         if (skill == CreativeSkill.NONE) return ""
         val roleGuidance = activeRole?.takeIf { it.isNotBlank() }?.let(CreativeSkillRouter::coWorkerGuidance).orEmpty()
         val rules = when (skill) {
@@ -42,6 +42,12 @@ object CreativeBrainPromptComposer {
             append("MÓDULO CREATIVO ORION\n")
             append(rules)
             if (roleGuidance.isNotBlank()) append("\nPERFIL DEL CO-WORKER:\n").append(roleGuidance)
+            if (mediaStatus != null) {
+                append("\nESTADO REAL DEL PROVEEDOR MULTIMEDIA: ").append(mediaStatus.name).append(".")
+                if (mediaStatus != MediaCapabilityStatus.AVAILABLE) {
+                    append(" No afirmes que has analizado o generado el archivo. Ofrece un brief o indica que falta configurar el motor.")
+                }
+            }
         }
     }
 }
