@@ -8,7 +8,11 @@ enum class ConnectorId {
     GMAIL,
     GITHUB,
     GOOGLE_CALENDAR,
-    GOOGLE_DRIVE
+    GOOGLE_DRIVE,
+    ANDROID_NOTES,
+    ANDROID_CALENDAR,
+    GOOGLE_MAPS,
+    PESCAIA
 }
 
 enum class ConnectorConnectionState {
