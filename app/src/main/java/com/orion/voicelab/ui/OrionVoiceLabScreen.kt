@@ -1350,7 +1350,7 @@ private fun CallVoiceAndRamControls(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                state.availableVoices.forEach { voice ->
+                state.availableVoices.filter { it.isInstalled }.forEach { voice ->
                     val selected = voice.id == state.selectedVoiceId
                     FilterChip(
                         selected = selected,
