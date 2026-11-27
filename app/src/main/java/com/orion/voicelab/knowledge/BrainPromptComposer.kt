@@ -24,7 +24,10 @@ object BrainPromptComposer {
                 .append("Editor: ").append(evidence.publisherId.take(100))
                 .append(" | Autoridad: ").append(evidence.authority.name)
                 .append(" | Recuperada: ").append(evidence.retrievedAtMs).append('\n')
-                .append(document.excerpt.take(600)).append('\n')
+            if (evidence.authority == EvidenceAuthority.UNKNOWN) {
+                builder.append("AVISO: resultado/fragmento no verificado; úsalo solo como pista y no como respaldo factual.\n")
+            }
+            builder.append(document.excerpt.take(600)).append('\n')
         }
         if (context.documents.isEmpty()) {
             builder.append("No inventes fuentes ni presentes conocimiento interno del modelo como dato comprobado. ")
@@ -34,7 +37,8 @@ object BrainPromptComposer {
             builder.append("Expón la incertidumbre y solicita una fuente o consulta actualizada si es necesaria.")
         } else {
             builder.append("\nInstrucciones: separa hechos de inferencias; no añadas datos ausentes; ")
-                .append("si las fuentes no bastan, dilo. Cita las fuentes por su número [1], [2]...")
+                .append("si las fuentes no bastan, dilo. Los resultados de buscador con autoridad UNKNOWN son pistas, no evidencia confirmatoria. ")
+                .append("Cita las fuentes por su número [1], [2] y aclara si solo se consultó un fragmento.")
         }
         return builder.toString().take(maxChars)
     }
