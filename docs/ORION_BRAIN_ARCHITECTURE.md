@@ -111,7 +111,7 @@ Se ha añadido la primera capa operativa de persistencia y recuperación:
 - La reanudación exige aprobación nueva para cada paso protegido que siga pendiente. Las autorizaciones no se guardan ni se reutilizan entre ejecuciones.
 - Si Android cierra el proceso durante un paso, el registro se recupera como PAUSED y el paso activo pasa a FAILED con advertencia de resultado incierto. ORION no lo repite automáticamente; el usuario debe verificar y seleccionar expresamente los pasos que desea reintentar.
 - La cancelación cooperativa conserva el checkpoint PAUSED incluso cuando la corrutina ya está cancelada.
-- La ViewModel expone historial observable y operaciones para guardar, ejecutar y borrar planes.
+- La ViewModel expone historial observable y operaciones para guardar, ejecutar y borrar planes. Ajustes incluye una pantalla de historial para revisar los pasos, marcar autorizaciones puntuales, seleccionar reintentos tras verificar y eliminar registros. Se ha añadido un parser JSON estricto para propuestas estructuradas; la entrada desde la generación del LLM todavía no está conectada al turno conversacional.
 
 Límites aún abiertos: la salida del LLM todavía no se convierte automáticamente en un objeto `OrionPlan` estructurado y validado; no existe aún una pantalla de revisión/aprobación/reanudación para el usuario; los pasos locales (pensar, cálculo, lectura genérica y creación de documentos) necesitan handlers reales. El adaptador de conectores sí pasa por el dispatcher y su puerta de seguridad, pero la persistencia por sí sola no convierte una operación no implementada en funcional. La fase no debe presentarse como agente autónomo completo.
 
@@ -156,7 +156,7 @@ El asesor recomienda las funciones existentes según la tarea y explica requisit
 
 Esta capa mejora el autoconocimiento del modelo, pero no sustituye al diagnóstico estático ni a las pruebas: si los registros no contienen evidencia suficiente, ORION debe solicitar el informe técnico y reconocer que no puede confirmar la causa.
 
-### Registro técnico de autodiagnóstico v1.2
+### Registro técnico de autodiagnóstico v1.3
 
 Se incorpora `OrionSelfDiagnosticRegistry`, que relaciona los subsistemas principales con sus puntos de entrada, dependencias conocidas, comprobaciones y recuperación segura:
 
