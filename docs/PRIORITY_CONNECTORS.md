@@ -23,12 +23,12 @@ Límite importante: Android no ofrece un proveedor universal que permita leer to
 ## 2. Calendario
 
 Primera entrega implementada:
+- Consulta de próximos 14 días mediante CalendarContract.Instances, tras solicitud y concesión explícita del permiso READ_CALENDAR.
 - Formulario para preparar título, fecha, hora de inicio/fin y descripción.
 - Transferencia mediante ACTION_INSERT y CalendarContract.Events.CONTENT_URI a la aplicación de calendario instalada.
-- El usuario revisa y guarda el evento en la aplicación de destino. No se solicitan permisos de calendario y ORION no escribe silenciosamente.
+- El usuario revisa y guarda el evento en la aplicación de destino. No se solicita WRITE_CALENDAR y ORION no escribe ni modifica silenciosamente.
 
 Pendiente de ampliación:
-- Lectura de próximos eventos mediante CalendarContract con permiso READ_CALENDAR en tiempo de ejecución.
 - Crear directamente en un calendario seleccionado con WRITE_CALENDAR y confirmación explícita, si el usuario habilita esa modalidad.
 - Modificar y eliminar eventos con confirmación reforzada.
 - Recurrencia, invitados y eventos de día completo.
