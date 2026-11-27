@@ -119,6 +119,8 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.onnxruntime.android)
+    implementation(libs.onnxruntime.extensions.android)
     ksp(libs.androidx.room.compiler)
     implementation(libs.sherpa.onnx)
     implementation(libs.commons.compress)
