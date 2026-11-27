@@ -65,7 +65,7 @@ class CreativeBrainTest {
                 topic = "errores al pescar desde playa"
             )
         )
-        assertEquals(20, plan.recommendedLengthSeconds)
+        assertEquals(20, plan.recommendedLengthSeconds ?: -1)
         assertTrue(plan.measurementPlan.any { it.contains("Retención") })
         assertTrue(plan.caveats.any { it.contains("viralidad") })
     }
