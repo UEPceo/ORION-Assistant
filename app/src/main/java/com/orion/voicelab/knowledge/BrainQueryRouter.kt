@@ -8,14 +8,14 @@ object BrainQueryRouter {
         val normalized = text.trim().lowercase(Locale.ROOT)
             .replace(Regex("\\s+"), " ")
         val domain = when {
-            containsAny(normalized, "surfcasting", "surf casting", "playa de pesca", "aparejo", "cebo", "captura", "marea", "oleaje", "lubina", "sargo", "pesca") ->
-                KnowledgeDomain.SURFCASTING
             containsAny(normalized, "normativa", "talla mínima", "veda", "licencia", "ley", "reglamento", "boe") ->
                 KnowledgeDomain.LAW_AND_REGULATION
-            containsAny(normalized, "meteorología", "tiempo", "viento", "oleaje", "marejada", "corriente", "temporal", "mar de fondo") ->
-                KnowledgeDomain.MARINE_WEATHER
             containsAny(normalized, "salud", "médico", "medicina", "síntoma", "seguridad", "emergencia") ->
                 KnowledgeDomain.HEALTH_AND_SAFETY
+            containsAny(normalized, "surfcasting", "surf casting", "playa de pesca", "aparejo", "cebo", "captura", "lubina", "sargo", "pesca") ->
+                KnowledgeDomain.SURFCASTING
+            containsAny(normalized, "meteorología", "tiempo", "viento", "oleaje", "marejada", "corriente", "temporal", "mar de fondo", "marea") ->
+                KnowledgeDomain.MARINE_WEATHER
             containsAny(normalized, "ciberseguridad", "malware", "phishing", "vulnerabilidad", "ransomware") ->
                 KnowledgeDomain.CYBERSECURITY
             containsAny(normalized, "programar", "programación", "kotlin", "python", "java", "código", "compilar", "api", "github") ->
