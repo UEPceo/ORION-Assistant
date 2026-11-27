@@ -1,5 +1,16 @@
 # ORION 0.8.1 — Recuperación automática de modelos y diagnóstico exportable (Android / Jetpack Compose)
 
+
+## Planificador multipaso persistente — fase inicial
+
+- Las peticiones multipaso reconocidas pueden generar con el LLM local una propuesta JSON estructurada de consultas de solo lectura.
+- El parser valida tipos de paso, dependencias, riesgo, límites, credenciales y operaciones realmente implementadas para Gmail, GitHub, Google Maps y PescaIA.
+- Las propuestas se guardan en Room (migración incremental de base de datos `v4 → v5`), con checkpoint de estado y resultado tras cada paso.
+- Ajustes permite revisar pasos, autorizar acciones protegidas en cada ejecución, reanudar planes pausados y seleccionar reintentos tras verificar resultados.
+- Tras un cierre durante una operación, el paso se marca como resultado incierto y no se repite automáticamente.
+- Limitaciones actuales: generación solo de consultas de lectura, sin ejecución de pasos locales/escrituras y sin pasar automáticamente la salida de un paso como entrada del siguiente. Guardar una propuesta no la ejecuta.
+
+
 ## Novedades de la Fase 0.8.1 — Recuperación automática de modelos
 
 - ORION comprueba en cada arranque si ASR, LLM y TTS están realmente instalados y completos.
