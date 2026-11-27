@@ -1,6 +1,6 @@
 # ORION — Arquitectura del cerebro autónomo y conocimiento verificable
 
-Estado: núcleo local y recuperación web explícita implementados en código; validación CI pendiente. El corpus local no incluye todavía packs de conocimiento y los proveedores multimedia siguen sin configuración.
+Estado: núcleo local, recuperación híbrida y corpus offline multidisciplinar implementados; el encoder ONNX opcional está integrado con validación en dispositivo pendiente. Los proveedores multimedia siguen sin configuración.
 
 ## Objetivo
 
@@ -32,7 +32,7 @@ ORION no puede garantizar verdad absoluta ni prometer que nunca cometerá errore
 - Si no hay evidencia suficiente, ORION dice «no lo he podido verificar» y no completa huecos inventando.
 - Cada dato dinámico (tiempo, mareas, tráfico, disponibilidad, calendario, CI) lleva fecha/hora de consulta y zona geográfica cuando corresponda.
 
-Se han incorporado contratos de evidencia, enrutador determinista por dominio, repositorio local privado persistente, motor de recuperación, composición de contexto con procedencia y política de aprendizaje. Los veredictos incluyen SUPPORTED, NEEDS_CORROBORATION, PRIMARY_SOURCE_REQUIRED, STALE, AGE_UNCONFIRMED, CONFLICTING, NO_EVIDENCE e INVALID_TIMESTAMP. El núcleo ya se invoca desde el contexto de cada turno de voz. El corpus local se inicializa automáticamente en el primer uso con seis paquetes y dieciséis documentos incluidos en los assets. Se guarda en almacenamiento privado mediante escritura atómica y la recuperación combina índice semántico disperso y ranking léxico; no presenta el conocimiento del modelo como evidencia. La búsqueda web solo se activa ante una petición explícita. El contexto RAG se limita a 1.800 caracteres para proteger la ventana reducida del modelo local.
+Se han incorporado contratos de evidencia, enrutador determinista por dominio, repositorio local privado persistente, motor de recuperación, composición de contexto con procedencia y política de aprendizaje. Los veredictos incluyen SUPPORTED, NEEDS_CORROBORATION, PRIMARY_SOURCE_REQUIRED, STALE, AGE_UNCONFIRMED, CONFLICTING, NO_EVIDENCE e INVALID_TIMESTAMP. El núcleo ya se invoca desde el contexto de cada turno de voz. El corpus local se inicializa automáticamente en el primer uso con quince paquetes y treinta y cuatro documentos incluidos en los assets. Se guarda en almacenamiento privado mediante escritura atómica y la recuperación combina índice semántico disperso y ranking léxico; no presenta el conocimiento del modelo como evidencia. La búsqueda web solo se activa ante una petición explícita. El contexto RAG se limita a 1.800 caracteres para proteger la ventana reducida del modelo local.
 
 ## Fuentes por ámbito
 
@@ -139,7 +139,7 @@ El asesor recomienda las funciones existentes según la tarea y explica requisit
 
 Esta capa mejora el autoconocimiento del modelo, pero no sustituye al diagnóstico estático ni a las pruebas: si los registros no contienen evidencia suficiente, ORION debe solicitar el informe técnico y reconocer que no puede confirmar la causa.
 
-### Registro técnico de autodiagnóstico v1.0
+### Registro técnico de autodiagnóstico v1.2
 
 Se incorpora `OrionSelfDiagnosticRegistry`, que relaciona los subsistemas principales con sus puntos de entrada, dependencias conocidas, comprobaciones y recuperación segura:
 
