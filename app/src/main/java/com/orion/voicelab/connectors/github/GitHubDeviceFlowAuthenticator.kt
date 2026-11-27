@@ -127,7 +127,7 @@ class GitHubDeviceFlowAuthenticator(
                 "authorization_pending" -> Unit
                 "slow_down" -> intervalSeconds += SLOW_DOWN_INCREMENT_SECONDS
                 "access_denied" -> return@withContext GitHubDeviceAuthorizationResult.AccessDenied
-                "expired_token" -> return@withContext GitHubDeviceAuthorizationResult.Expired
+                "expired_token", "token_expired" -> return@withContext GitHubDeviceAuthorizationResult.Expired
                 "" -> {
                     val token = json.optString("access_token")
                     if (token.isBlank()) {
