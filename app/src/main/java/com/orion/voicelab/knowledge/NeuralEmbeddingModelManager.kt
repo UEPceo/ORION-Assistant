@@ -59,6 +59,7 @@ class NeuralEmbeddingModelManager(context: Context) {
             }
 
             var downloaded = offset
+            var lastReported = offset
             connection.inputStream.use { input ->
                 FileOutputStream(partialFile, append).use { output ->
                     val buffer = ByteArray(64 * 1024)
@@ -71,7 +72,10 @@ class NeuralEmbeddingModelManager(context: Context) {
                             "La descarga supera el tamaño máximo permitido."
                         }
                         output.write(buffer, 0, read)
-                        onProgress(downloaded, total)
+                        if (downloaded - lastReported >= 1024L * 1024L || (total > 0L && downloaded >= total)) {
+                            onProgress(downloaded, total)
+                            lastReported = downloaded
+                        }
                     }
                     output.fd.sync()
                 }
@@ -107,6 +111,9 @@ class NeuralEmbeddingModelManager(context: Context) {
     private fun openConnection(rawUrl: String, offset: Long): HttpURLConnection {
         var current = URL(rawUrl)
         repeat(MAX_REDIRECTS + 1) {
+            require(current.protocol == "https" && current.userInfo == null && (current.port == -1 || current.port == 443)) {
+                "La URL de descarga no cumple los requisitos HTTPS."
+            }
             require(isAllowedHost(current.host)) { "El host de descarga no está permitido." }
             val connection = (current.openConnection() as HttpURLConnection).apply {
                 connectTimeout = CONNECT_TIMEOUT_MS
@@ -122,6 +129,9 @@ class NeuralEmbeddingModelManager(context: Context) {
                 connection.disconnect()
                 require(!location.isNullOrBlank()) { "Redirección sin destino." }
                 current = URL(current, location)
+                require(current.protocol == "https" && current.userInfo == null && (current.port == -1 || current.port == 443)) {
+                    "La redirección no cumple los requisitos HTTPS."
+                }
                 require(isAllowedHost(current.host)) { "Redirección a un host no permitido." }
             } else {
                 return connection
