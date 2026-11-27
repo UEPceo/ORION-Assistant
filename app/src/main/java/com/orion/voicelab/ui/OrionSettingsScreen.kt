@@ -1,5 +1,10 @@
 package com.orion.voicelab.ui
 
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.orion.voicelab.tasks.AndroidTaskReminderScheduler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -48,6 +53,13 @@ fun OrionSettingsScreen(
     onOpenDiagnostics: () -> Unit
 ) {
     val identity = state.assistantIdentity
+    val context = LocalContext.current
+    var exactAlarmAllowed by remember { mutableStateOf(AndroidTaskReminderScheduler.canScheduleExactAlarms(context)) }
+    val exactAlarmSettingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        exactAlarmAllowed = AndroidTaskReminderScheduler.canScheduleExactAlarms(context)
+    }
     var assistantName by remember(identity.assistantName) { mutableStateOf(identity.assistantName) }
     var personality by remember(identity.personality) { mutableStateOf(identity.personality) }
     var tone by remember(identity.tone) { mutableStateOf(identity.tone) }
@@ -175,6 +187,35 @@ fun OrionSettingsScreen(
                 Switch(checked = identity.memoryEnabled, onCheckedChange = onSetMemoryEnabled)
             }
             Text("Los datos locales permanecen en el dispositivo. Los conectores externos requieren autorización y sus propias confirmaciones.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        SettingsSection(title = "Recordatorios y alarmas", subtitle = "Controla la precisión de los avisos de tus tareas.") {
+            Text(
+                text = when {
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.S -> "Este dispositivo permite programar alarmas exactas sin un acceso especial adicional."
+                    exactAlarmAllowed -> "Acceso a alarmas exactas concedido. ORION puede programar recordatorios con mayor precisión."
+                    else -> "Acceso especial no concedido. Los recordatorios seguirán funcionando, pero Android puede retrasar su entrega."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !exactAlarmAllowed) {
+                Button(
+                    onClick = {
+                        AndroidTaskReminderScheduler.exactAlarmSettingsIntent(context)?.let {
+                            exactAlarmSettingsLauncher.launch(it)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Configurar alarmas exactas")
+                }
+                Text(
+                    "Se abrirán los ajustes de Android para ORION. Activa el permiso solo si quieres que los recordatorios puedan sonar a la hora prevista. Puedes seguir usando ORION sin concederlo.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         SettingsSection(title = "Mantenimiento", subtitle = "Herramientas para revisar el estado de ORION.") {
