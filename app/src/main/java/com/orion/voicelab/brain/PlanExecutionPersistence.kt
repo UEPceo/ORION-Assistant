@@ -132,7 +132,7 @@ object PlanExecutionJsonCodec {
                     requiresApproval = item.optBoolean("requiresApproval", true),
                     idempotencyKey = item.optString("idempotencyKey").takeUnless { it.isBlank() || it == "null" },
                     inputSummary = item.optString("inputSummary"),
-                    connectorId = connectorName?.let(ConnectorId::valueOf),
+                    connectorId = connectorName?.let { ConnectorId.valueOf(it) },
                     connectorOperation = item.optString("connectorOperation").takeUnless { it.isBlank() || it == "null" },
                     connectorArguments = args
                 ))
