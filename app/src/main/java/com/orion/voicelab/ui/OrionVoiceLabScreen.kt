@@ -111,6 +111,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -705,7 +708,8 @@ private fun TabSegmentButton(
         modifier = modifier
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick),
+            .semantics { selected = this@TabSegmentButton.selected }
+            .clickable(role = Role.Tab, onClick = onClick),
         shape = RoundedCornerShape(10.dp),
         color = bgColor
     ) {
