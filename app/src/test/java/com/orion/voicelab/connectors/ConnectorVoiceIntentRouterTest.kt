@@ -49,6 +49,24 @@ class ConnectorVoiceIntentRouterTest {
     }
 
     @Test
+    fun issueDetailRequestUsesRepositoryAndIssueNumber() {
+        val routed = ConnectorVoiceIntentRouter.route(
+            "Dame los detalles de la incidencia #42 en UEPceo/ORION-Assistant"
+        )
+        assertEquals("get_issue", routed?.action?.operation)
+        assertEquals("42", routed?.action?.arguments?.get("number"))
+        assertEquals("UEPceo/ORION-Assistant", routed?.action?.arguments?.get("repository"))
+    }
+
+    @Test
+    fun explicitGmailMessageIdRoutesToDetailRead() {
+        val routed = ConnectorVoiceIntentRouter.route("Abre el correo con id 18c0abcdef123456")
+        assertEquals(ConnectorId.GMAIL, routed?.action?.connectorId)
+        assertEquals("get_message", routed?.action?.operation)
+        assertEquals("18c0abcdef123456", routed?.action?.arguments?.get("message_id"))
+    }
+
+    @Test
     fun unrelatedTextDoesNotTriggerExternalConnector() {
         assertNull(ConnectorVoiceIntentRouter.route("¿Qué tiempo hace hoy?"))
     }
