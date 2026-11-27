@@ -19,7 +19,10 @@ enum class KnowledgeDomain {
     FISHING,
     SURFCASTING,
     MARINE_WEATHER,
-    PERSONAL_PRODUCTIVITY
+    PERSONAL_PRODUCTIVITY,
+    CREATIVE_DESIGN,
+    SOCIAL_MEDIA,
+    IMAGE_VIDEO
 }
 
 enum class EvidenceAuthority {
