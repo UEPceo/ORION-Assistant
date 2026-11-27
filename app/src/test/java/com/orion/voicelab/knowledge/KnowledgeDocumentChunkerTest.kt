@@ -12,7 +12,7 @@ class KnowledgeDocumentChunkerTest {
         assertTrue(chunks.all { it.text.length <= 700 })
         assertEquals(chunks.indices.toList(), chunks.map { it.index })
         assertTrue(chunks.zipWithNext().all { (left, right) ->
-            left.text.takeLast(80).any { it in right.text }
+            left.text.takeLast(100) in right.text
         })
     }
 
