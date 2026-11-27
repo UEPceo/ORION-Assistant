@@ -56,7 +56,7 @@ class DuckDuckGoKnowledgeSource : KnowledgeSource {
         }
     }
 
-    private fun parseResults(
+    private suspend fun parseResults(
         html: String,
         query: BrainQuery,
         limit: Int
@@ -64,32 +64,39 @@ class DuckDuckGoKnowledgeSource : KnowledgeSource {
         val anchors = RESULT_LINK.findAll(html).toList()
         val snippets = RESULT_SNIPPET.findAll(html).map { cleanHtml(it.groupValues[1]) }.toList()
         val now = System.currentTimeMillis()
-        return anchors.mapIndexedNotNull { index, match ->
-            val title = cleanHtml(match.groupValues[2]).take(180)
-            val target = resolveResultUrl(match.groupValues[1]) ?: return@mapIndexedNotNull null
-            val host = runCatching { URL(target).host.lowercase(Locale.ROOT) }.getOrNull()
-                ?.removePrefix("www.") ?: return@mapIndexedNotNull null
-            if (title.isBlank()) return@mapIndexedNotNull null
+        val documents = mutableListOf<KnowledgeDocument>()
+        for ((index, match) in anchors.withIndex()) {
+            if (documents.size >= limit) break
+            val target = resolveResultUrl(match.groupValues[1]) ?: continue
+            val host = runCatching { URL(target).host.lowercase(Locale.ROOT) }
+                .getOrNull()?.removePrefix("www.") ?: continue
             val snippet = snippets.getOrNull(index).orEmpty().take(700)
-            val content = listOf(title, snippet).filter(String::isNotBlank).joinToString("\n")
-            if (content.isBlank()) return@mapIndexedNotNull null
-            val id = "web-" + target.hashCode().toUInt().toString(16)
-            KnowledgeDocument(
-                evidence = KnowledgeEvidence(
-                    id = id,
-                    title = title,
-                    canonicalUrl = target,
-                    publisherId = host,
-                    domain = query.domain,
-                    authority = EvidenceAuthority.UNKNOWN,
-                    retrievedAtMs = now,
-                    content = content
-                ),
-                excerpt = if (snippet.isBlank()) title else snippet,
-                relevance = 0.25
+            val page = SafeWebPageReader.read(target)
+            val title = (page?.title ?: cleanHtml(match.groupValues[2])).take(180)
+            if (title.isBlank()) continue
+            val content = page?.text ?: listOf(title, snippet).filter(String::isNotBlank).joinToString("\n")
+            if (content.isBlank()) continue
+            val canonical = page?.canonicalUrl ?: target
+            val id = "web-" + canonical.hashCode().toUInt().toString(16)
+            val authority = WebAuthorityClassifier.classify(host)
+            val evidence = KnowledgeEvidence(
+                id = id,
+                title = title,
+                canonicalUrl = canonical,
+                publisherId = host,
+                domain = query.domain,
+                authority = if (page == null) EvidenceAuthority.UNKNOWN else authority,
+                retrievedAtMs = now,
+                publishedAtMs = page?.publishedAtMs,
+                content = content.take(MAX_PAGE_TEXT_CHARS)
             )
-        }.distinctBy { it.evidence.canonicalUrl }.take(limit)
-    }
+            documents += KnowledgeDocument(
+                evidence = evidence,
+                excerpt = (page?.text ?: snippet.ifBlank { title }).take(1_800),
+                relevance = if (page == null) 0.25 else 0.55
+            )
+        }
+        return documents.distinctBy { it.evidence.canonicalUrl }
 
     private fun resolveResultUrl(rawHref: String): String? {
         val decoded = cleanHtml(rawHref)
@@ -135,6 +142,7 @@ class DuckDuckGoKnowledgeSource : KnowledgeSource {
         const val MAX_RESPONSE_BYTES = 1_000_000
         const val MAX_RESULTS = 5
         const val MAX_URL_CHARS = 1_500
+        const val MAX_PAGE_TEXT_CHARS = 12_000
         const val USER_AGENT = "ORION-Android/1.0 (web discovery)"
         val RESULT_LINK = Regex(
             """<a[^>]*class=["'][^"']*result__a[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>""",
@@ -169,3 +177,27 @@ object WebSearchIntentPolicy {
     }
 }
 
+
+/** Conservative publisher registry. Unknown domains are never upgraded by suffix guessing. */
+internal object WebAuthorityClassifier {
+    private val officialHosts = setOf(
+        "boe.es", "aemet.es", "miteco.gob.es", "mapa.gob.es", "sanidad.gob.es",
+        "administracion.gob.es", "europa.eu", "who.int", "un.org"
+    )
+    private val technicalHosts = setOf(
+        "developer.android.com", "kotlinlang.org", "docs.python.org",
+        "developer.mozilla.org", "docs.github.com", "github.com",
+        "developer.apple.com", "learn.microsoft.com"
+    )
+
+    fun classify(host: String): EvidenceAuthority {
+        val normalized = host.lowercase(Locale.ROOT).removePrefix("www.")
+        return when {
+            normalized in officialHosts || officialHosts.any { normalized.endsWith(".$it") } ->
+                EvidenceAuthority.OFFICIAL_PRIMARY
+            normalized in technicalHosts || technicalHosts.any { normalized.endsWith(".$it") } ->
+                EvidenceAuthority.PRIMARY_TECHNICAL
+            else -> EvidenceAuthority.UNKNOWN
+        }
+    }
+}
