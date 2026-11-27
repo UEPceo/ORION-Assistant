@@ -24,7 +24,8 @@ object BrainPromptComposer {
                 .append("Fuente: ").append(evidence.canonicalUrl.take(400)).append('\n')
                 .append("Editor: ").append(evidence.publisherId.take(100))
                 .append(" | Autoridad: ").append(evidence.authority.name)
-                .append(" | Recuperada: ").append(evidence.retrievedAtMs).append('\n')
+                .append(" | Recuperada: ").append(evidence.retrievedAtMs)
+                .append(" | Publicada/actualizada: ").append(evidence.publishedAtMs ?: "desconocida").append('\n')
             if (evidence.authority == EvidenceAuthority.UNKNOWN) {
                 builder.append("AVISO: resultado/fragmento no verificado; úsalo solo como pista y no como respaldo factual.\n")
             }
