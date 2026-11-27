@@ -2733,8 +2733,23 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         // Existing call sites identify their subsystem as "Component: detail".
         // Keep that origin visible to users and persist a correlated technical record.
         val separator = clean.indexOf(':')
-        val component = if (separator in 1..64) clean.substring(0, separator).trim() else "Aplicación"
-        val cause = if (separator in 1..64) clean.substring(separator + 1).trim() else clean
+        val explicitComponent = separator in 1..64
+        val component = if (explicitComponent) {
+            clean.substring(0, separator).trim()
+        } else {
+            val normalized = clean.lowercase()
+            when {
+                "record_audio" in normalized || "micrófono" in normalized || "microfono" in normalized -> "ASR permisos"
+                "notificación" in normalized || "notificacion" in normalized || "alarma" in normalized -> "Tareas"
+                "contact" in normalized || "telefon" in normalized || "llamada" in normalized -> "Telefonía"
+                "calendar" in normalized || "gmail" in normalized || "github" in normalized || "maps" in normalized || "keep" in normalized -> "Conectores"
+                "modelo" in normalized || "llm" in normalized || "qwen" in normalized -> "LLM"
+                "tts" in normalized || "piper" in normalized || "voz" in normalized -> "Voz TTS"
+                "asr" in normalized || "moonshine" in normalized -> "ASR"
+                else -> "Aplicación"
+            }
+        }
+        val cause = if (explicitComponent) clean.substring(separator + 1).trim() else clean
         val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         val eventId = "OR-${System.currentTimeMillis()}"
         val formatted = "[$timestamp] [$eventId] [$component] $cause"
