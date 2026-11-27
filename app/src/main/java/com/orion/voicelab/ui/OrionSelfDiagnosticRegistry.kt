@@ -16,7 +16,7 @@ import com.orion.voicelab.data.VoiceLabUiState
  * unless the diagnostic log contains matching evidence.
  */
 object OrionSelfDiagnosticRegistry {
-    const val REGISTRY_VERSION = "1.2"
+    const val REGISTRY_VERSION = "1.3"
 
     private data class ModuleProfile(
         val id: String,
