@@ -109,7 +109,7 @@ class PlanExecutionPersistenceTest {
                   "requiresApproval": false,
                   "connectorId": "GITHUB",
                   "connectorOperation": "get_issue",
-                  "connectorArguments": {"repository": "owner/repo", "issue_number": "12"}
+                  "connectorArguments": {"repository": "owner/repo", "number": "12"}
                 }
               ]
             }
