@@ -255,8 +255,8 @@ Esta actualización incorpora las primeras implementaciones de los seis frentes 
 - Validador de dependencias y ciclos, límite de pasos, reintentos y duración.
 - Coordinador secuencial: una dependencia fallida bloquea los pasos posteriores; las excepciones se convierten en resultados controlados.
 - Las escrituras externas, mensajes, llamadas, borrados y compras requieren aprobación específica para los IDs de paso de esa ejecución. No hay autorización persistente.
-- El contexto de conversación activa instrucciones de planificación cuando detecta una petición multipaso.
-- Limitación: el coordinador todavía no está conectado al dispatcher de conectores ni a un almacén persistente. El modelo puede proponer un plan, pero ORION no debe afirmar que lo ha ejecutado.
+- El contexto de conversación activa instrucciones de planificación cuando detecta una petición multipaso. Existe un adaptador que conecta pasos externos con ConnectorDispatcher y su puerta de confirmación.
+- Limitación: falta integrar el coordinador en el runtime conversacional, convertir la salida del modelo en planes estructurados y persistir/reanudar ejecuciones. El modelo puede proponer un plan, pero ORION no debe afirmar que lo ha ejecutado.
 
 ### 3. Conocimiento offline
 - Catálogo de seis packs previstos: normativa España/UE, seguridad España, ciberseguridad, Android/Kotlin, Python/Internet y pesca recreativa Andalucía.
