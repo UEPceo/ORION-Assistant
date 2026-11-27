@@ -129,7 +129,13 @@ class KnowledgeSemanticIndex(context: Context) {
             "programming" to setOf("programacion", "codigo", "desarrollo", "software", "algoritmo", "kotlin", "python"),
             "web" to setOf("internet", "http", "https", "servidor", "navegador", "api", "web"),
             "concurrency" to setOf("coroutine", "coroutines", "concurrencia", "paralelo", "asincrono", "suspend"),
-            "finance" to setOf("finanzas", "dinero", "inversion", "presupuesto", "coste", "ingresos", "gastos")
+            "finance" to setOf("finanzas", "dinero", "inversion", "presupuesto", "coste", "ingresos", "gastos", "ahorro", "credito", "hipoteca", "tae", "acciones", "bonos", "interes"),
+            "mathematics" to setOf("matematicas", "algebra", "calculo", "derivada", "integral", "ecuacion", "geometria", "estadistica", "probabilidad", "teorema"),
+            "science" to setOf("ciencia", "cientifico", "fisica", "quimica", "biologia", "astronomia", "experimento", "hipotesis", "investigacion"),
+            "engineering" to setOf("ingenieria", "mecanica", "electronica", "termodinamica", "metrologia", "materiales", "sistemas"),
+            "business" to setOf("empresa", "negocio", "emprendimiento", "pyme", "ventas", "marketing", "cliente", "mercado", "productividad"),
+            "communication" to setOf("comunicacion", "redaccion", "escritura", "oratoria", "argumentacion", "presentacion", "narrativa", "accesibilidad"),
+            "creativity" to setOf("creatividad", "diseno", "tipografia", "composicion", "prototipo", "licencia", "autor")
         )
     }
 }
