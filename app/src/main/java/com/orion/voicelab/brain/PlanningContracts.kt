@@ -3,6 +3,8 @@ package com.orion.voicelab.brain
 import com.orion.voicelab.connectors.ConnectorId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 enum class PlanStepKind { THINK, SEARCH, READ, CALCULATE, CREATE_DRAFT, CONNECTOR_READ, CONNECTOR_WRITE, SEND_MESSAGE, PLACE_CALL, DELETE_DATA, PURCHASE }
@@ -152,7 +154,9 @@ class PlanExecutionCoordinator {
             activeStepId?.let { id ->
                 results[id] = StepExecution(StepStatus.FAILED, "Ejecución interrumpida. El resultado externo puede ser incierto; verifica antes de reintentar.")
             }
-            observer.onProgress(PlanStatus.PAUSED, results.toMap(), null)
+            withContext(NonCancellable) {
+                observer.onProgress(PlanStatus.PAUSED, results.toMap(), null)
+            }
             throw cancelled
         }
         val status = when {
