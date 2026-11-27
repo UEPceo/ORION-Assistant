@@ -226,14 +226,14 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             baseContext.copy(
                 systemPrompt = buildString {
                     append(baseContext.systemPrompt)
-                    append("\\n\\n")
+                    append("\n\n")
                     append(BrainPromptComposer.compose(brainContext))
                     if (creativeContext.isNotBlank()) {
-                        append("\\n\\n")
+                        append("\n\n")
                         append(creativeContext)
                     }
                     if (selfKnowledgeContext.isNotBlank()) {
-                        append("\\n\\n")
+                        append("\n\n")
                         append(selfKnowledgeContext)
                     }
                 }
