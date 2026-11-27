@@ -145,6 +145,7 @@ private enum class OrionTab {
     TASKS,
     CONVERSATIONS,
     MEMORY,
+    CONNECTORS,
     LAB
 }
 
@@ -556,6 +557,10 @@ fun OrionVoiceLabScreen(
                             )
                         }
 
+                        OrionTab.CONNECTORS -> {
+                            ConnectorsSectionScreen()
+                        }
+
                         OrionTab.LAB -> {
                             if (isWide) {
                                 WideVoiceLabLayout(
@@ -679,6 +684,13 @@ private fun TopBrandAndTabs(
                         label = stringResource(R.string.tab_memory),
                         onClick = { onSelectTab(OrionTab.MEMORY) },
                         modifier = tabItemMod("tab_memory")
+                    )
+                    TabSegmentButton(
+                        selected = selectedTab == OrionTab.CONNECTORS,
+                        icon = Icons.Outlined.Lock,
+                        label = stringResource(R.string.tab_connectors),
+                        onClick = { onSelectTab(OrionTab.CONNECTORS) },
+                        modifier = tabItemMod("tab_connectors")
                     )
                     TabSegmentButton(
                         selected = selectedTab == OrionTab.LAB,
