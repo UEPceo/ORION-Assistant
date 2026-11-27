@@ -8,6 +8,15 @@ import com.orion.voicelab.data.VoiceLabUiState
  */
 object OrionSelfKnowledgeAdvisor {
 
+    fun shouldReadDiagnostics(userQuery: String): Boolean {
+        val normalized = userQuery.lowercase()
+        return listOf(
+            "error", "fallo", "falla", "diagn", "log", "bloqueado", "cerrado",
+            "no respondes", "no responde", "no funciona", "te has caído", "te has caido",
+            "te has detenido", "te has parado", "crash", "se ha cerrado"
+        ).any(normalized::contains)
+    }
+
     fun compose(
         userQuery: String,
         state: VoiceLabUiState,
