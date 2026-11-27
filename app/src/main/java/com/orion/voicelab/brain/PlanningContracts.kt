@@ -7,7 +7,7 @@ import kotlinx.coroutines.withTimeout
 
 enum class PlanStepKind { THINK, SEARCH, READ, CALCULATE, CREATE_DRAFT, CONNECTOR_READ, CONNECTOR_WRITE, SEND_MESSAGE, PLACE_CALL, DELETE_DATA, PURCHASE }
 enum class PlanRisk { LOW, MEDIUM, HIGH, CRITICAL }
-enum class PlanStatus { DRAFT, READY, AWAITING_APPROVAL, RUNNING, COMPLETED, PARTIAL, FAILED, CANCELLED }
+enum class PlanStatus { DRAFT, READY, AWAITING_APPROVAL, RUNNING, PAUSED, COMPLETED, PARTIAL, FAILED, CANCELLED }
 enum class StepStatus { PENDING, RUNNING, SUCCEEDED, FAILED, BLOCKED, SKIPPED }
 
 data class PlannedStep(
@@ -38,17 +38,18 @@ object PlanValidator {
         if (plan.steps.any { it.id.isBlank() || it.title.isBlank() }) errors += "Cada paso necesita ID y título."
         plan.steps.forEach { item ->
             if (item.id in item.dependsOn) errors += "Un paso no puede depender de sí mismo: ${item.id}."
-            if (item.kind in setOf(PlanStepKind.CONNECTOR_READ, PlanStepKind.CONNECTOR_WRITE, PlanStepKind.SEND_MESSAGE, PlanStepKind.PLACE_CALL, PlanStepKind.DELETE_DATA, PlanStepKind.PURCHASE) && (item.connectorId == null || item.connectorOperation.isNullOrBlank())) errors += "El paso externo ${item.id} necesita conector y operación explícitos."
+            if (item.kind in EXTERNAL_KINDS && (item.connectorId == null || item.connectorOperation.isNullOrBlank())) errors += "El paso externo ${item.id} necesita conector y operación explícitos."
             (item.dependsOn - ids).forEach { errors += "Dependencia inexistente: $it." }
-            if (item.kind in setOf(PlanStepKind.CONNECTOR_WRITE, PlanStepKind.SEND_MESSAGE, PlanStepKind.PLACE_CALL, PlanStepKind.DELETE_DATA, PlanStepKind.PURCHASE) && !item.requiresApproval) {
-                errors += "La acción externa ${item.id} debe requerir confirmación."
-            }
+            if (item.kind in WRITE_KINDS && !item.requiresApproval) errors += "La acción externa ${item.id} debe requerir confirmación."
         }
         val ordered = topologicalOrder(plan.steps)
         if (ordered.size != plan.steps.size) errors += "El plan contiene un ciclo de dependencias."
         return PlanValidation(errors.isEmpty(), errors.distinct(),
             plan.steps.filter { it.requiresApproval || it.risk >= PlanRisk.MEDIUM }.map { it.id }.toSet(), ordered)
     }
+
+    private val EXTERNAL_KINDS = setOf(PlanStepKind.CONNECTOR_READ, PlanStepKind.CONNECTOR_WRITE, PlanStepKind.SEND_MESSAGE, PlanStepKind.PLACE_CALL, PlanStepKind.DELETE_DATA, PlanStepKind.PURCHASE)
+    private val WRITE_KINDS = setOf(PlanStepKind.CONNECTOR_WRITE, PlanStepKind.SEND_MESSAGE, PlanStepKind.PLACE_CALL, PlanStepKind.DELETE_DATA, PlanStepKind.PURCHASE)
 
     private fun topologicalOrder(steps: List<PlannedStep>): List<String> {
         val remaining = steps.associate { it.id to it.dependsOn.toMutableSet() }.toMutableMap()
@@ -71,51 +72,92 @@ data class StepExecution(val status: StepStatus, val summary: String, val output
 fun interface PlanStepRunner { suspend fun run(step: PlannedStep, budget: ExecutionBudget): StepExecution }
 data class PlanExecutionReport(val planId: String, val status: PlanStatus, val steps: Map<String, StepExecution>, val blockedReason: String? = null)
 
+fun interface PlanExecutionObserver {
+    suspend fun onProgress(status: PlanStatus, steps: Map<String, StepExecution>, activeStepId: String?)
+}
+
 /** Approval is bound to exact step IDs for this invocation; no approval persists. */
 class PlanExecutionCoordinator {
-    suspend fun execute(plan: OrionPlan, approvedStepIds: Set<String>, runner: PlanStepRunner): PlanExecutionReport {
+    suspend fun execute(
+        plan: OrionPlan,
+        approvedStepIds: Set<String>,
+        runner: PlanStepRunner,
+        initialResults: Map<String, StepExecution> = emptyMap(),
+        retryStepIds: Set<String> = emptySet(),
+        observer: PlanExecutionObserver = PlanExecutionObserver { _, _, _ -> }
+    ): PlanExecutionReport {
         val validation = PlanValidator.validate(plan)
         if (!validation.valid) return PlanExecutionReport(plan.id, PlanStatus.FAILED, emptyMap(), validation.errors.joinToString(" "))
+        val unknownResults = initialResults.keys - plan.steps.map { it.id }.toSet()
+        if (unknownResults.isNotEmpty()) return PlanExecutionReport(plan.id, PlanStatus.FAILED, emptyMap(), "El estado guardado contiene pasos que ya no existen.")
         val missing = validation.approvalRequiredStepIds - approvedStepIds
-        if (missing.isNotEmpty()) return PlanExecutionReport(plan.id, PlanStatus.AWAITING_APPROVAL, emptyMap(), "Falta autorización expresa para: ${missing.sorted().joinToString()}.")
-        val results = linkedMapOf<String, StepExecution>()
+        if (missing.isNotEmpty()) {
+            val report = PlanExecutionReport(plan.id, PlanStatus.AWAITING_APPROVAL, initialResults, "Falta autorización expresa para: ${missing.sorted().joinToString()}.")
+            observer.onProgress(report.status, report.steps, null)
+            return report
+        }
+        val results = linkedMapOf<String, StepExecution>().apply { putAll(initialResults) }
         val startedAt = System.nanoTime()
-        for (id in validation.orderedStepIds) {
-            val item = plan.steps.first { it.id == id }
-            val failedDependency = item.dependsOn.firstOrNull { results[it]?.status != StepStatus.SUCCEEDED }
-            if (failedDependency != null) {
-                results[id] = StepExecution(StepStatus.BLOCKED, "Bloqueado por el paso $failedDependency.")
-                continue
-            }
-            val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L
-            val remainingMs = plan.budget.maxDurationMs - elapsedMs
-            if (remainingMs <= 0L) {
-                results[id] = StepExecution(StepStatus.FAILED, "Se agotó el presupuesto temporal del plan.")
-                continue
-            }
-            val retryAllowed = item.kind in setOf(PlanStepKind.THINK, PlanStepKind.SEARCH, PlanStepKind.READ, PlanStepKind.CALCULATE, PlanStepKind.CONNECTOR_READ) || !item.idempotencyKey.isNullOrBlank()
-            var attempt = 0
-            var execution: StepExecution
-            do {
-                execution = try {
-                    withTimeout(remainingMs) { runner.run(item, plan.budget) }
-                } catch (cancelled: CancellationException) {
-                    if (cancelled is TimeoutCancellationException) {
-                        StepExecution(StepStatus.FAILED, "El paso superó el tiempo disponible.")
-                    } else throw cancelled
-                } catch (error: Exception) {
-                    StepExecution(StepStatus.FAILED, "Fallo controlado: ${error::class.java.simpleName}.")
+        var activeStepId: String? = null
+        observer.onProgress(PlanStatus.RUNNING, results.toMap(), null)
+        try {
+            for (id in validation.orderedStepIds) {
+                val previous = results[id]
+                if (previous?.status == StepStatus.SUCCEEDED) continue
+                if (previous?.status == StepStatus.FAILED && id !in retryStepIds) continue
+                if (previous != null && previous.status !in setOf(StepStatus.FAILED, StepStatus.BLOCKED, StepStatus.SKIPPED, StepStatus.PENDING)) continue
+
+                val item = plan.steps.first { it.id == id }
+                val failedDependency = item.dependsOn.firstOrNull { results[it]?.status != StepStatus.SUCCEEDED }
+                if (failedDependency != null) {
+                    results[id] = StepExecution(StepStatus.BLOCKED, "Bloqueado por el paso $failedDependency.")
+                    observer.onProgress(PlanStatus.RUNNING, results.toMap(), null)
+                    continue
                 }
-                if (execution.status != StepStatus.FAILED || !retryAllowed || attempt >= plan.budget.maxRetriesPerStep) break
-                attempt++
-            } while (true)
-            results[id] = execution
+                val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L
+                val remainingMs = plan.budget.maxDurationMs - elapsedMs
+                if (remainingMs <= 0L) {
+                    results[id] = StepExecution(StepStatus.FAILED, "Se agotó el presupuesto temporal del plan.")
+                    observer.onProgress(PlanStatus.RUNNING, results.toMap(), null)
+                    continue
+                }
+                val retryAllowed = item.kind in setOf(PlanStepKind.THINK, PlanStepKind.SEARCH, PlanStepKind.READ, PlanStepKind.CALCULATE, PlanStepKind.CONNECTOR_READ) || !item.idempotencyKey.isNullOrBlank()
+                var attempt = 0
+                var execution: StepExecution
+                activeStepId = id
+                results[id] = StepExecution(StepStatus.RUNNING, "En ejecución.")
+                observer.onProgress(PlanStatus.RUNNING, results.toMap(), activeStepId)
+                do {
+                    execution = try {
+                        withTimeout(remainingMs) { runner.run(item, plan.budget) }
+                    } catch (cancelled: CancellationException) {
+                        if (cancelled is TimeoutCancellationException) {
+                            StepExecution(StepStatus.FAILED, "El paso superó el tiempo disponible.")
+                        } else throw cancelled
+                    } catch (error: Exception) {
+                        StepExecution(StepStatus.FAILED, "Fallo controlado: ${error::class.java.simpleName}.")
+                    }
+                    if (execution.status != StepStatus.FAILED || !retryAllowed || attempt >= plan.budget.maxRetriesPerStep) break
+                    attempt++
+                } while (true)
+                results[id] = execution
+                activeStepId = null
+                observer.onProgress(PlanStatus.RUNNING, results.toMap(), null)
+            }
+        } catch (cancelled: CancellationException) {
+            activeStepId?.let { id ->
+                results[id] = StepExecution(StepStatus.FAILED, "Ejecución interrumpida. El resultado externo puede ser incierto; verifica antes de reintentar.")
+            }
+            observer.onProgress(PlanStatus.PAUSED, results.toMap(), null)
+            throw cancelled
         }
         val status = when {
-            results.values.all { it.status == StepStatus.SUCCEEDED } -> PlanStatus.COMPLETED
+            results.values.count { it.status == StepStatus.SUCCEEDED } == plan.steps.size -> PlanStatus.COMPLETED
             results.values.any { it.status == StepStatus.SUCCEEDED } -> PlanStatus.PARTIAL
-            else -> PlanStatus.FAILED
+            results.values.any { it.status == StepStatus.FAILED || it.status == StepStatus.BLOCKED } -> PlanStatus.FAILED
+            else -> PlanStatus.PARTIAL
         }
+        observer.onProgress(status, results.toMap(), null)
         return PlanExecutionReport(plan.id, status, results)
     }
 }
