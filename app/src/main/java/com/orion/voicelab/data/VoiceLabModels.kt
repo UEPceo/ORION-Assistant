@@ -76,6 +76,7 @@ data class VoiceLabUiState(
     val callStatusMessage: String = "",
     val isCallActive: Boolean = false,
     val isMuted: Boolean = false,
+    val isSpeakerEnabled: Boolean = false,
     val isSpeechDetected: Boolean = false,
     val callDurationSeconds: Long = 0L,
     val conversationTurns: List<ConversationTurn> = emptyList(),
