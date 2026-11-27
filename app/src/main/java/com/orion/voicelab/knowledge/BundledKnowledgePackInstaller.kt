@@ -72,7 +72,7 @@ class BundledKnowledgePackInstaller(
                         authority = authority,
                         retrievedAtMs = reviewedAt,
                         publishedAtMs = item.takeIf { it.has("publishedAtMs") }?.optLong("publishedAtMs"),
-                        jurisdiction = item.optString("jurisdiction").takeIf { it.isNotBlank() },
+                        jurisdiction = item.takeUnless { it.isNull("jurisdiction") }?.optString("jurisdiction")?.takeIf { it.isNotBlank() },
                         content = content,
                         contentHash = sha256(content)
                     )
