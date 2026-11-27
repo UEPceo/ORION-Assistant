@@ -30,6 +30,14 @@ class BrainRetrievalEngine(
         }.distinctBy { it.evidence.id }
             .sortedWith(
                 compareByDescending<KnowledgeDocument> { jurisdictionMatch(it, query) }
+                    .thenByDescending {
+                        if (query.requiresPrimaryEvidence &&
+                            it.evidence.authority in setOf(
+                                EvidenceAuthority.OFFICIAL_PRIMARY,
+                                EvidenceAuthority.PRIMARY_TECHNICAL
+                            )
+                        ) 1 else 0
+                    }
                     .thenByDescending { it.relevance.coerceIn(0.0, 1.0) }
                     .thenByDescending { authorityWeight(it.evidence.authority) }
                     .thenByDescending { it.evidence.retrievedAtMs }
