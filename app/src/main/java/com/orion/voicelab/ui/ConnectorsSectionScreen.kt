@@ -64,8 +64,8 @@ fun ConnectorsSectionScreen(
     val saveGmailAuthorization: (AuthorizationResult) -> Unit = { authorizationResult ->
         scope.launch {
             try {
-                val accessToken = authorizationResult.accessToken
-                require(!accessToken.isNullOrBlank()) { "Google no devolvió un token de acceso." }
+                val accessToken = authorizationResult.accessToken.orEmpty()
+                require(accessToken.isNotBlank()) { "Google no devolvió un token de acceso." }
                 val expiresIn = authorizationResult.tokenResponseParams
                     ?.getString("expires_in")
                     ?.toLongOrNull()
