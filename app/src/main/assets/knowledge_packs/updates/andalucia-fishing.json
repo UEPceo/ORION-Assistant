@@ -1,0 +1,37 @@
+{
+  "id": "andalucia-fishing",
+  "version": 2,
+  "title": "Pesca recreativa Andalucía: marco de consulta responsable",
+  "documents": [
+    {
+      "id": "junta-recreational-fishing",
+      "title": "Consulta oficial de pesca marítima recreativa en Andalucía",
+      "url": "https://www.juntadeandalucia.es/organismos/agriculturapescaaguaydesarrollorural/areas/pesca-acuicultura/pesca-maritima-recreativa.html",
+      "publisher": "Junta de Andalucía",
+      "domain": "FISHING",
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "ES-AN",
+      "content": "La pesca marítima recreativa en Andalucía exige comprobar el ámbito exacto (aguas interiores o exteriores), modalidad y fecha. La información institucional de la Junta enlaza los trámites de licencia, las modalidades autorizadas y la aplicación PescaREC para declarar capturas. La Junta indica que PescaREC es de uso obligatorio para pescadores recreativos desde el 20 de marzo de 2026, según la información publicada en su portal de pesca recreativa. La licencia, la declaración de capturas y las restricciones por especie, zona y modalidad son obligaciones distintas: no debe suponerse que disponer de una licencia resuelve por sí solo todos los requisitos. Antes de pescar, consulta la página oficial actualizada, identifica si estás en aguas interiores o exteriores, y verifica licencias, especies, tallas, cupos, vedas, áreas protegidas y obligaciones de declaración. Las páginas informativas pueden cambiar y esta ficha no reproduce una tabla completa de tallas ni cupos; si la norma aplicable no está comprobada, ORION debe declarar que no puede confirmar el dato y facilitar la fuente oficial."
+    },
+    {
+      "id": "magrama-recreational-fishing",
+      "title": "Pesca marítima recreativa: marco estatal y consulta normativa",
+      "url": "https://www.juntadeandalucia.es/organismos/economiahaciendayfondoseuropeos/areas/tributos-juego/tributos/paginas/cuotatrib_licenciapesca.html",
+      "publisher": "Ministerio de Agricultura, Pesca y Alimentación",
+      "domain": "LAW_AND_REGULATION",
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "ES",
+      "content": "La página oficial de tributos de la Junta de Andalucía consultada el 27 de noviembre de 2026 informa de que el Decreto 205/2023, de 29 de agosto, que regulaba la pesca marítima recreativa en aguas interiores, fue anulado por sentencia del Tribunal Superior de Justicia de Andalucía y que quedó sin efecto la relación de licencias y tasas establecida en ese decreto. La misma página indica que se mantiene el sistema de cuatro tipos de licencia del Decreto 361/2003. Esta información demuestra por qué ORION no debe asumir que una norma autonómica sigue vigente por aparecer en una guía anterior o en un texto consolidado. Para cualquier respuesta sobre licencias, requisitos, tasas, tallas o cupos, hay que abrir la fuente oficial actual y revisar la fecha, la resolución judicial y las normas que continúen aplicándose. No se deben reutilizar tasas o categorías antiguas sin comprobar su vigencia en la fecha de la consulta. Esta ficha resume un aviso institucional; no es asesoramiento jurídico."
+    },
+    {
+      "id": "pesca-rec-declaration",
+      "title": "Declaración electrónica de capturas y PescaREC en Andalucía",
+      "url": "https://www.juntadeandalucia.es/organismos/agriculturapescaaguaydesarrollorural/areas/pesca-acuicultura/pesca-maritima-recreativa/salidas-capturas-pesca-maritima-recreo.html",
+      "publisher": "Junta de Andalucía",
+      "domain": "LAW_AND_REGULATION",
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "ES-AN",
+      "content": "La Junta de Andalucía informa de que el uso de PescaREC es obligatorio para pescadores recreativos desde el 20 de marzo de 2026 y relaciona esta obligación con el marco europeo de control pesquero y el Real Decreto 214/2026, de 18 de marzo. La declaración de capturas es una obligación distinta de disponer de licencia. Antes de dar instrucciones prácticas, comprueba en el portal institucional el procedimiento vigente, las especies afectadas, los plazos, los datos que deben registrarse y las excepciones aplicables. No infieras que toda salida sin captura tiene el mismo tratamiento que una captura declarable ni inventes pasos de la aplicación. Esta ficha conserva el dato de la fecha indicada por la fuente consultada el 27 de noviembre de 2026; si se necesita actuar, debe verificarse que la página y la normativa no hayan cambiado."
+    }
+  ]
+}
