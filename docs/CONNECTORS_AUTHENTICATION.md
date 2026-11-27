@@ -6,7 +6,7 @@ ORION uses the GitHub App Device Flow, intended for native devices without an em
 
 Setup required outside the repository:
 
-1. Create a GitHub OAuth App under the intended GitHub account or organization.
+1. Create a GitHub App under the intended GitHub account or organization.
 2. Enable **Device Flow** in that OAuth App's settings.
 3. Configure its public Client ID in the local build as `ORION_GITHUB_CLIENT_ID` (Gradle property or environment variable). The Client ID is not a secret; never add a client secret to the APK or repository.
 4. Build and install the app.
