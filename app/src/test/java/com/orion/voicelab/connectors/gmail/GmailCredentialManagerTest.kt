@@ -3,7 +3,6 @@ package com.orion.voicelab.connectors.gmail
 import com.orion.voicelab.connectors.ConnectorCredentialStore
 import com.orion.voicelab.connectors.ConnectorId
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -24,7 +23,7 @@ class GmailCredentialManagerTest {
 
         now += 61_000L
         assertTrue(manager.isConnected())
-        assertEquals(null, manager.getValidAccessToken())
+        assertTrue(manager.getValidAccessToken() == null)
 
         now += 60_000L
         assertFalse(manager.isConnected())
