@@ -35,6 +35,21 @@ class KnowledgePackUpdateManifestTest {
             val payload = JSONObject(bytes.toString(Charsets.UTF_8))
             assertEquals(id, payload.getString("id"))
             assertEquals(item.getInt("version"), payload.getInt("version"))
+            val bundled = context.assets.open("knowledge_packs/$id.json")
+                .bufferedReader().use { JSONObject(it.readText()) }
+            assertEquals(id, bundled.getString("id"))
+            assertEquals(payload.getJSONArray("documents").length(), bundled.getJSONArray("documents").length())
+            for (documentIndex in 0 until bundled.getJSONArray("documents").length()) {
+                val document = bundled.getJSONArray("documents").getJSONObject(documentIndex)
+                assertTrue(document.getString("id").isNotBlank())
+                assertTrue(document.getString("title").isNotBlank())
+                assertTrue(document.getString("url").startsWith("https://"))
+                assertTrue(document.getString("publisher").isNotBlank())
+                KnowledgeDomain.valueOf(document.getString("domain"))
+                EvidenceAuthority.valueOf(document.getString("authority"))
+                assertTrue(document.getLong("reviewedAtMs") > 0L)
+                assertTrue(document.getString("content").length >= 180)
+            }
         }
     }
 }
