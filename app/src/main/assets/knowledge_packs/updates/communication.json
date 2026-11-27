@@ -4,24 +4,26 @@
   "title": "Comunicación y escritura",
   "documents": [
     {
-      "id": "Comunicación accesible",
-      "title": "https://www.w3.org/WAI/fundamentals/accessibility-intro/",
-      "url": "W3C Web Accessibility Initiative",
-      "publisher": "PRIMARY_TECHNICAL",
+      "id": "communication-comunicacion-accesible",
+      "title": "Comunicación accesible",
+      "url": "https://www.w3.org/WAI/fundamentals/accessibility-intro/",
+      "publisher": "W3C Web Accessibility Initiative",
       "domain": "COMMUNICATION",
-      "authority": "La comunicación eficaz permite encontrar, comprender y utilizar la información. Antes de redactar se identifica objetivo, público, contexto y canal. Una estructura clara utiliza títulos descriptivos, orden lógico y términos consistentes. La accesibilidad exige no depender solo del color, ofrecer alternativas textuales, mantener contraste y permitir navegación por teclado. W3C WAI aporta criterios técnicos; cumplir una recomendación aislada no demuestra conformidad completa con WCAG ni con la legislación aplicable.",
+      "authority": "PRIMARY_TECHNICAL",
       "jurisdiction": null,
-      "reviewedAtMs": 1795737600000
+      "reviewedAtMs": 1795737600000,
+      "content": "La comunicación eficaz permite encontrar, comprender y utilizar la información. Antes de redactar se identifica objetivo, público, contexto y canal. Una estructura clara utiliza títulos descriptivos, orden lógico y términos consistentes. La accesibilidad exige no depender solo del color, ofrecer alternativas textuales, mantener contraste y permitir navegación por teclado. W3C WAI aporta criterios técnicos; cumplir una recomendación aislada no demuestra conformidad completa con WCAG ni con la legislación aplicable."
     },
     {
-      "id": "Escritura clara y argumentación",
-      "title": "https://owl.purdue.edu/owl/general_writing/academic_writing/conciseness/index.html",
-      "url": "Purdue Online Writing Lab",
-      "publisher": "PRIMARY_TECHNICAL",
+      "id": "communication-escritura-clara-y-argumentacion",
+      "title": "Escritura clara y argumentación",
+      "url": "https://owl.purdue.edu/owl/general_writing/academic_writing/conciseness/index.html",
+      "publisher": "Purdue Online Writing Lab",
       "domain": "COMMUNICATION",
-      "authority": "La escritura clara prioriza una idea principal por párrafo, verbos concretos y relación visible entre afirmaciones y evidencias. Un argumento distingue tesis, razones, datos, supuestos y objeciones; las fuentes se atribuyen y las citas no se sacan de contexto. La revisión funciona por capas: propósito y estructura, precisión, frases y ortografía. La escucha activa incluye comprobar comprensión, resumir y formular preguntas abiertas.",
+      "authority": "PRIMARY_TECHNICAL",
       "jurisdiction": null,
-      "reviewedAtMs": 1795737600000
+      "reviewedAtMs": 1795737600000,
+      "content": "La escritura clara prioriza una idea principal por párrafo, verbos concretos y relación visible entre afirmaciones y evidencias. Un argumento distingue tesis, razones, datos, supuestos y objeciones; las fuentes se atribuyen y las citas no se sacan de contexto. La revisión funciona por capas: propósito y estructura, precisión, frases y ortografía. La escucha activa incluye comprobar comprensión, resumir y formular preguntas abiertas."
     }
   ]
 }
