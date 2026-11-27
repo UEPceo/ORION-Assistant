@@ -65,15 +65,15 @@ class DuckDuckGoKnowledgeSource : KnowledgeSource {
         val anchors = RESULT_LINK.findAll(html).toList()
         val snippets = RESULT_SNIPPET.findAll(html).map { cleanHtml(it.groupValues[1]) }.toList()
         val now = System.currentTimeMillis()
-        return anchors.mapNotNullIndexed { index, match ->
+        return anchors.mapIndexedNotNull { index, match ->
             val title = cleanHtml(match.groupValues[2]).take(180)
-            val target = resolveResultUrl(match.groupValues[1]) ?: return@mapNotNullIndexed null
+            val target = resolveResultUrl(match.groupValues[1]) ?: return@mapIndexedNotNull null
             val host = runCatching { URL(target).host.lowercase(Locale.ROOT) }.getOrNull()
-                ?.removePrefix("www.") ?: return@mapNotNullIndexed null
-            if (title.isBlank()) return@mapNotNullIndexed null
+                ?.removePrefix("www.") ?: return@mapIndexedNotNull null
+            if (title.isBlank()) return@mapIndexedNotNull null
             val snippet = snippets.getOrNull(index).orEmpty().take(700)
             val content = listOf(title, snippet).filter(String::isNotBlank).joinToString("\n")
-            if (content.isBlank()) return@mapNotNullIndexed null
+            if (content.isBlank()) return@mapIndexedNotNull null
             val id = "web-" + target.hashCode().toUInt().toString(16)
             KnowledgeDocument(
                 evidence = KnowledgeEvidence(
@@ -160,8 +160,3 @@ object WebSearchIntentPolicy {
     }
 }
 
-private inline fun <T, R : Any> List<T>.mapNotNullIndexed(
-    transform: (index: Int, T) -> R?
-): List<R> = buildList {
-    forEachIndexed { index, item -> transform(index, item)?.let(::add) }
-}
