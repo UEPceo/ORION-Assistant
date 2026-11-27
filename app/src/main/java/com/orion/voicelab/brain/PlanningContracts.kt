@@ -43,6 +43,11 @@ object PlanValidator {
             if (item.kind in EXTERNAL_KINDS && (item.connectorId == null || item.connectorOperation.isNullOrBlank())) errors += "El paso externo ${item.id} necesita conector y operación explícitos."
             (item.dependsOn - ids).forEach { errors += "Dependencia inexistente: $it." }
             if (item.kind in WRITE_KINDS && !item.requiresApproval) errors += "La acción externa ${item.id} debe requerir confirmación."
+            val secretKeyMarkers = listOf("password", "passwd", "secret", "token", "authorization", "api_key", "apikey", "credential")
+            if (item.connectorArguments.keys.any { key ->
+                    val normalized = key.lowercase().replace("-", "_")
+                    secretKeyMarkers.any(normalized::contains)
+                }) errors += "El paso ${item.id} contiene una clave de credencial que no puede persistirse."
         }
         val ordered = topologicalOrder(plan.steps)
         if (ordered.size != plan.steps.size) errors += "El plan contiene un ciclo de dependencias."
