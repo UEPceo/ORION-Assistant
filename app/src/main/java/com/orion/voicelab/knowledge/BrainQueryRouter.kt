@@ -41,7 +41,8 @@ object BrainQueryRouter {
         val primary = domain in setOf(
             KnowledgeDomain.LAW_AND_REGULATION,
             KnowledgeDomain.HEALTH_AND_SAFETY,
-            KnowledgeDomain.MARINE_WEATHER
+            KnowledgeDomain.MARINE_WEATHER,
+            KnowledgeDomain.SOCIAL_MEDIA
         )
         val freshness = primary || containsAny(
             normalized, "hoy", "ahora", "actual", "último", "vigente", "mañana", "esta semana", "precio"
