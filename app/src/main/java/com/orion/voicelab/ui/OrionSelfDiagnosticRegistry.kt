@@ -123,11 +123,13 @@ object OrionSelfDiagnosticRegistry {
             modules.forEach { module ->
                 appendLine("- ${module.id}: ${module.owner}; código=${module.entryPoints}; deps=${module.dependencies}.")
             }
+            val normalizedComponent = component.lowercase()
             val matchedModule = modules.firstOrNull { module ->
-                component.contains(module.id, ignoreCase = true) ||
+                normalizedComponent.contains(module.id.lowercase()) ||
                     module.entryPoints.split(",").any { entry ->
-                        component.contains(entry.trim().substringBefore("."), ignoreCase = true)
-                    }
+                        normalizedComponent.contains(entry.trim().substringBefore("." ).lowercase())
+                    } ||
+                    componentAliasMatches(module.id, normalizedComponent)
             }
             if (matchedModule != null) {
                 appendLine("Detalle del módulo ${matchedModule.id}: comprobar ${matchedModule.checks}. Recuperación segura: ${matchedModule.recovery}.")
@@ -152,6 +154,19 @@ object OrionSelfDiagnosticRegistry {
             }
             appendLine("Regla de certeza: el componente del evento es la procedencia registrada; una firma heurística es solo una pista; la clase/método/línea requieren una traza real.")
         }.take(maxChars)
+    }
+
+    private fun componentAliasMatches(moduleId: String, component: String): Boolean = when (moduleId) {
+        "VOICE_ASR" -> listOf("asr", "moonshine", "reconocimiento", "microfono", "micrófono").any(component::contains)
+        "LLM" -> listOf("llm", "qwen", "lenguaje", "inferencia").any(component::contains)
+        "VOICE_TTS" -> listOf("tts", "piper", "sintesis", "síntesis", "voz").any(component::contains)
+        "TASKS" -> listOf("tarea", "recordatorio", "alarma").any(component::contains)
+        "CONTACTS_CALLS" -> listOf("contact", "llamada", "telefon", "teléfono").any(component::contains)
+        "CONNECTORS" -> listOf("gmail", "github", "calendar", "maps", "keep", "conector").any(component::contains)
+        "KNOWLEDGE" -> listOf("knowledge", "conocimiento", "rag", "fuente").any(component::contains)
+        "MEDIA" -> listOf("media", "multimedia", "creative", "imagen", "video", "vídeo").any(component::contains)
+        "DIAGNOSTICS" -> listOf("diagn", "crash", "log").any(component::contains)
+        else -> false
     }
 
     private data class FailureSignature(
