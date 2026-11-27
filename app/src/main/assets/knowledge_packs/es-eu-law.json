@@ -1,0 +1,27 @@
+{
+  "id": "es-eu-law",
+  "version": 1,
+  "title": "Orientación jurídica y fuentes oficiales España/UE",
+  "documents": [
+    {
+      "id": "boe-navigation",
+      "title": "Cómo consultar legislación consolidada en el BOE",
+      "url": "https://www.boe.es/buscar/legislacion.php",
+      "publisher": "Boletín Oficial del Estado",
+      "domain": "LAW_AND_REGULATION",
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "ES",
+      "content": "El BOE es la fuente oficial para consultar publicaciones normativas del Estado español. Para responder una pregunta jurídica, identifica primero la norma, su ámbito territorial y material, la fecha de publicación y la fecha de entrada en vigor. Distingue el texto original publicado de la versión consolidada: la consolidación facilita la lectura de modificaciones, pero el propio BOE advierte que los textos consolidados tienen carácter informativo y no valor jurídico oficial. Comprueba las disposiciones modificadoras, derogatorias y transitorias, así como la fecha de vigencia aplicable al hecho consultado. No deduzcas que una norma está vigente solo porque aparezca en un resultado de búsqueda. Las normas autonómicas y locales pueden requerir sus respectivos boletines oficiales. Si hay conflicto entre fuentes o falta una fecha verificable, declara la incertidumbre y remite al texto oficial aplicable o a asesoramiento profesional. Este documento es una guía de consulta, no asesoramiento jurídico ni una reproducción de legislación."
+    },
+    {
+      "id": "eurlex-basics",
+      "title": "Consulta de legislación y documentos de la Unión Europea",
+      "url": "https://eur-lex.europa.eu/homepage.html",
+      "publisher": "Oficina de Publicaciones de la Unión Europea",
+      "domain": "LAW_AND_REGULATION",
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "EU",
+      "content": "EUR-Lex ofrece acceso al Diario Oficial de la Unión Europea, legislación, documentos preparatorios, jurisprudencia y versiones consolidadas. Al analizar una disposición europea, identifica el tipo de acto: reglamento, directiva, decisión, recomendación u opinión. Un reglamento es obligatorio en todos sus elementos y directamente aplicable en los Estados miembros; una directiva obliga al Estado destinatario respecto del resultado y normalmente requiere transposición nacional; una decisión es obligatoria para sus destinatarios. Verifica fecha de adopción, publicación, entrada en vigor, aplicación y posibles modificaciones o derogaciones. Comprueba si el documento está marcado como vigente y revisa medidas nacionales de transposición cuando proceda. No confundas una propuesta legislativa con una norma aprobada. Para una cuestión concreta, consulta el texto auténtico publicado en el Diario Oficial y la jurisprudencia pertinente. La aplicación a un caso requiere contexto y puede necesitar asesoramiento jurídico."
+    }
+  ]
+}
