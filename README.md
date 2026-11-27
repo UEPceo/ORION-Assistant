@@ -9,8 +9,6 @@
 
 ## Novedades de la Fase 0.8.0 — Diagnóstico técnico exportable
 
-## Novedades de la Fase 0.8.0 — Diagnóstico técnico exportable
-
 - Exportación del informe mediante el selector de archivos de Android (Storage Access Framework), en texto UTF-8.
 - El informe reúne versión de la app, dispositivo/Android, memoria y almacenamiento, estado y tamaño de ASR/LLM/TTS en disco y RAM, descarga automática, estado de audio/DSP, latencias ASR/LLM/TTS, métricas de sesión, permisos, telefonía, tareas y recordatorios, errores recientes y registro local de cierres/ANR/salidas del proceso.
 - Se incluyen los registros de diagnóstico disponibles hasta el límite del archivo local.
