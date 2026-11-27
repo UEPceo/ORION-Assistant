@@ -93,8 +93,19 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                         content = item.optString("content"),
                         contentHash = item.optString("contentHash").takeIf(String::isNotBlank)
                     )
+                    val conflicts = item.optJSONArray("conflictsWithIds")?.let { values ->
+                        buildSet {
+                            for (conflictIndex in 0 until values.length()) {
+                                values.optString(conflictIndex).takeIf(String::isNotBlank)?.let(::add)
+                            }
+                        }
+                    }.orEmpty()
                     if (evidence.id.isNotBlank() && evidence.canonicalUrl.startsWith("https://")) {
-                        add(KnowledgeDocument(evidence, item.optString("excerpt", evidence.content)))
+                        add(KnowledgeDocument(
+                            evidence = evidence,
+                            excerpt = item.optString("excerpt", evidence.content),
+                            conflictsWithIds = conflicts
+                        ))
                     }
                 }
             }
@@ -118,6 +129,9 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                 put("content", evidence.content)
                 evidence.contentHash?.let { put("contentHash", it) }
                 put("excerpt", document.excerpt)
+                val conflicts = JSONArray()
+                document.conflictsWithIds.forEach(conflicts::put)
+                put("conflictsWithIds", conflicts)
             })
         }
         check(preferences.edit().putString(KEY_DOCUMENTS, array.toString()).commit()) {
