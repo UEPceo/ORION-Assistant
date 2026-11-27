@@ -15,7 +15,7 @@ Configure fine-grained GitHub App repository permissions and select only the rep
 
 The authenticator requests a short-lived device code, displays a user code/verification URL to the app layer, polls using GitHub's server-provided interval, handles pending/slow-down/denial/expiry, and returns an access token only after approval. Device codes must remain in memory. The credential manager writes the token through the Android Keystore-backed credential store.
 
-Disconnect deletes the locally stored token. The next hardening step is to add provider-side token revocation where supported and a token validity check before enabling GitHub actions.
+Access tokens expire after a short period and the credential manager supports refresh-token rotation. Disconnect removes both tokens from local encrypted storage; users can also revoke the GitHub App from their GitHub account settings.
 
 ## Gmail — Google Identity authorization implemented
 
