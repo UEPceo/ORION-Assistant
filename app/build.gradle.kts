@@ -20,7 +20,7 @@ android {
         buildConfigField(
             "String",
             "ORION_GITHUB_CLIENT_ID",
-            "\"\$\{githubClientId.replace("\\\\", "\\\\\\\\").replace("\"", "\\\\"")}\""
+            "\"${githubClientId}\""
         )
 
         ndk {
