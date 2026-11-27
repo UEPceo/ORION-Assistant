@@ -63,6 +63,8 @@ import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -417,6 +419,7 @@ fun OrionVoiceLabScreen(
                                     onStartCall = onStartCallClicked,
                                     onEndCall = viewModel::endCall,
                                     onToggleMute = viewModel::toggleMute,
+                                    onToggleSpeaker = viewModel::toggleSpeaker,
                                     onInterrupt = viewModel::interruptCall,
                                     onSelectVoice = viewModel::selectVoice,
                                     onReleaseRam = viewModel::releaseLoadedModels,
@@ -779,6 +782,7 @@ private fun VirtualCallScreen(
     onStartCall: () -> Unit,
     onEndCall: () -> Unit,
     onToggleMute: () -> Unit,
+    onToggleSpeaker: () -> Unit,
     onInterrupt: () -> Unit,
     onSelectVoice: (String) -> Unit,
     onReleaseRam: () -> Unit,
@@ -854,6 +858,7 @@ private fun VirtualCallScreen(
                     onStartCall = onStartCall,
                     onEndCall = onEndCall,
                     onToggleMute = onToggleMute,
+                    onToggleSpeaker = onToggleSpeaker,
                     onInterrupt = onInterrupt
                 )
             }
@@ -1505,6 +1510,7 @@ private fun VirtualCallBar(
     onStartCall: () -> Unit,
     onEndCall: () -> Unit,
     onToggleMute: () -> Unit,
+    onToggleSpeaker: () -> Unit,
     onInterrupt: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1545,6 +1551,28 @@ private fun VirtualCallBar(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+
+        OutlinedButton(
+            onClick = onToggleSpeaker,
+            enabled = state.isCallActive,
+            modifier = Modifier
+                .weight(0.85f)
+                .heightIn(min = 52.dp)
+                .minimumInteractiveComponentSize()
+                .testTag("call_speaker_button"),
+            shape = MaterialTheme.shapes.small,
+            contentPadding = PaddingValues(horizontal = 6.dp),
+            border = BorderStroke(1.dp, if (state.isSpeakerEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+        ) {
+            Icon(
+                imageVector = if (state.isSpeakerEnabled) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
+                contentDescription = "Altavoz",
+                modifier = Modifier.size(18.dp),
+                tint = if (state.isSpeakerEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(if (state.isSpeakerEnabled) "Altavoz" else "Audio", maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
 
         Button(
