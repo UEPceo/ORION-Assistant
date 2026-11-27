@@ -14,3 +14,7 @@
 -keepclassmembers class * implements android.os.Parcelable {
     public static final android.os.Parcelable$Creator CREATOR;
 }
+
+# ONNX Runtime Java/JNI API and custom text operators.
+-keep class ai.onnxruntime.** { *; }
+-keep class ai.onnxruntime.extensions.** { *; }
