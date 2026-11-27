@@ -10,6 +10,7 @@ class OrionApplication : Application() {
         super.onCreate()
         OrionCrashDiagnostics.install(this)
         OrionCrashDiagnostics.recordHistoricalProcessExits(this)
+        com.orion.voicelab.knowledge.KnowledgePackUpdateScheduler.schedule(this)
     }
 
     override fun onTrimMemory(level: Int) {
