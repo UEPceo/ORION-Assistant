@@ -2,7 +2,6 @@ package com.orion.voicelab.connectors.github
 
 import com.orion.voicelab.connectors.ConnectorCredentialStore
 import com.orion.voicelab.connectors.ConnectorId
-import org.json.JSONObject
 
 /**
  * Persists the minimum token metadata needed for future GitHub API requests.
@@ -12,12 +11,7 @@ class GitHubCredentialManager(
     private val credentialStore: ConnectorCredentialStore
 ) {
     suspend fun save(result: GitHubDeviceAuthorizationResult.Authorized) {
-        val serialized = JSONObject()
-            .put("access_token", result.accessToken)
-            .put("token_type", result.tokenType)
-            .put("scope", result.scope)
-            .toString()
-        val credentialBytes = serialized.toByteArray(Charsets.UTF_8)
+        val credentialBytes = result.accessToken.toByteArray(Charsets.UTF_8)
         try {
             credentialStore.save(ConnectorId.GITHUB, credentialBytes)
         } finally {
