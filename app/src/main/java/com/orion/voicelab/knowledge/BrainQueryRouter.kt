@@ -26,6 +26,12 @@ object BrainQueryRouter {
                 KnowledgeDomain.BUSINESS
             containsAny(normalized, "finanzas", "inversión", "impuestos", "presupuesto", "dinero") ->
                 KnowledgeDomain.FINANCE
+            containsAny(normalized, "instagram", "tiktok", "youtube", "redes sociales", "reel", "shorts", "alcance", "retención", "engagement", "algoritmo", "publicación", "community manager") ->
+                KnowledgeDomain.SOCIAL_MEDIA
+            containsAny(normalized, "diseño", "diseñar", "identidad visual", "branding", "tipografía", "composición", "paleta", "creatividad", "cartel", "banner", "miniatura", "thumbnail") ->
+                KnowledgeDomain.CREATIVE_DESIGN
+            containsAny(normalized, "imagen", "fotografía", "foto", "vídeo", "video", "clip", "fotograma", "multimedia", "generar imagen", "generar vídeo") ->
+                KnowledgeDomain.IMAGE_VIDEO
             containsAny(normalized, "agenda", "calendario", "tarea", "recordatorio", "productividad") ->
                 KnowledgeDomain.PERSONAL_PRODUCTIVITY
             containsAny(normalized, "informática", "ordenador", "computadora", "hardware", "software", "sistema operativo") ->
