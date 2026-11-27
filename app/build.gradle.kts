@@ -15,6 +15,14 @@ android {
         versionCode = 13
         versionName = "0.8.1"
 
+        val githubClientId = providers.gradleProperty("ORION_GITHUB_CLIENT_ID").orNull
+            ?: System.getenv("ORION_GITHUB_CLIENT_ID").orEmpty()
+        buildConfigField(
+            "String",
+            "ORION_GITHUB_CLIENT_ID",
+            "\"\$\{githubClientId.replace("\\\\", "\\\\\\\\").replace("\"", "\\\\"")}\""
+        )
+
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
@@ -80,6 +88,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
