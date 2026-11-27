@@ -1,5 +1,6 @@
 package com.orion.voicelab.ui
 
+import android.content.Context
 import com.orion.voicelab.data.VoiceLabUiState
 
 /**
@@ -20,7 +21,8 @@ object OrionSelfKnowledgeAdvisor {
     fun compose(
         userQuery: String,
         state: VoiceLabUiState,
-        diagnosticLog: String = ""
+        diagnosticLog: String = "",
+        context: Context? = null
     ): String {
         val normalized = userQuery.lowercase()
         val asksAboutSelf = listOf(
@@ -79,7 +81,7 @@ object OrionSelfKnowledgeAdvisor {
                 } else {
                     appendLine(diagnosticLog.takeLast(1_000))
                 }
-                appendLine(OrionSelfDiagnosticRegistry.composeReport(state, diagnosticLog, maxChars = 2_600))
+                appendLine(OrionSelfDiagnosticRegistry.composeReport(state, diagnosticLog, maxChars = 2_600, context = context))
             }
             if (asksForAdvice) {
                 appendLine("PROTOCOLO DE ASESORAMIENTO:")
