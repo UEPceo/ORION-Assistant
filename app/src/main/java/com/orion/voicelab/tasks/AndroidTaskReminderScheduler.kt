@@ -202,8 +202,7 @@ class AndroidTaskReminderScheduler(
             showReminderNotification(appContext, task, isOverdue = true)
             return
         }
-        val pi = buildAlarmPendingIntent(appContext, task.id)
-        alarmManager?.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, task.reminderAtMs, pi)
+        scheduleAlarm(task.id, task.reminderAtMs)
     }
 
     override fun cancel(taskId: Long) {
@@ -220,8 +219,7 @@ class AndroidTaskReminderScheduler(
                 showReminderNotification(appContext, task, isOverdue = true)
             } else {
                 cancelAlarmOnly(task.id)
-                val pi = buildAlarmPendingIntent(appContext, task.id)
-                alarmManager?.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, task.reminderAtMs, pi)
+                scheduleAlarm(task.id, task.reminderAtMs)
             }
         }
     }
