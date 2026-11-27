@@ -4,24 +4,26 @@
   "title": "Ciencia",
   "documents": [
     {
-      "id": "Método científico y evidencia",
-      "title": "https://science.nasa.gov/",
-      "url": "NASA Science",
-      "publisher": "OFFICIAL_PRIMARY",
+      "id": "science-metodo-cientifico-y-evidencia",
+      "title": "Método científico y evidencia",
+      "url": "https://science.nasa.gov/",
+      "publisher": "NASA Science",
       "domain": "SCIENCE",
-      "authority": "La ciencia construye explicaciones contrastables mediante observación, hipótesis, modelos, experimentos y revisión especializada. Una hipótesis útil genera predicciones que podrían resultar incorrectas. Correlación no implica causalidad: dos variables pueden cambiar juntas por una tercera causa, sesgo o azar. Las mediciones tienen incertidumbre y deben informar método, muestra, instrumentos y unidades. Un resultado aislado no equivale a consenso y ausencia de evidencia no siempre demuestra ausencia del fenómeno.",
+      "authority": "OFFICIAL_PRIMARY",
       "jurisdiction": null,
-      "reviewedAtMs": 1795737600000
+      "reviewedAtMs": 1795737600000,
+      "content": "La ciencia construye explicaciones contrastables mediante observación, hipótesis, modelos, experimentos y revisión especializada. Una hipótesis útil genera predicciones que podrían resultar incorrectas. Correlación no implica causalidad: dos variables pueden cambiar juntas por una tercera causa, sesgo o azar. Las mediciones tienen incertidumbre y deben informar método, muestra, instrumentos y unidades. Un resultado aislado no equivale a consenso y ausencia de evidencia no siempre demuestra ausencia del fenómeno."
     },
     {
-      "id": "Ciencias de la Tierra y océanos",
-      "title": "https://oceanservice.noaa.gov/facts/",
-      "url": "NOAA Ocean Service",
-      "publisher": "OFFICIAL_PRIMARY",
+      "id": "science-ciencias-de-la-tierra-y-oceanos",
+      "title": "Ciencias de la Tierra y océanos",
+      "url": "https://oceanservice.noaa.gov/facts/",
+      "publisher": "NOAA Ocean Service",
       "domain": "SCIENCE",
-      "authority": "La Tierra integra atmósfera, océanos, geosfera, criosfera y biosfera mediante intercambios de energía y materia. El océano almacena y transporta calor; corrientes, mareas, salinidad y temperatura varían en el espacio y el tiempo. El tiempo meteorológico describe condiciones a corto plazo y el clima patrones estadísticos largos. Las observaciones combinan estaciones, boyas, satélites y modelos, cada uno con resolución e incertidumbre distintas. Para decisiones locales actuales deben consultarse avisos oficiales recientes.",
-      "jurisdiction": null,
-      "reviewedAtMs": 1795737600000
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "US",
+      "reviewedAtMs": 1795737600000,
+      "content": "La Tierra integra atmósfera, océanos, geosfera, criosfera y biosfera mediante intercambios de energía y materia. El océano almacena y transporta calor; corrientes, mareas, salinidad y temperatura varían en el espacio y el tiempo. El tiempo meteorológico describe condiciones a corto plazo y el clima patrones estadísticos largos. Las observaciones combinan estaciones, boyas, satélites y modelos, cada uno con resolución e incertidumbre distintas. Para decisiones locales actuales deben consultarse avisos oficiales recientes."
     }
   ]
 }
