@@ -7,6 +7,15 @@
 - Se conserva el orden TTS → ASR → LLM, el progreso, la cancelación, la reanudación de descargas parciales y la verificación de integridad existente.
 - Una descarga fallida no bloquea los demás módulos de la aplicación: muestra el error y permite reintentar.
 
+## Nueva base de conectores — estructura inicial
+
+- Nueva pestaña **Conectores** con catálogo inicial de Gmail, GitHub, Google Calendar y Google Drive. Los proveedores aparecen como próximos; todavía no se anuncian como integraciones operativas.
+- Contratos comunes para proveedores, capacidades, estado de conexión, acciones y resultados; registro explícito de adaptadores.
+- Política central para impedir acciones sobre proveedores desconectados y exigir confirmación en operaciones con efectos externos o destructivos.
+- Almacenamiento inicial de credenciales cifradas con AES-256-GCM y clave no exportable protegida por Android Keystore.
+- Arquitectura y requisitos de seguridad documentados en `docs/CONNECTORS_ARCHITECTURE.md`.
+- Esta entrega no añade OAuth ni llamadas a APIs externas. El núcleo de voz, memoria, tareas y telefonía continúa independiente y utilizable offline.
+
 ## Novedades de la Fase 0.8.0 — Diagnóstico técnico exportable
 
 - Exportación del informe mediante el selector de archivos de Android (Storage Access Framework), en texto UTF-8.
