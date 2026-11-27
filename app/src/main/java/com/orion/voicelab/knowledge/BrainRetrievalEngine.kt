@@ -38,11 +38,16 @@ class BrainRetrievalEngine(
             .map { it.copy(excerpt = it.excerpt.take(maxExcerptChars)) }
 
         val maxAge = freshnessWindowMs(query.domain)
+        val candidateIds = candidates.map { it.evidence.id }.toSet()
+        val conflictDetected = candidates.any { document ->
+            document.conflictsWithIds.any { it in candidateIds }
+        }
         val verification = KnowledgeVerifier.assess(
             evidence = candidates.map { it.evidence },
             domain = query.domain,
             nowMs = now(),
-            maxAgeMs = if (query.requiresFreshEvidence) minOf(maxAge, 24 * 60 * 60 * 1000L) else maxAge
+            maxAgeMs = if (query.requiresFreshEvidence) minOf(maxAge, 24 * 60 * 60 * 1000L) else maxAge,
+            conflictDetected = conflictDetected
         )
         val safeToPresentAsVerified = verification.verdict == KnowledgeVerdict.SUPPORTED &&
             (!query.requiresPrimaryEvidence || verification.hasPrimaryEvidence)
