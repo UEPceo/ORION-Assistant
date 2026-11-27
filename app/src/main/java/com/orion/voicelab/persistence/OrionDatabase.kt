@@ -10,6 +10,8 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import com.orion.voicelab.brain.PlanExecutionEntity
+import com.orion.voicelab.brain.PlanExecutionDao
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
@@ -418,9 +420,10 @@ interface TaskDao {
         CoworkerContactEntity::class,
         FavoritePhoneContactEntity::class,
         PhoneCallRecordEntity::class,
-        TaskEntity::class
+        TaskEntity::class,
+        PlanExecutionEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class OrionDatabase : RoomDatabase() {
@@ -430,6 +433,7 @@ abstract class OrionDatabase : RoomDatabase() {
     abstract fun contactDao(): ContactDao
     abstract fun phoneDao(): PhoneDao
     abstract fun taskDao(): TaskDao
+    abstract fun planExecutionDao(): PlanExecutionDao
 
     companion object {
         private const val DB_NAME = "orion_offline_memory.db"
@@ -523,6 +527,27 @@ abstract class OrionDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS plan_executions (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        goal TEXT NOT NULL,
+                        planJson TEXT NOT NULL,
+                        resultsJson TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        activeStepId TEXT,
+                        createdAtMs INTEGER NOT NULL,
+                        updatedAtMs INTEGER NOT NULL,
+                        lastError TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_plan_executions_updatedAtMs ON plan_executions(updatedAtMs)")
+            }
+        }
+
         @Volatile
         private var instance: OrionDatabase? = null
 
@@ -533,7 +558,7 @@ abstract class OrionDatabase : RoomDatabase() {
                     OrionDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { instance = it }
             }
