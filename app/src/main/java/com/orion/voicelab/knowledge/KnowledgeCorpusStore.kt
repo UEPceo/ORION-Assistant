@@ -77,6 +77,10 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
         }
     }
 
+    override suspend fun contains(documentId: String): Boolean = withContext(Dispatchers.IO) {
+        readAll().any { it.evidence.id == documentId }
+    }
+
     override suspend fun remove(documentId: String) {
         withContext(Dispatchers.IO) {
             synchronized(lock) {
