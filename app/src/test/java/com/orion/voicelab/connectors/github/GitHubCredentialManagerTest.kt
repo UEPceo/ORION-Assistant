@@ -19,7 +19,7 @@ class GitHubCredentialManagerTest {
             GitHubDeviceAuthorizationResult.Authorized(
                 accessToken = token,
                 tokenType = "bearer",
-                scope = "read:user,public_repo"
+                scope = "read:user"
             )
         )
 
