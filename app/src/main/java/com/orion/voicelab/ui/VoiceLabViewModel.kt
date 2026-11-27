@@ -2776,6 +2776,13 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                     "recuerdos=${state.memories.size} · memoria=${if (state.assistantIdentity.memoryEnabled) "activa" else "desactivada"} · " +
                     "identidad=${state.assistantIdentity.assistantName} (${state.assistantIdentity.formality.displayName})"
             )
+            val crashLog = java.io.File(appContext.filesDir, "orion_diagnostics.log")
+            if (crashLog.exists()) {
+                appendLine("Diagnóstico de cierres y presión de memoria (registro local):")
+                appendLine(crashLog.readText().takeLast(12_000))
+            } else {
+                appendLine("Diagnóstico de cierres: sin eventos registrados todavía")
+            }
             appendLine("Ahora:")
             appendLine(DeviceMetrics.describe(now))
             appendLine(
