@@ -13,6 +13,7 @@
 - El Client ID público se configura mediante la propiedad Gradle `ORION_GITHUB_CLIENT_ID` o la variable de entorno homónima.
 - El primer permiso solicitado es `read:user`. Los repositorios públicos pueden consultarse sin ampliar permisos; el acceso a repositorios privados queda desactivado.
 - Los tokens se guardan mediante AES-256-GCM con clave de Android Keystore y pueden eliminarse desde la pantalla Conectores.
+- El token de Gmail es de duración limitada; no se guarda refresh token. Desconectar Gmail revoca el acceso en Google y elimina la credencial local.
 - Gmail incorpora autorización nativa Google Identity con permiso inicial de solo lectura y token cifrado de duración limitada; requiere proyecto Google Cloud, Gmail API, pantalla de consentimiento y cliente OAuth Android con la huella SHA-1 correcta. La lectura de mensajes aún no está conectada.
 - Guía: `docs/CONNECTORS_AUTHENTICATION.md`.
 
