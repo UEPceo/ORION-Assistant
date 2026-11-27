@@ -2,14 +2,14 @@
 <resources>
     <string name="app_name">ORION Voice Lab</string>
     <string name="brand_title">ORION</string>
-    <string name="brand_subtitle">VOICE LAB 0.7.0 · ASISTENTE PERSONAL Y TAREAS</string>
+    <string name="brand_subtitle">VOICE LAB 0.8.0 · ASISTENTE PERSONAL Y TAREAS</string>
     <string name="tab_call">Agenda</string>
     <string name="tab_phone">Teléfono</string>
     <string name="tab_tasks">Tareas</string>
     <string name="tab_conversations">Chats</string>
     <string name="tab_memory">Memoria</string>
     <string name="tab_lab">Lab</string>
-    <string name="section_diagnostics">DIAGNÓSTICO LOCAL · 0.7.0</string>
+    <string name="section_diagnostics">DIAGNÓSTICO LOCAL · 0.8.0</string>
 
     <!-- Voice Lab 0.3 preserved strings -->
     <string name="status_model_ready">Moonshine Base ES instalado. Reconocimiento local disponible sin Internet.</string>
@@ -27,12 +27,13 @@
     <string name="btn_start_recognition">Iniciar reconocimiento</string>
     <string name="btn_stop_listening">Detener escucha</string>
     <string name="btn_measure_now">Medir ahora</string>
-    <string name="btn_copy_report">Copiar informe</string>
+    <string name="btn_copy_report">Exportar informe</string>
     <string name="btn_clear_data">Borrar datos</string>
     <string name="section_telemetry">MEDICIÓN · FASE 0</string>
     <string name="section_transcripts">TRANSCRIPCIONES</string>
     <string name="empty_transcript">Aquí aparecerán las transcripciones.\n\nEl audio se procesa en el teléfono y no se envía a ningún servidor.</string>
-    <string name="report_copied">Informe copiado al portapapeles</string>
+    <string name="report_exported">Informe de diagnóstico guardado</string>
+    <string name="report_export_failed">No se pudo guardar el informe de diagnóstico</string>
 
     <!-- Voice Lab 0.4 Call UI strings -->
     <string name="call_start">Llamar a ORION</string>
