@@ -128,3 +128,19 @@ Para preguntas sobre errores propios, el asesor recupera un extracto acotado del
 El asesor recomienda las funciones existentes según la tarea y explica requisitos de permisos, autenticación, conexión y confirmación. El inventario declara expresamente límites conocidos: Google Keep solo recibe contenido compartido, Calendar no permite edición/borrado directo, Maps abre la app externa, PescaIA solo consulta contenido público limitado, multimedia real y búsqueda web general siguen pendientes de configuración/integración. Las recomendaciones nunca conceden permisos ni ejecutan acciones por sí mismas; siguen vigentes los routers deterministas y las puertas de confirmación.
 
 Esta capa mejora el autoconocimiento del modelo, pero no sustituye al diagnóstico estático ni a las pruebas: si los registros no contienen evidencia suficiente, ORION debe solicitar el informe técnico y reconocer que no puede confirmar la causa.
+
+### Registro técnico de autodiagnóstico v1.0
+
+Se incorpora `OrionSelfDiagnosticRegistry`, que relaciona los subsistemas principales con sus puntos de entrada, dependencias conocidas, comprobaciones y recuperación segura:
+
+- Voz ASR: `OrionVoiceEngine`, `MoonshineModelManager`, sherpa-onnx 1.13.8, Moonshine Base ES v2 y Silero VAD.
+- LLM: `ConversationEngine`, adaptador llama.cpp 0.4.0 y Qwen2.5 1.5B.
+- TTS: `SpeechSynthesizer`, Piper y configuración de voz.
+- Tareas: `TaskRepository`, Room, AlarmManager y notificaciones.
+- Telefonía: `PhoneCallManager`, `CallIntentRouter` y APIs Android.
+- Conectores, conocimiento/RAG, multimedia y diagnóstico: runtime y adaptadores respectivos; se declaran expresamente los proveedores que aún requieren configuración.
+
+El registro correlaciona el último evento `OR-...`, su componente y causa, y extrae el primer/último marco Kotlin disponible con clase, archivo y línea. Incluye firmas heurísticas para OOM/LOW_MEMORY, JNI, archivos/modelos ausentes, integridad de descargas, permisos, red, ANR y cancelaciones. Una firma solo genera una pista: nunca se convierte automáticamente en causa confirmada. La localización exacta requiere una traza real; cuando no existe, el informe lo indica.
+
+La recuperación recomendada se limita a acciones seguras y reversibles. No elimina modelos, no cambia permisos, no reintenta operaciones sensibles ni transmite registros por sí misma. El inventario se mantiene manualmente y debe revisarse cuando cambien módulos, versiones o dependencias; todavía no es un escáner automático del código ni un grafo de dependencias generado desde Gradle.
+
