@@ -18,7 +18,7 @@ object BrainQueryRouter {
                 KnowledgeDomain.FISHING
             containsAny(normalized, "meteorología", "tiempo", "viento", "oleaje", "marejada", "corriente", "temporal", "mar de fondo", "marea") ->
                 KnowledgeDomain.MARINE_WEATHER
-            containsAny(normalized, "ciberseguridad", "malware", "phishing", "vulnerabilidad", "ransomware", "contraseña", "contraseñas", "autenticación", "doble factor", "mfa", "owasp", "incibe") ->
+            containsAny(normalized, "ciberseguridad", "malware", "phishing", "vulnerabilidad", "ransomware", "contraseña", "contraseñas", "autenticación", "doble factor", "mfa", "owasp", "incibe", "clave de acceso", "credenciales") ->
                 KnowledgeDomain.CYBERSECURITY
             containsAny(normalized, "programar", "programación", "kotlin", "python", "java", "código", "compilar", "api", "github", "android", "coroutine", "coroutines", "activity", "jetpack compose") ->
                 KnowledgeDomain.PROGRAMMING
