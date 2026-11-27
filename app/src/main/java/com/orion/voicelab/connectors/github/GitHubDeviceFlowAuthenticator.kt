@@ -20,8 +20,14 @@ data class GitHubDeviceAuthorization(
 )
 
 sealed interface GitHubDeviceAuthorizationResult {
-    data class Authorized(val accessToken: String, val tokenType: String, val scope: String) :
-        GitHubDeviceAuthorizationResult
+    data class Authorized(
+        val accessToken: String,
+        val tokenType: String,
+        val scope: String,
+        val expiresInSeconds: Long?,
+        val refreshToken: String?,
+        val refreshTokenExpiresInSeconds: Long?
+    ) : GitHubDeviceAuthorizationResult
     data object AccessDenied : GitHubDeviceAuthorizationResult
     data object Expired : GitHubDeviceAuthorizationResult
     data class Failed(val message: String, val retryable: Boolean) :
@@ -71,6 +77,27 @@ class GitHubDeviceFlowAuthenticator(
         }
     }
 
+    /** Refreshes a GitHub App user token. Device-flow public clients do not send a client secret. */
+    suspend fun refreshAccessToken(refreshToken: String): Result<GitHubDeviceAuthorizationResult.Authorized> =
+        withContext(Dispatchers.IO) {
+            if (!isConfigured()) {
+                return@withContext Result.failure(
+                    IllegalStateException("Falta configurar ORION_GITHUB_CLIENT_ID.")
+                )
+            }
+            runCatching {
+                val response = postForm(
+                    ACCESS_TOKEN_URL,
+                    mapOf(
+                        "client_id" to clientId,
+                        "grant_type" to REFRESH_GRANT_TYPE,
+                        "refresh_token" to refreshToken
+                    )
+                )
+                parseAuthorizedResponse(JSONObject(response))
+            }
+        }
+
     suspend fun awaitAuthorization(
         authorization: GitHubDeviceAuthorization,
         onWaiting: (Long) -> Unit = {}
@@ -112,7 +139,11 @@ class GitHubDeviceFlowAuthenticator(
                     return@withContext GitHubDeviceAuthorizationResult.Authorized(
                         accessToken = token,
                         tokenType = json.optString("token_type", "bearer"),
-                        scope = json.optString("scope")
+                        scope = json.optString("scope"),
+                        expiresInSeconds = json.optLong("expires_in").takeIf { it > 0L },
+                        refreshToken = json.optString("refresh_token").takeIf { it.isNotBlank() },
+                        refreshTokenExpiresInSeconds = json.optLong("refresh_token_expires_in")
+                            .takeIf { it > 0L }
                     )
                 }
                 else -> return@withContext GitHubDeviceAuthorizationResult.Failed(
@@ -123,6 +154,20 @@ class GitHubDeviceFlowAuthenticator(
         }
 
         GitHubDeviceAuthorizationResult.Expired
+    }
+
+    private fun parseAuthorizedResponse(json: JSONObject): GitHubDeviceAuthorizationResult.Authorized {
+        val token = json.optString("access_token")
+        require(token.isNotBlank()) { "GitHub no devolvió un token de acceso." }
+        return GitHubDeviceAuthorizationResult.Authorized(
+            accessToken = token,
+            tokenType = json.optString("token_type", "bearer"),
+            scope = json.optString("scope"),
+            expiresInSeconds = json.optLong("expires_in").takeIf { it > 0L },
+            refreshToken = json.optString("refresh_token").takeIf { it.isNotBlank() },
+            refreshTokenExpiresInSeconds = json.optLong("refresh_token_expires_in")
+                .takeIf { it > 0L }
+        )
     }
 
     private fun postForm(endpoint: String, values: Map<String, String>): String {
@@ -160,9 +205,11 @@ class GitHubDeviceFlowAuthenticator(
     private fun safeErrorMessage(error: String): String = when (error) {
         "incorrect_client_credentials" -> "La configuración OAuth de GitHub no es válida."
         "unsupported_grant_type" -> "GitHub rechazó el método de autorización solicitado."
-        "incorrect_device_code" -> "El código temporal de GitHub ya no es válido."
+        "incorrect_device_code", "bad_verification_code" -> "El código temporal de GitHub ya no es válido."
         "verification_uri_mismatch" -> "La dirección de autorización de GitHub no coincide."
         "temporarily_unavailable", "server_error" -> "GitHub no está disponible temporalmente."
+        "device_flow_disabled" -> "Activa Device Flow en la configuración de la GitHub App."
+        "bad_refresh_token" -> "La sesión de GitHub ha caducado. Vuelve a autorizar ORION."
         else -> "No se pudo completar la autorización de GitHub."
     }
 
@@ -171,7 +218,8 @@ class GitHubDeviceFlowAuthenticator(
         const val ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
         const val VERIFICATION_URI = "https://github.com/login/device"
         const val DEVICE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
-        const val REQUESTED_SCOPES = "read:user"
+        const val REFRESH_GRANT_TYPE = "refresh_token"
+        const val REQUESTED_SCOPES = "offline_access"
         const val DEFAULT_POLL_INTERVAL = 5L
         const val SLOW_DOWN_INCREMENT_SECONDS = 5L
         const val CONNECT_TIMEOUT_MS = 10_000
