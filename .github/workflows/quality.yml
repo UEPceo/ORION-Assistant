@@ -41,13 +41,17 @@ jobs:
       - name: Run unit tests and Robolectric
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon --stacktrace --max-workers=2 testDebugUnitTest
+          set -o pipefail
+          ./gradlew --no-daemon --stacktrace --max-workers=2 testDebugUnitTest 2>&1 | tee unit-tests.log
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ORION-test-reports
-          path: app/build/reports/tests/testDebugUnitTest
+          path: |
+            app/build/reports/tests/testDebugUnitTest
+            app/build/test-results/testDebugUnitTest
+            unit-tests.log
           if-no-files-found: warn
           retention-days: 14
 
