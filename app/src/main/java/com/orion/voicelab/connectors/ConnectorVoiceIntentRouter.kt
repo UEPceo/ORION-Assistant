@@ -27,11 +27,16 @@ object ConnectorVoiceIntentRouter {
                     "busca", "buscar", "encuentra", "localiza", "muestra", "enséñame",
                     "revisa", "consulta", "lee", "últimos correos", "ultimos correos"
                 ))
-            val query = rawQuery.replace(
-                Regex("""^(?:en\s+)?(?:gmail|mi correo|mis correos|correo electrónico)\s*""", RegexOption.IGNORE_CASE),
-                ""
-            ).trim()
+            val query = rawQuery
+                .replace(Regex("""^(?:en\s+)?(?:gmail|mi correo|mis correos|correo electrónico)\s*""", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("""\s+(?:en\s+)?gmail$""", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("""^(?:un\s+)?correo\s+de\s+""", RegexOption.IGNORE_CASE), "from:")
+                .replace(Regex("""^(?:un\s+)?correo\s+sobre\s+""", RegexOption.IGNORE_CASE), "subject:")
+                .trim()
+            val recentOnly = normalized.contains("últimos correos") || normalized.contains("ultimos correos") ||
+                normalized.contains("correos recientes")
             val gmailQuery = when {
+                query.isBlank() && recentOnly -> "newer_than:7d"
                 query.isBlank() -> "in:anywhere"
                 query.lowercase().contains("último") || query.lowercase().contains("ultimo") ||
                     query.lowercase().contains("reciente") -> "newer_than:7d $query".take(256)
