@@ -1088,7 +1088,7 @@ private fun CoworkerEditorDialog(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        availableVoices.forEach { voice ->
+                        availableVoices.filter { it.isInstalled }.forEach { voice ->
                             FilterChip(
                                 selected = selectedVoice == voice.id,
                                 onClick = { selectedVoice = voice.id },
