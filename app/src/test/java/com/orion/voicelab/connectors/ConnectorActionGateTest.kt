@@ -47,6 +47,20 @@ class ConnectorActionGateTest {
     }
 
     @Test
+    fun sendCannotBeAllowedWhenIncorrectlyLabelledReadOnly() {
+        val action = ConnectorAction(
+            connectorId = ConnectorId.GMAIL,
+            operation = "send_email",
+            risk = ConnectorRisk.READ_ONLY
+        )
+
+        assertEquals(
+            ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION,
+            ConnectorActionGate.evaluate(action, userRequestedExactAction = true, connectorConnected = true)
+        )
+    }
+
+    @Test
     fun externalSideEffectsAlwaysRequireConfirmation() {
         val action = ConnectorAction(
             connectorId = ConnectorId.GMAIL,
