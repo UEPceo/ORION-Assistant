@@ -41,9 +41,9 @@ object CreativeEngineCatalog {
  )
  val VIDEO_PRIMARY = CreativeEngineProfile(
   id="comfyui-wan21-1.3b",
-  displayName="Wan2.1 T2V-1.3B / I2V-1.3B via ComfyUI",
+  displayName="Wan2.1 T2V-1.3B y perfil I2V-14B via ComfyUI",
   task="video-generation",
-  modelId="Wan-Video/Wan2.1-T2V-1.3B",
+  modelId="Wan-Video/Wan2.1-T2V-1.3B (I2V: Wan-Video/Wan2.1-I2V-14B)",
   runtime="ComfyUI",
   providerKind=MediaProviderKind.REMOTE,
   license="Apache-2.0",
