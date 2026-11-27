@@ -28,6 +28,15 @@ class OrionSelfDiagnosticRegistryTest {
         assertTrue(report.contains("Detalle del módulo VOICE_ASR"))
     }
 
+
+    @Test
+    fun reportMapsNeuralEncoderFailuresToKnowledgeModule() {
+        val log = "[2026-11-27 12:00:00.000] ERROR: eventId=OR-126 component=embedding ONNX cause=UnsatisfiedLinkError"
+        val report = OrionSelfDiagnosticRegistry.composeReport(VoiceLabUiState(), log)
+        assertTrue(report.contains("Detalle del módulo KNOWLEDGE"))
+        assertTrue(report.contains("recuperación léxica y dispersa"))
+    }
+
     @Test
     fun reportCorrelatesOperationalEventAndSourceLine() {
         val log = """
