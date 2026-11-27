@@ -17,7 +17,7 @@ object OrionSelfKnowledgeAdvisor {
         val asksAboutSelf = listOf(
             "orion", "tu sistema", "tu aplicación", "tu app", "tu funcionamiento",
             "tu error", "error tuyo", "fallo tuyo", "diagnóstico", "diagnostico",
-            "por qué fallas", "porque fallas", "qué ha fallado", "que ha fallado",
+            "por qué fallas", "porque fallas", "qué ha fallado", "que ha fallado", "te has cerrado", "te has bloqueado",\n            "no respondes", "no funciona", "te falla", "has fallado", "has dado error",
             "qué error", "que error", "registro de errores", "logs"
         ).any(normalized::contains)
 
@@ -25,7 +25,7 @@ object OrionSelfKnowledgeAdvisor {
             "cómo puedo", "como puedo", "quiero hacer", "necesito hacer",
             "ayúdame a", "ayudame a", "puedes ayudarme", "qué herramienta",
             "que herramienta", "qué función", "que funcion", "qué puedes usar",
-            "que puedes usar", "recomiéndame", "recomiendame", "la mejor forma"
+            "que puedes usar", "recomiéndame", "recomiendame", "la mejor forma", "quiero organizar",\n            "quiero crear", "quiero programar", "quiero diseñar", "quiero investigar",\n            "quiero gestionar", "necesito organizar", "necesito crear"
         ).any(normalized::contains)
 
         if (!asksAboutSelf && !asksForAdvice) return ""
@@ -65,7 +65,7 @@ object OrionSelfKnowledgeAdvisor {
                 if (diagnosticLog.isBlank()) {
                     appendLine("No hay extracto técnico local disponible en este contexto. Solicita o genera el informe de diagnóstico; no simules haber leído logs.")
                 } else {
-                    appendLine(diagnosticLog.takeLast(6_000))
+                    appendLine(diagnosticLog.takeLast(2_400))
                 }
             }
             if (asksForAdvice) {
@@ -76,5 +76,5 @@ object OrionSelfKnowledgeAdvisor {
         }.take(MAX_CONTEXT_CHARS)
     }
 
-    private const val MAX_CONTEXT_CHARS = 8_000
+    private const val MAX_CONTEXT_CHARS = 4_800
 }
