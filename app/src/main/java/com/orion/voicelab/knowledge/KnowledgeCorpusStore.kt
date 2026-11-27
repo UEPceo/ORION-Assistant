@@ -43,7 +43,7 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                     chunksByDocument[document.evidence.id].orEmpty().map(::tokens).flatten()
                 )
             }
-            if (documents.any { semanticIndex.score(it.evidence.id, query.normalizedText) == 0.0 }) {
+            if (documents.any { !semanticIndex.hasDocument(it.evidence.id) }) {
                 semanticIndex.rebuild(documents.map { it.evidence.id to chunksByDocument[it.evidence.id].orEmpty() })
             }
             val documentFrequency = queryTerms.associateWith { term ->
@@ -57,7 +57,6 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                     queryTerms.count { it in chunkTerms }.toDouble() / queryTerms.size
                 } ?: document.evidence.content
                 val matched = queryTerms.count { term -> term in title || term in excerpt || term in body }
-                if (matched == 0) return@mapIndexedNotNull null
                 val n = documents.size.toDouble()
                 val score = queryTerms.sumOf { term ->
                     val df = documentFrequency[term]!!.toDouble()
@@ -71,6 +70,7 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                 val coverage = matched.toDouble() / queryTerms.size
                 val lexical = ((score + phraseBoost) / (score + phraseBoost + 8.0)).coerceIn(0.0, 1.0)
                 val semantic = semanticIndex.score(document.evidence.id, query.normalizedText)
+                if (matched == 0 && semantic <= 0.01) return@mapIndexedNotNull null
                 document.copy(
                     excerpt = bestChunk.take(1_600),
                     relevance = (0.55 * lexical + 0.45 * semantic) * (0.65 + 0.35 * coverage)
