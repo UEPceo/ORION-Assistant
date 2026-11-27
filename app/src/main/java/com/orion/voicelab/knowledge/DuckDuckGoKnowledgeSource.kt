@@ -65,13 +65,17 @@ class DuckDuckGoKnowledgeSource : KnowledgeSource {
         val snippets = RESULT_SNIPPET.findAll(html).map { cleanHtml(it.groupValues[1]) }.toList()
         val now = System.currentTimeMillis()
         val documents = mutableListOf<KnowledgeDocument>()
+        var fullPageReads = 0
         for ((index, match) in anchors.withIndex()) {
             if (documents.size >= limit) break
             val target = resolveResultUrl(match.groupValues[1]) ?: continue
             val host = runCatching { URL(target).host.lowercase(Locale.ROOT) }
                 .getOrNull()?.removePrefix("www.") ?: continue
             val snippet = snippets.getOrNull(index).orEmpty().take(700)
-            val page = if (documents.size < MAX_FULL_PAGE_READS) SafeWebPageReader.read(target) else null
+            val page = if (fullPageReads < MAX_FULL_PAGE_READS) {
+                fullPageReads++
+                SafeWebPageReader.read(target)
+            } else null
             val title = (page?.title ?: cleanHtml(match.groupValues[2])).take(180)
             if (title.isBlank()) continue
             val content = page?.text ?: listOf(title, snippet).filter(String::isNotBlank).joinToString("\n")
