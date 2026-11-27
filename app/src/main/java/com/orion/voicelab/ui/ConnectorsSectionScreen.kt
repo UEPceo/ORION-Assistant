@@ -370,7 +370,7 @@ private fun GitHubConnectorCard(
             ) {
                 Text(connector.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
-                    text = if (connected) "Autorizado" else "OAuth Device Flow",
+                    text = if (connected) "Autorizado" else "GitHub App Device Flow",
                     style = MaterialTheme.typography.labelSmall,
                     color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
                 )
