@@ -9,6 +9,9 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import com.orion.voicelab.connectors.ConnectorId
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.ConcurrentHashMap
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -258,6 +261,8 @@ class PersistentPlanExecutionService(
     private val repository: PlanExecutionRepository,
     private val coordinator: PlanExecutionCoordinator = PlanExecutionCoordinator()
 ) {
+    private val executionLocks = ConcurrentHashMap<String, Mutex>()
+
     suspend fun create(plan: OrionPlan) = repository.create(plan)
 
     suspend fun execute(
@@ -265,6 +270,16 @@ class PersistentPlanExecutionService(
         approvedStepIds: Set<String>,
         runner: PlanStepRunner,
         retryStepIds: Set<String> = emptySet()
+    ): PlanExecutionReport {
+        val lock = executionLocks.computeIfAbsent(planId) { Mutex() }
+        return lock.withLock { executeLocked(planId, approvedStepIds, runner, retryStepIds) }
+    }
+
+    private suspend fun executeLocked(
+        planId: String,
+        approvedStepIds: Set<String>,
+        runner: PlanStepRunner,
+        retryStepIds: Set<String>
     ): PlanExecutionReport {
         val saved = repository.load(planId)
             ?: return PlanExecutionReport(planId, PlanStatus.FAILED, emptyMap(), "No existe la ejecución guardada.")
