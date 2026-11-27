@@ -27,6 +27,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        OrionCrashDiagnostics.install(applicationContext)
         requestedInitialTab = intent?.getStringExtra(AndroidTaskReminderScheduler.EXTRA_OPEN_TAB)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
@@ -40,6 +41,16 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        OrionCrashDiagnostics.recordMemoryPressure(applicationContext, level)
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        OrionCrashDiagnostics.recordLowMemory(applicationContext)
     }
 
     override fun onNewIntent(intent: Intent) {
