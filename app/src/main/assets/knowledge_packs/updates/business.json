@@ -1,0 +1,27 @@
+{
+  "id": "business",
+  "version": 1,
+  "title": "Empresa y emprendimiento",
+  "documents": [
+    {
+      "id": "Modelo de negocio y propuesta de valor",
+      "title": "https://www.oecd.org/en/topics/smes-and-entrepreneurship.html",
+      "url": "OCDE",
+      "publisher": "OFFICIAL_PRIMARY",
+      "domain": "BUSINESS",
+      "authority": "Un modelo de negocio explica a quién sirve una organización, qué problema resuelve, cómo entrega valor y cómo obtiene ingresos sostenibles. La propuesta de valor se contrasta con entrevistas, comportamiento y datos. Canales, actividades, recursos, socios, costes e ingresos deben ser coherentes. Antes de escalar, prueba hipótesis con métricas de adquisición, activación, retención, conversión y margen. Crecer en usuarios no implica automáticamente rentabilidad.",
+      "jurisdiction": null,
+      "reviewedAtMs": 1795737600000
+    },
+    {
+      "id": "Gestión de pymes y tesorería",
+      "title": "https://single-market-economy.ec.europa.eu/smes_en",
+      "url": "Comisión Europea",
+      "publisher": "OFFICIAL_PRIMARY",
+      "domain": "BUSINESS",
+      "authority": "La gestión de una pyme integra planificación, contabilidad, tesorería, ventas, operaciones y cumplimiento. La cuenta de resultados muestra ingresos y gastos; el balance presenta activos, pasivos y patrimonio; el flujo de caja registra entradas y salidas efectivas. Una empresa puede ser rentable y sufrir falta de liquidez si cobra tarde. La financiación se elige según destino, plazo, coste y capacidad de devolución. Ayudas y obligaciones deben verificarse en la convocatoria vigente.",
+      "jurisdiction": null,
+      "reviewedAtMs": 1795737600000
+    }
+  ]
+}
