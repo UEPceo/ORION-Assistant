@@ -78,7 +78,10 @@ fun interface PlanExecutionObserver {
 
 /** Approval is bound to exact step IDs for this invocation; no approval persists. */
 class PlanExecutionCoordinator {
-    suspend fun execute(
+    suspend fun execute(plan: OrionPlan, approvedStepIds: Set<String>, runner: PlanStepRunner): PlanExecutionReport =
+        executeResumable(plan, approvedStepIds, runner)
+
+    suspend fun executeResumable(
         plan: OrionPlan,
         approvedStepIds: Set<String>,
         runner: PlanStepRunner,
@@ -90,7 +93,8 @@ class PlanExecutionCoordinator {
         if (!validation.valid) return PlanExecutionReport(plan.id, PlanStatus.FAILED, emptyMap(), validation.errors.joinToString(" "))
         val unknownResults = initialResults.keys - plan.steps.map { it.id }.toSet()
         if (unknownResults.isNotEmpty()) return PlanExecutionReport(plan.id, PlanStatus.FAILED, emptyMap(), "El estado guardado contiene pasos que ya no existen.")
-        val missing = validation.approvalRequiredStepIds - approvedStepIds
+        val alreadySucceeded = initialResults.filterValues { it.status == StepStatus.SUCCEEDED }.keys
+        val missing = validation.approvalRequiredStepIds - approvedStepIds - alreadySucceeded
         if (missing.isNotEmpty()) {
             val report = PlanExecutionReport(plan.id, PlanStatus.AWAITING_APPROVAL, initialResults, "Falta autorización expresa para: ${missing.sorted().joinToString()}.")
             observer.onProgress(report.status, report.steps, null)
