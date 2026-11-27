@@ -1,22 +1,17 @@
 package com.orion.voicelab.connectors
 
-/**
- * Product catalog shown by the future Conectores screen.
- * These are roadmap entries, not working integrations.
- */
+/** Product catalog; implemented flags reflect registered provider capabilities. */
 object ConnectorCatalog {
     val planned: List<ConnectorDescriptor> = listOf(
         ConnectorDescriptor(
             id = ConnectorId.GMAIL,
             displayName = "Gmail",
-            description = "Buscar, leer, resumir, preparar borradores y enviar correo con autorización.",
+            description = "Buscar correos y leer mensajes autorizados en modo solo lectura.",
             capabilities = setOf(
                 ConnectorCapability.SEARCH,
-                ConnectorCapability.READ,
-                ConnectorCapability.CREATE_DRAFT,
-                ConnectorCapability.SEND
+                ConnectorCapability.READ
             ),
-            isImplemented = false
+            isImplemented = true
         ),
         ConnectorDescriptor(
             id = ConnectorId.GITHUB,
@@ -24,12 +19,9 @@ object ConnectorCatalog {
             description = "Consultar repositorios, archivos, incidencias, commits y estado de GitHub Actions (solo lectura).",
             capabilities = setOf(
                 ConnectorCapability.SEARCH,
-                ConnectorCapability.READ,
-                ConnectorCapability.CREATE,
-                ConnectorCapability.UPDATE,
-                ConnectorCapability.COMMENT
+                ConnectorCapability.READ
             ),
-            isImplemented = false
+            isImplemented = true
         ),
         ConnectorDescriptor(
             id = ConnectorId.GOOGLE_CALENDAR,
