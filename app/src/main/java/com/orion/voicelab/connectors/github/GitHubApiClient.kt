@@ -4,6 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -117,4 +119,21 @@ class GitHubApiClient(
         const val TIMEOUT_MS = 15_000
         val REPOSITORY_PATTERN = Regex("[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}")
     }
+}
+
+
+private fun InputStream.readBounded(maxBytes: Int): ByteArray {
+    val output = ByteArrayOutputStream(minOf(maxBytes, 8_192))
+    val buffer = ByteArray(8_192)
+    var total = 0
+    while (true) {
+        val count = read(buffer)
+        if (count < 0) break
+        total += count
+        if (total > maxBytes) {
+            throw IllegalStateException("Respuesta del servicio externo demasiado grande.")
+        }
+        output.write(buffer, 0, count)
+    }
+    return output.toByteArray()
 }
