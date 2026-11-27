@@ -1,0 +1,27 @@
+{
+  "id": "mathematics",
+  "version": 1,
+  "title": "Matemáticas",
+  "documents": [
+    {
+      "id": "Álgebra, funciones y modelización",
+      "title": "https://openstax.org/details/books/precalculus-2e",
+      "url": "OpenStax",
+      "publisher": "PEER_REVIEWED",
+      "domain": "MATHEMATICS",
+      "authority": "El álgebra expresa relaciones mediante variables, ecuaciones, desigualdades y funciones. Una función asigna a cada elemento de su dominio exactamente un valor; dominio, recorrido y unidades deben declararse antes de interpretar una gráfica. Al resolver ecuaciones hay que conservar equivalencia y comprobar soluciones, porque ciertas transformaciones pueden introducir resultados extraños. Funciones lineales, cuadráticas y exponenciales modelan comportamientos diferentes. Todo modelo simplifica la realidad: sus supuestos, límites y margen de error deben explicitarse.",
+      "jurisdiction": null,
+      "reviewedAtMs": 1795737600000
+    },
+    {
+      "id": "Límites, derivadas e integrales",
+      "title": "https://openstax.org/details/books/calculus-volume-1",
+      "url": "OpenStax",
+      "publisher": "PEER_REVIEWED",
+      "domain": "MATHEMATICS",
+      "authority": "El cálculo estudia cambio y acumulación. Un límite describe el valor al que se aproxima una función; la derivada mide una tasa de cambio instantánea y la integral definida representa acumulación neta. El teorema fundamental conecta derivación e integración. En aplicaciones físicas o económicas deben revisarse unidades: derivar distancia respecto al tiempo produce velocidad e integrar una tasa respecto al tiempo produce cantidad acumulada. Los resultados simbólicos y numéricos se comprueban con estimaciones, gráficas o métodos alternativos.",
+      "jurisdiction": null,
+      "reviewedAtMs": 1795737600000
+    }
+  ]
+}
