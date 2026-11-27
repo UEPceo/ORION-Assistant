@@ -14,6 +14,7 @@ import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.coroutineContext
 
 class SherpaOnnxSpeechSynthesizer(
@@ -44,7 +45,7 @@ class SherpaOnnxSpeechSynthesizer(
         Thread(r, "OrionSherpaTts").apply { isDaemon = true }
     }
     private val ttsDispatcher = ttsExecutor.asCoroutineDispatcher()
-    private val cancelled = AtomicBoolean(false)
+    private val cancellationEpoch = AtomicLong(0L)
     private val destroyed = AtomicBoolean(false)
 
     @Volatile
@@ -120,15 +121,18 @@ class SherpaOnnxSpeechSynthesizer(
     ): SynthesisResult {
         coroutineContext.ensureActive()
         if (destroyed.get()) error("El motor TTS ya fue cerrado")
+        val synthesisEpoch = cancellationEpoch.get()
         return try {
             withContext(ttsDispatcher) {
                 coroutineContext.ensureActive()
                 if (destroyed.get()) error("El motor TTS ya fue cerrado")
+                if (cancellationEpoch.get() != synthesisEpoch) {
+                    return@withContext SynthesisResult(0L, 0L)
+                }
                 val activeTts = tts ?: error("El motor TTS no está cargado")
                 val cleanText = text.trim()
                 if (cleanText.isEmpty()) return@withContext SynthesisResult(0L, 0L)
 
-                cancelled.set(false)
                 val t0 = SystemClock.elapsedRealtime()
                 val sr = activeTts.sampleRate()
                 val speakerId = currentVoice.speakerId.coerceIn(0, maxOf(0, activeTts.numSpeakers() - 1))
@@ -139,12 +143,12 @@ class SherpaOnnxSpeechSynthesizer(
                     sid = speakerId,
                     speed = 1.0f
                 ) { chunk ->
-                    if (cancelled.get() || destroyed.get()) {
+                    if (cancellationEpoch.get() != synthesisEpoch || destroyed.get()) {
                         0
                     } else {
                         totalSamples += chunk.size.toLong()
                         val keepGoing = onChunk(chunk, sr)
-                        if (keepGoing && !cancelled.get() && !destroyed.get()) 1 else 0
+                        if (keepGoing && cancellationEpoch.get() == synthesisEpoch && !destroyed.get()) 1 else 0
                     }
                 }
                 val synthMs = SystemClock.elapsedRealtime() - t0
@@ -157,11 +161,11 @@ class SherpaOnnxSpeechSynthesizer(
     }
 
     override fun cancel() {
-        cancelled.set(true)
+        cancellationEpoch.incrementAndGet()
     }
 
     override fun unload() {
-        cancelled.set(true)
+        cancellationEpoch.incrementAndGet()
         val toRelease = tts
         tts = null
         if (toRelease != null && !ttsExecutor.isShutdown) {
