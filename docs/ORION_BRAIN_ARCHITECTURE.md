@@ -118,3 +118,13 @@ Los contratos MediaUnderstandingProvider, ImageGenerationProvider y VideoGenerat
 OrionBrainRuntime acepta KnowledgeSource externos inyectables además del corpus local. En la configuración actual del runtime de la app solo se registra el corpus local; no hay todavía un motor general de búsqueda web activo. El aprendizaje persiste documentos con procedencia y hash, pero no modifica automáticamente los pesos del modelo. Los proveedores de búsqueda, indexación y actualización deben registrarse y someterse a los mismos controles de autoridad, frescura, contradicción y seguridad.
 
 Detalle creativo/multimedia y pendientes: [ORION_CREATIVE_MULTIMODAL_ARCHITECTURE.md](ORION_CREATIVE_MULTIMODAL_ARCHITECTURE.md).
+
+## Autoconocimiento técnico y asesor de capacidades
+
+ORION mantiene un inventario explícito de las capacidades de la versión instalada y lo incorpora al contexto del modelo cuando la consulta trata sobre su propio funcionamiento o pide recomendaciones de uso. El inventario diferencia funciones operativas, integraciones parciales y capacidades que aún requieren configuración.
+
+Para preguntas sobre errores propios, el asesor recupera un extracto acotado del registro privado local, identifica los identificadores `OR-...`, el componente y la excepción disponible, y orienta el diagnóstico hacia el módulo responsable. Debe distinguir entre causa confirmada e hipótesis, no inventar líneas de código ni resultados de compilación y proponer soluciones seguras y verificables. La lectura del registro es local; no implica envío automático a servidores.
+
+El asesor recomienda las funciones existentes según la tarea y explica requisitos de permisos, autenticación, conexión y confirmación. El inventario declara expresamente límites conocidos: Google Keep solo recibe contenido compartido, Calendar no permite edición/borrado directo, Maps abre la app externa, PescaIA solo consulta contenido público limitado, multimedia real y búsqueda web general siguen pendientes de configuración/integración. Las recomendaciones nunca conceden permisos ni ejecutan acciones por sí mismas; siguen vigentes los routers deterministas y las puertas de confirmación.
+
+Esta capa mejora el autoconocimiento del modelo, pero no sustituye al diagnóstico estático ni a las pruebas: si los registros no contienen evidencia suficiente, ORION debe solicitar el informe técnico y reconocer que no puede confirmar la causa.
