@@ -11,7 +11,7 @@ Setup required outside the repository:
 3. Configure its public Client ID in the local build as `ORION_GITHUB_CLIENT_ID` (Gradle property or environment variable). The Client ID is not a secret; never add a client secret to the APK or repository.
 4. Build and install the app.
 
-Configure fine-grained GitHub App repository permissions and select only the repositories ORION should access during installation. The Device Flow requests `offline_access` only to receive expiring user access and refresh tokens; GitHub App permissions, not OAuth scopes, determine repository access. Start with the minimum permissions required and add write permissions only when the corresponding confirmed actions are implemented.
+Configure fine-grained GitHub App repository permissions and select only the repositories ORION should access during installation. The read-only integration requires repository metadata read, Issues read, Contents read and Actions read (for CI/workflow status). The Device Flow requests `offline_access` only to receive expiring user access and refresh tokens; GitHub App permissions, not OAuth scopes, determine repository access. Do not grant write permissions in this phase.
 
 The authenticator requests a short-lived device code, displays a user code/verification URL to the app layer, polls using GitHub's server-provided interval, handles pending/slow-down/denial/expiry, and returns an access token only after approval. Device codes must remain in memory. The credential manager writes the token through the Android Keystore-backed credential store.
 
@@ -30,13 +30,15 @@ Required setup outside the repository:
 
 No Google client secret is embedded in the APK. No refresh token is stored; the Android client obtains short-lived access tokens and must request authorization again when a token expires. Gmail draft/send scopes are not requested in this phase.
 
-The current implementation covers authorization and secure local token lifecycle only. Gmail API message search/read operations are a separate next phase and must not be presented as working until their adapter is implemented.
+Gmail API integration now supports bounded message search and metadata/snippet lookup for a known message ID. It deliberately does not fetch full MIME bodies, download attachments, create drafts or send mail. The access token is short-lived; if it expires, the user must reconnect Gmail.
 
 ## Common security rules
 
 - No access token, device code, authorization header, email body or private repository content in logs, prompts, crash reports or diagnostics.
 - The LLM never receives credentials. It may receive only sanitized action results needed to answer the user.
-- Read operations are executed only after a clear user request.
-- Sending email, creating or modifying remote resources, publishing comments, and deleting content require a contextual confirmation immediately before execution.
+- Read operations are executed only after a clear user request; follow-up requests may reuse the repository selected in the immediately preceding connector interaction.
+- GitHub read-only operations include repositories, issues and issue details, commits, repository file listings and Actions workflow runs.
+- Gmail read-only operations include message search and metadata/snippet lookup; message bodies and attachments are not fetched.
+- Sending email, creating or modifying remote resources, publishing comments, and deleting content require a contextual, one-shot confirmation bound to the exact action and expiring after 60 seconds. A refusal or unrelated next request clears the pending confirmation.
 - Connector failures must not stop ASR, local LLM, TTS, memory, tasks or phone functions.
 - Network calls use finite connect/read timeouts and run off the main thread.
