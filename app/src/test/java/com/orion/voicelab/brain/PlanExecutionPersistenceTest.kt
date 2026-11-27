@@ -92,4 +92,55 @@ class PlanExecutionPersistenceTest {
             database.close()
         }
     }
+    @Test
+    fun structuredProposalParserAcceptsValidReadOnlyPlanButDoesNotExecuteIt() {
+        val raw = """
+            {
+              "goal": "Summarize one GitHub issue",
+              "budget": {"maxSteps": 4, "maxRetriesPerStep": 1, "maxDurationMs": 60000},
+              "steps": [
+                {
+                  "id": "read_issue",
+                  "kind": "CONNECTOR_READ",
+                  "title": "Read issue",
+                  "rationale": "Collect source data",
+                  "risk": "LOW",
+                  "dependsOn": [],
+                  "requiresApproval": false,
+                  "connectorId": "GITHUB",
+                  "connectorOperation": "get_issue",
+                  "connectorArguments": {"repository": "owner/repo", "issue_number": "12"}
+                }
+              ]
+            }
+        """.trimIndent()
+        val parsed = PlanProposalParser.parse(raw, "generated-plan")
+        assertTrue(parsed is PlanProposalParseResult.Valid)
+        val plan = (parsed as PlanProposalParseResult.Valid).plan
+        assertEquals(PlanStatus.READY, plan.status)
+        assertEquals(1, plan.steps.size)
+        assertEquals("get_issue", plan.steps.single().connectorOperation)
+    }
+
+    @Test
+    fun structuredProposalParserRejectsMissingConnectorAndCredentialArguments() {
+        val missingConnector = """
+            {"goal":"Unsafe action","steps":[{"id":"send","kind":"SEND_MESSAGE","title":"Send","risk":"HIGH","dependsOn":[]}]}
+        """.trimIndent()
+        assertTrue(PlanProposalParser.parse(missingConnector, "bad-1") is PlanProposalParseResult.Invalid)
+
+        val credential = """
+            {
+              "goal":"Credential leak",
+              "steps":[{
+                "id":"read","kind":"CONNECTOR_READ","title":"Read","risk":"LOW","dependsOn":[],
+                "connectorId":"GITHUB","connectorOperation":"get_issue",
+                "connectorArguments":{"access_token":"do-not-persist"}
+              }]
+            }
+        """.trimIndent()
+        val parsed = PlanProposalParser.parse(credential, "bad-2")
+        assertTrue(parsed is PlanProposalParseResult.Invalid)
+    }
+
 }
