@@ -83,8 +83,9 @@ class NeuralEmbeddingModelManager(context: Context) {
             require(partialFile.length() >= MIN_MODEL_BYTES) {
                 "El archivo descargado está incompleto."
             }
-            require(sha256(partialFile) == MODEL_SHA256) {
-                "La verificación SHA-256 del encoder ha fallado. El archivo no se instalará."
+            if (sha256(partialFile) != MODEL_SHA256) {
+                partialFile.delete()
+                error("La verificación SHA-256 del encoder ha fallado. El archivo no se instalará.")
             }
             if (modelFile.exists() && !modelFile.delete()) {
                 error("No se pudo sustituir la versión anterior del encoder.")
