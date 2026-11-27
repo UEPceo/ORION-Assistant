@@ -609,7 +609,7 @@ private fun TopBrandAndTabs(
         )
         Surface(
             modifier = Modifier
-                .widthIn(max = 720.dp)
+                .widthIn(max = 640.dp)
                 .fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
             color = MaterialTheme.colorScheme.surface,
