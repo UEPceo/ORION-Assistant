@@ -65,6 +65,7 @@ data class KnowledgeVerification(
     val evidenceCount: Int,
     val independentPublisherCount: Int,
     val hasPrimaryEvidence: Boolean,
+    val hasOfficialPrimaryEvidence: Boolean = false,
     val newestEvidenceAtMs: Long?,
     val reason: String
 )
@@ -93,16 +94,15 @@ object KnowledgeVerifier {
                 EvidenceAuthority.REPUTABLE_SECONDARY
             )
         }.map { it.publisherId.trim().lowercase() }.filter(String::isNotBlank).toSet()
-        val hasPrimary = relevant.any {
-            it.authority == EvidenceAuthority.OFFICIAL_PRIMARY ||
-                it.authority == EvidenceAuthority.PRIMARY_TECHNICAL
-        }
+        val hasOfficialPrimary = relevant.any { it.authority == EvidenceAuthority.OFFICIAL_PRIMARY }
+        val hasPrimary = hasOfficialPrimary || relevant.any { it.authority == EvidenceAuthority.PRIMARY_TECHNICAL }
         val newest = relevant.maxOfOrNull { it.publishedAtMs ?: it.retrievedAtMs }
         val base = KnowledgeVerification(
             verdict = KnowledgeVerdict.NO_EVIDENCE,
             evidenceCount = relevant.size,
             independentPublisherCount = publishers.size,
             hasPrimaryEvidence = hasPrimary,
+            hasOfficialPrimaryEvidence = hasOfficialPrimary,
             newestEvidenceAtMs = newest,
             reason = ""
         )
@@ -135,7 +135,7 @@ object KnowledgeVerifier {
                 KnowledgeDomain.HEALTH_AND_SAFETY,
                 KnowledgeDomain.MARINE_WEATHER,
                 KnowledgeDomain.SOCIAL_MEDIA
-            ) && !hasPrimary -> {
+            ) && !hasOfficialPrimary -> {
                 verdict = KnowledgeVerdict.PRIMARY_SOURCE_REQUIRED
                 reason = "Este ámbito exige una fuente oficial o primaria antes de afirmar que el dato está verificado."
             }
