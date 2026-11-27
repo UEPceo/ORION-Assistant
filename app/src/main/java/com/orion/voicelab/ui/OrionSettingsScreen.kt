@@ -31,6 +31,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +47,10 @@ import com.orion.voicelab.data.AssistantIdentity
 import com.orion.voicelab.data.FormalityLevel
 import com.orion.voicelab.data.VoiceLabUiState
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.orion.voicelab.knowledge.NeuralEmbeddingModelManager
 
 @Composable
 fun OrionSettingsScreen(
@@ -58,6 +64,16 @@ fun OrionSettingsScreen(
     val identity = state.assistantIdentity
     val capabilityEvaluation = remember { CapabilityBaseline.current() }
     val context = LocalContext.current
+    val embeddingManager = remember(context) { NeuralEmbeddingModelManager(context) }
+    val scope = rememberCoroutineScope()
+    var embeddingInstalled by remember { mutableStateOf(false) }
+    var embeddingDownloading by remember { mutableStateOf(false) }
+    var embeddingProgress by remember { mutableStateOf(0f) }
+    var embeddingStatus by remember { mutableStateOf("El encoder es opcional y no se descarga automáticamente.") }
+    var embeddingError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(embeddingManager) {
+        embeddingInstalled = embeddingManager.isInstalled()
+    }
     var exactAlarmAllowed by remember { mutableStateOf(AndroidTaskReminderScheduler.canScheduleExactAlarms(context)) }
     val exactAlarmSettingsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -112,6 +128,51 @@ fun OrionSettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+
+        SettingsSection(title = "Búsqueda semántica neuronal", subtitle = "Añade embeddings multilingües ONNX ejecutados localmente para mejorar la recuperación documental.") {
+            Text(
+                if (embeddingInstalled) "Encoder instalado y verificado. La búsqueda podrá combinar embeddings neuronales con el índice léxico y semántico ligero." else "Encoder opcional no instalado. ORION seguirá usando el recuperador local actual sin perder funciones.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text("Modelo DistilUSE multilingüe · ONNX INT8 · ${NeuralEmbeddingModelManager.MODEL_SIZE_LABEL} · licencia ${NeuralEmbeddingModelManager.MODEL_LICENSE}. La descarga requiere conexión; después la inferencia es local.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (!embeddingInstalled) {
+                Button(
+                    enabled = !embeddingDownloading,
+                    onClick = {
+                        scope.launch {
+                            embeddingDownloading = true
+                            embeddingError = null
+                            embeddingStatus = "Preparando descarga…"
+                            try {
+                                embeddingManager.download { downloaded, total ->
+                                    withContext(Dispatchers.Main) {
+                                        embeddingProgress = if (total > 0L) (downloaded.toDouble() / total).toFloat().coerceIn(0f, 1f) else 0f
+                                        embeddingStatus = if (total > 0L) "Descargando: ${downloaded / (1024 * 1024)} / ${total / (1024 * 1024)} MB" else "Descargando encoder…"
+                                    }
+                                }
+                                embeddingInstalled = true
+                                embeddingProgress = 1f
+                                embeddingStatus = "Descarga completada. Integridad SHA-256 verificada."
+                            } catch (error: Exception) {
+                                embeddingError = error.message ?: "No se pudo instalar el encoder."
+                                embeddingStatus = "La instalación no se ha completado."
+                            } finally {
+                                embeddingDownloading = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (embeddingDownloading) "Descargando…" else "Descargar encoder neuronal") }
+            } else {
+                Text("El modelo está guardado en el almacenamiento privado de ORION. No se incluye dentro del APK.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+            if (embeddingDownloading) LinearProgressIndicator(progress = { embeddingProgress }, modifier = Modifier.fillMaxWidth())
+            Text(embeddingStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            embeddingError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+            Text("El archivo se descarga desde una revisión fijada del repositorio del modelo y solo se activa si coincide su SHA-256. Si el encoder no puede cargarse, ORION conserva el buscador anterior.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         SettingsSection(title = "Voz de ORION", subtitle = "Selecciona la voz que utilizará durante las conversaciones.") {
