@@ -119,7 +119,8 @@ object KnowledgeVerifier {
             domain in setOf(
                 KnowledgeDomain.LAW_AND_REGULATION,
                 KnowledgeDomain.HEALTH_AND_SAFETY,
-                KnowledgeDomain.MARINE_WEATHER
+                KnowledgeDomain.MARINE_WEATHER,
+                KnowledgeDomain.SOCIAL_MEDIA
             ) && !hasPrimary -> {
                 verdict = KnowledgeVerdict.PRIMARY_SOURCE_REQUIRED
                 reason = "Este ámbito exige una fuente oficial o primaria antes de afirmar que el dato está verificado."
