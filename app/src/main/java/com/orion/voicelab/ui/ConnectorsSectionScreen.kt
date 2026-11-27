@@ -245,7 +245,7 @@ fun ConnectorsSectionScreen(
                                     is GitHubDeviceAuthorizationResult.Authorized -> {
                                         githubCredentials.save(result)
                                         githubConnected = true
-                                        githubStatus = "GitHub autorizado. Los repositorios públicos se consultan sin ampliar permisos; las acciones API aún están en desarrollo."
+                                        githubStatus = "GitHub App autorizada. El acceso queda limitado a los repositorios y permisos concedidos; las acciones API aún están en desarrollo."
                                         githubUserCode = null
                                     }
                                     GitHubDeviceAuthorizationResult.AccessDenied -> {
