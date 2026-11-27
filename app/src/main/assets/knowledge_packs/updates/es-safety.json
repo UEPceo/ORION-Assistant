@@ -1,0 +1,17 @@
+{
+  "id": "es-safety",
+  "version": 2,
+  "title": "Seguridad personal y actuación ante emergencias",
+  "documents": [
+    {
+      "id": "emergency-principles",
+      "title": "Número europeo de emergencias 112",
+      "url": "https://europa.eu/youreurope/citizens/travel/security-and-emergencies/emergency/",
+      "publisher": "Comisión Europea — Your Europe",
+      "domain": "HEALTH_AND_SAFETY",
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "ES",
+      "content": "El 112 es el número europeo de emergencias y puede marcarse gratuitamente desde teléfonos fijos y móviles en cualquier país de la Unión Europea. Permite contactar con los servicios de emergencia, como policía, ambulancia y bomberos. El operador puede atender la llamada o transferirla al servicio apropiado según la organización nacional. El 112 funciona junto con los números nacionales que sigan existiendo; no los sustituye necesariamente en todos los países. Debe utilizarse para emergencias reales, no para pedir información general, tráfico o meteorología. Si estás en España o viajas por la UE y existe un peligro inmediato que requiera policía, asistencia sanitaria urgente o bomberos, llama al 112 y facilita la ubicación y la naturaleza de la emergencia con la mayor claridad posible. Los detalles de acceso, servicios adicionales y opciones de accesibilidad pueden variar por país; consulta la información oficial del lugar. Esta ficha solo cubre el número de emergencia europeo y no constituye una guía médica ni instrucciones de primeros auxilios."
+    }
+  ]
+}
