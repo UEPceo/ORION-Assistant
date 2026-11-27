@@ -302,6 +302,10 @@ fun ConnectorsSectionScreen(
                 GoogleKeepConnectorCard()
             } else if (connector.id.name == "ANDROID_CALENDAR") {
                 AndroidCalendarConnectorCard()
+            } else if (connector.id.name == "GOOGLE_MAPS") {
+                GoogleMapsConnectorCard()
+            } else if (connector.id.name == "PESCAIA") {
+                PescaIAConnectorCard()
             } else {
                 ConnectorProviderCard(connector)
             }
