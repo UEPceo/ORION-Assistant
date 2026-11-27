@@ -17,13 +17,20 @@ The authenticator requests a short-lived device code, displays a user code/verif
 
 Disconnect deletes the locally stored token. The next hardening step is to add provider-side token revocation where supported and a token validity check before enabling GitHub actions.
 
-## Gmail — required Google authorization configuration
+## Gmail — Google Identity authorization implemented
 
-Gmail must use Google's native Android authorization flow (Google Identity Services / Authorization API) with a Google Cloud project, an Android OAuth client matching the app package and signing certificate, and a separately configured OAuth consent screen.
+The app now uses Google's native Android Authorization API through Google Identity Services. It requests only `https://www.googleapis.com/auth/gmail.readonly` for the first iteration, handles the Google consent PendingIntent through the Android Activity Result API, stores the short-lived access token using the Keystore-backed store, and revokes Google access plus removes the local credential on disconnect.
 
-Do not use a client secret in the Android app. Do not substitute a generic embedded webview or a password-based flow. Request only the Gmail scopes required by each feature; start with read-only access for search/read, and request draft/send scopes only when those features are enabled and explained to the user.
+Required setup outside the repository:
 
-The repository does not yet contain a configured Google Cloud project/client ID or signing-certificate fingerprints, so Gmail authorization cannot be activated safely in this commit. Its adapter must remain unavailable until those values are provisioned.
+1. Create/select a Google Cloud project and enable the Gmail API.
+2. Configure the OAuth consent screen and add the required test users while the app is in testing.
+3. Create an Android OAuth client matching package `com.aistudio.orionvoicelab.kxrqmw` and the SHA-1 signing certificate used by the installed build.
+4. Complete Google's verification process before public use. `gmail.readonly` is a restricted Gmail scope and is subject to Google's additional verification requirements.
+
+No Google client secret is embedded in the APK. No refresh token is stored; the Android client obtains short-lived access tokens and must request authorization again when a token expires. Gmail draft/send scopes are not requested in this phase.
+
+The current implementation covers authorization and secure local token lifecycle only. Gmail API message search/read operations are a separate next phase and must not be presented as working until their adapter is implemented.
 
 ## Common security rules
 
