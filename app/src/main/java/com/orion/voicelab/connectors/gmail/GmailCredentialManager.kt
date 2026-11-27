@@ -26,6 +26,21 @@ class GmailCredentialManager(
         }
     }
 
+    /** Returns the current access token only while it is safely before expiry. */
+    suspend fun getValidAccessToken(): String? {
+        val bytes = credentialStore.read(ConnectorId.GMAIL) ?: return null
+        return try {
+            val payload = JSONObject(String(bytes, Charsets.UTF_8))
+            val expiresAt = payload.optLong("expires_at_ms", 0L)
+            payload.optString("access_token")
+                .takeIf { it.isNotBlank() && expiresAt > nowMs() + TOKEN_EXPIRY_SKEW_MS }
+        } catch (_: Exception) {
+            null
+        } finally {
+            bytes.fill(0)
+        }
+    }
+
     suspend fun isConnected(): Boolean {
         val bytes = credentialStore.read(ConnectorId.GMAIL) ?: return false
         return try {
@@ -45,5 +60,6 @@ class GmailCredentialManager(
 
     private companion object {
         const val DEFAULT_TOKEN_LIFETIME_SECONDS = 3_600L
+        const val TOKEN_EXPIRY_SKEW_MS = 60_000L
     }
 }
