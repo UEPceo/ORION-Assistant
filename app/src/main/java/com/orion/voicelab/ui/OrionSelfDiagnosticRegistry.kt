@@ -1,5 +1,7 @@
 package com.orion.voicelab.ui
 
+import android.os.Build
+import com.orion.voicelab.BuildConfig
 import com.orion.voicelab.data.VoiceLabUiState
 
 /**
@@ -119,6 +121,7 @@ object OrionSelfDiagnosticRegistry {
 
         return buildString {
             appendLine("REGISTRO TÉCNICO DE AUTODIAGNÓSTICO v$REGISTRY_VERSION:")
+            appendLine("Entorno: ORION=${BuildConfig.VERSION_NAME} (code=${BuildConfig.VERSION_CODE}); Android API=${Build.VERSION.SDK_INT}; dispositivo=${Build.MANUFACTURER} ${Build.MODEL}; ABI=${Build.SUPPORTED_ABIS.take(3).joinToString()}.")
             appendLine("Mapa de módulos (rutas de propiedad conocidas; la línea exacta solo se afirma si aparece en la traza):")
             modules.forEach { module ->
                 appendLine("- ${module.id}: ${module.owner}; código=${module.entryPoints}; deps=${module.dependencies}.")
