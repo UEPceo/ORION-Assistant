@@ -1,6 +1,7 @@
 package com.orion.voicelab.ui
 
 import android.os.Build
+import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -51,6 +52,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.orion.voicelab.knowledge.NeuralEmbeddingModelManager
+import com.orion.voicelab.knowledge.OnnxMultilingualEmbeddingEncoder
 
 @Composable
 fun OrionSettingsScreen(
@@ -68,6 +70,7 @@ fun OrionSettingsScreen(
     val scope = rememberCoroutineScope()
     var embeddingInstalled by remember { mutableStateOf(false) }
     var embeddingDownloading by remember { mutableStateOf(false) }
+    var embeddingTesting by remember { mutableStateOf(false) }
     var embeddingProgress by remember { mutableStateOf(0f) }
     var embeddingStatus by remember { mutableStateOf("El encoder es opcional y no se descarga automáticamente.") }
     var embeddingError by remember { mutableStateOf<String?>(null) }
@@ -168,6 +171,35 @@ fun OrionSettingsScreen(
                 ) { Text(if (embeddingDownloading) "Descargando…" else "Descargar encoder neuronal") }
             } else {
                 Text("El modelo está guardado en el almacenamiento privado de ORION. No se incluye dentro del APK.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                Button(
+                    enabled = !embeddingTesting && !embeddingDownloading,
+                    onClick = {
+                        scope.launch {
+                            embeddingTesting = true
+                            embeddingError = null
+                            embeddingStatus = "Probando carga e inferencia local…"
+                            val encoder = OnnxMultilingualEmbeddingEncoder(context)
+                            val startedAt = SystemClock.elapsedRealtime()
+                            try {
+                                val vector = encoder.encode("Prueba multilingüe de recuperación semántica para ORION.")
+                                    ?: error("El encoder no ha devuelto ningún vector.")
+                                val norm = kotlin.math.sqrt(vector.sumOf { it.toDouble() * it.toDouble() })
+                                require(vector.isNotEmpty() && vector.all { it.isFinite() } && kotlin.math.abs(norm - 1.0) < 0.02) {
+                                    "El embedding no supera la validación numérica."
+                                }
+                                val elapsed = SystemClock.elapsedRealtime() - startedAt
+                                embeddingStatus = "Prueba superada: ${vector.size} dimensiones, vector normalizado, ${elapsed} ms."
+                            } catch (error: Exception) {
+                                embeddingError = error.message ?: "Falló la prueba de inferencia ONNX."
+                                embeddingStatus = "El encoder está instalado, pero no ha superado la prueba."
+                            } finally {
+                                encoder.close()
+                                embeddingTesting = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (embeddingTesting) "Probando…" else "Probar inferencia en este dispositivo") }
             }
             if (embeddingDownloading) LinearProgressIndicator(progress = { embeddingProgress }, modifier = Modifier.fillMaxWidth())
             Text(embeddingStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
