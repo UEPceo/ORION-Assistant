@@ -92,11 +92,11 @@ class PescaIAOrionConnector : OrionConnector {
                             if (index < 0) null else normalized.substring((index - 220).coerceAtLeast(0), (index + 520).coerceAtMost(normalized.length))
                         }
                         val selected = (matches.ifEmpty { listOf(normalized.take(1_200)) }).distinct().take(3)
-                        selected.map { "Fuente: $url\\n$it" }
+                        selected.map { "Fuente: $url\n$it" }
                     }
                     ConnectorResult.Success(
-                        "Consulta de páginas públicas de PescaIA Surfcasting. Contenido web orientativo; comprueba la fecha y las fuentes oficiales cuando se trate de normativa o seguridad.\\n" +
-                            excerpts.joinToString("\\n\\n").take(5_500)
+                        "Consulta de páginas públicas de PescaIA Surfcasting. Contenido web orientativo; comprueba la fecha y las fuentes oficiales cuando se trate de normativa o seguridad.\n" +
+                            excerpts.joinToString("\n\n").take(5_500)
                     )
                 }
             }.getOrElse {
@@ -110,7 +110,7 @@ class PescaIAOrionConnector : OrionConnector {
             requestMethod = "GET"
             connectTimeout = 8_000
             readTimeout = 10_000
-            instanceFollowRedirects = false
+            instanceFollowRedirects = true
             setRequestProperty("User-Agent", "ORION-Android/1.0")
             setRequestProperty("Accept", "text/html")
         }
