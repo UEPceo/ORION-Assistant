@@ -137,7 +137,7 @@ El núcleo local no requiere claves de proveedores externos ni suscripciones. La
 
 ## Conectores Gmail y GitHub — primera integración funcional
 
-- Gmail: búsqueda avanzada mediante operadores de Gmail y consulta de metadatos/fragmento de un mensaje identificado; no se descargan cuerpos MIME completos ni adjuntos y no se envían mensajes.
+- Gmail: búsqueda avanzada, consulta de metadatos/fragmento y lectura del texto plano del correo más reciente o de un mensaje identificado (máximo 3.000 caracteres). No se descargan adjuntos ni se envían mensajes.
 - GitHub: repositorios, incidencias y detalles, commits recientes, listado de archivos/carpetas y estado de ejecuciones de GitHub Actions/CI. Solo lectura.
 - El enrutador entiende peticiones en español con varias formulaciones y conserva el último repositorio consultado para preguntas de seguimiento como «¿y los commits?» o «¿cómo va el CI?».
 - Los adaptadores se ejecutan exclusivamente a través de `ConnectorDispatcher`; el LLM no puede inventar ni ejecutar llamadas arbitrarias a APIs.
