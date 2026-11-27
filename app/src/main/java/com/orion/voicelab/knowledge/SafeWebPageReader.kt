@@ -66,6 +66,7 @@ internal object SafeWebPageReader {
                 if (text.length < MIN_TEXT_CHARS) return null
                 val published = DATE_META.find(body)?.groupValues?.getOrNull(1)
                     ?.let(::parseDate)
+                    ?: connection.getHeaderField("Last-Modified")?.let(::parseDate)
                 return Page(title, text, published, current)
             } finally {
                 connection.disconnect()
@@ -85,8 +86,8 @@ internal object SafeWebPageReader {
             host.endsWith(".local") ||
             host.endsWith(".internal")
         ) return null
-        val address = InetAddress.getByName(host)
-        if (isNonPublicAddress(address)) return null
+        val addresses = InetAddress.getAllByName(host)
+        if (addresses.isEmpty() || addresses.any(::isNonPublicAddress)) return null
         URI("https", null, host, -1, uri.path.ifBlank { "/" }, uri.query, null)
             .toASCIIString().takeIf { it.length <= MAX_URL_CHARS }
     }.getOrNull()
@@ -132,13 +133,14 @@ internal object SafeWebPageReader {
                 java.time.LocalDate.parse(value).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
             value.matches(Regex("\\d{4}-\\d{2}-\\d{2}T.*")) ->
                 java.time.Instant.parse(value).toEpochMilli()
-            else -> null
+            else -> java.time.ZonedDateTime.parse(value, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME)
+                .toInstant().toEpochMilli()
         }
     }.getOrNull()
 
     private val TITLE = Regex("<title[^>]*>(.*?)</title>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
     private val DATE_META = Regex(
-        """<meta[^>]+(?:property|name)=["'](?:article:published_time|datePublished|date)["'][^>]+content=["']([^"']+)["']""",
+        """<meta[^>]+(?:property|name)=["'](?:article:modified_time|dateModified|article:published_time|datePublished|date|last-modified)["'][^>]+content=["']([^"']+)["']""",
         RegexOption.IGNORE_CASE
     )
     private val REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
