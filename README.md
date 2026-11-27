@@ -169,3 +169,12 @@ Architecture and current limits: [docs/ORION_BRAIN_ARCHITECTURE.md](docs/ORION_B
 La pantalla inicial está organizada como agenda de contactos y co-workers. La navegación principal agrupa Contactos, Teléfono, Tareas, Más y Ajustes. La pantalla de llamada incluye controles de micrófono, altavoz, interrupción y finalización. Ajustes permite configurar la identidad, memoria y voz. El catálogo incluye Sharvard y paquetes Piper es_ES opcionales DaveFX, Miro y CarlFM; los paquetes adicionales solo se descargan mediante acción manual del usuario.
 
 Detalles y límites de implementación: [docs/ORION_UI_AND_VOICE_SETTINGS.md](docs/ORION_UI_AND_VOICE_SETTINGS.md).
+
+
+## Cerebro creativo y multimedia
+
+ORION incorpora módulos de dirección de arte, diseño, branding, copywriting, storyboard, estrategia de redes sociales y análisis de métricas. El perfil visual predeterminado ORION Editorial utiliza navy #080D1A, cian #16C7E8 y blanco. Los co-workers de redes y diseño reciben instrucciones especializadas en el contexto de cada turno.
+
+La arquitectura define proveedores intercambiables para comprensión de imágenes/vídeos y generación de imágenes/vídeos. El motor local Qwen2.5 1.5B actual es textual; los proveedores de visión y generación multimedia todavía deben configurarse. ORION no afirmará que ha analizado o generado un archivo cuando no exista un motor activo. La estrategia social utiliza métricas observables y no promete viralidad ni inventa pesos de algoritmos.
+
+Diseño y límites: [docs/ORION_CREATIVE_MULTIMODAL_ARCHITECTURE.md](docs/ORION_CREATIVE_MULTIMODAL_ARCHITECTURE.md).
