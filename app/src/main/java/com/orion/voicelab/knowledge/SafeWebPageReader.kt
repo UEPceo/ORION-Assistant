@@ -86,13 +86,37 @@ internal object SafeWebPageReader {
             host.endsWith(".internal")
         ) return null
         val address = InetAddress.getByName(host)
+        if (isNonPublicAddress(address)) return null
+        URI("https", null, host, -1, uri.path.ifBlank { "/" }, uri.query, null)
+            .toASCIIString().takeIf { it.length <= MAX_URL_CHARS }
+    }.getOrNull()
+
+    private fun isNonPublicAddress(address: InetAddress): Boolean {
         if (address.isAnyLocalAddress || address.isLoopbackAddress ||
             address.isLinkLocalAddress || address.isSiteLocalAddress ||
             address.isMulticastAddress
-        ) return null
-        URI("https", null, host, -1, uri.rawPath.ifBlank { "/" }, uri.rawQuery, null)
-            .toASCIIString().takeIf { it.length <= MAX_URL_CHARS }
-    }.getOrNull()
+        ) return true
+        val bytes = address.address.map { it.toInt() and 0xff }
+        if (bytes.size == 4) {
+            val a = bytes[0]
+            val b = bytes[1]
+            return a == 0 || a == 10 || a == 127 ||
+                (a == 169 && b == 254) ||
+                (a == 172 && b in 16..31) ||
+                (a == 192 && b == 168) ||
+                (a == 100 && b in 64..127) ||
+                (a == 192 && b == 0) ||
+                (a == 198 && b in 18..19) ||
+                (a == 198 && b == 51) ||
+                (a == 203 && b == 0) ||
+                a >= 224
+        }
+        if (bytes.size == 16) {
+            return (bytes[0] and 0xfe) == 0xfc ||
+                (bytes[0] == 0x20 && bytes[1] == 0x01 && bytes[2] == 0x0d && bytes[3] == 0xb8)
+        }
+        return true
+    }
 
     private fun plainText(html: String): String = html
         .replace(Regex("(?is)<[^>]+>"), " ")
