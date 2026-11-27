@@ -28,7 +28,7 @@ object BrainQueryRouter {
                 KnowledgeDomain.ENGINEERING
             containsAny(normalized, "programar", "programación", "kotlin", "python", "java", "código", "compilar", "api", "github", "android", "coroutine", "coroutines", "activity", "jetpack compose") ->
                 KnowledgeDomain.PROGRAMMING
-            containsAny(normalized, "internet", "web", "navegador", "http", "dns", "red") ->
+            containsAny(normalized, "internet", "web", "navegador", "http", "dns", "red informática", "redes informáticas", "red de datos", "tcp/ip", "wifi", "ethernet") ->
                 KnowledgeDomain.INTERNET
             containsAny(normalized, "comunicación", "comunicacion", "redacción", "redaccion", "escritura", "oratoria", "argumentación", "argumentacion", "presentación", "presentacion", "retórica", "retorica", "escucha activa", "storytelling", "narrativa") ->
                 KnowledgeDomain.COMMUNICATION
@@ -36,7 +36,7 @@ object BrainQueryRouter {
                 KnowledgeDomain.BUSINESS
             containsAny(normalized, "finanzas", "inversión", "impuestos", "presupuesto", "dinero", "ahorro", "interés compuesto", "diversificación", "hipoteca", "acciones", "bonos", "crédito", "tae", "inflación") ->
                 KnowledgeDomain.FINANCE
-            containsAny(normalized, "instagram", "tiktok", "youtube", "redes sociales", "reel", "shorts", "alcance", "retención", "engagement", "algoritmo", "publicación", "community manager") ->
+            containsAny(normalized, "instagram", "tiktok", "youtube", "redes sociales", "reel", "shorts", "alcance", "retención", "engagement", "algoritmo de instagram", "algoritmo de tiktok", "algoritmo de youtube", "publicación", "community manager") ->
                 KnowledgeDomain.SOCIAL_MEDIA
             containsAny(normalized, "diseño", "diseñar", "identidad visual", "branding", "tipografía", "composición", "paleta", "creatividad", "cartel", "banner", "miniatura", "thumbnail") ->
                 KnowledgeDomain.CREATIVE_DESIGN
