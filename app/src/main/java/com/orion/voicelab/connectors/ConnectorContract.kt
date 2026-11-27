@@ -76,7 +76,8 @@ interface OrionConnector {
  * and must never expose raw tokens to the LLM or diagnostic exports.
  */
 interface ConnectorCredentialStore {
-    suspend fun save(connectorId: ConnectorId, encryptedCredential: ByteArray)
+    /** Accepts raw credential bytes transiently; implementations must encrypt before persistence. */
+    suspend fun save(connectorId: ConnectorId, credential: ByteArray)
     suspend fun read(connectorId: ConnectorId): ByteArray?
     suspend fun delete(connectorId: ConnectorId)
 }
