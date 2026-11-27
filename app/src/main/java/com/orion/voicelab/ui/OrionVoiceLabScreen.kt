@@ -145,7 +145,7 @@ import java.util.Locale
 
 private enum class OrionTab {
     CALL,
-    PHONE,
+    PHONE_TOOLS,
     TASKS,
     CONVERSATIONS,
     MEMORY,
@@ -458,7 +458,7 @@ fun OrionVoiceLabScreen(
                             }
                         }
 
-                        OrionTab.PHONE -> {
+                        OrionTab.PHONE_TOOLS -> {
                             PhoneSectionScreen(
                                 state = state,
                                 onSearchQueryChanged = viewModel::onPhoneSearchQueryChanged,
@@ -510,7 +510,7 @@ fun OrionVoiceLabScreen(
                                 onDeleteAll = viewModel::deleteAllTasks,
                                 onCallTaskContact = { task ->
                                     viewModel.prepareCallFromTask(task) {
-                                        selectedTab = OrionTab.PHONE
+                                        selectedTab = OrionTab.PHONE_TOOLS
                                     }
                                 },
                                 onSelectDisambiguationCandidate = viewModel::selectTaskDisambiguationCandidate,
@@ -683,13 +683,6 @@ private fun TopBrandAndTabs(
                         label = "Contactos",
                         onClick = { onSelectTab(OrionTab.CALL) },
                         modifier = tabItemMod("tab_call")
-                    )
-                    TabSegmentButton(
-                        selected = selectedTab == OrionTab.PHONE,
-                        icon = Icons.Outlined.Phone,
-                        label = stringResource(R.string.tab_phone),
-                        onClick = { onSelectTab(OrionTab.PHONE) },
-                        modifier = tabItemMod("tab_phone")
                     )
                     TabSegmentButton(
                         selected = selectedTab == OrionTab.TASKS,
