@@ -17,11 +17,10 @@ class DuckDuckGoKnowledgeSource : KnowledgeSource {
     override val sourceId: String = "duckduckgo-web-discovery"
 
     override suspend fun search(query: BrainQuery, limit: Int): List<KnowledgeDocument> {
-        if (!WebSearchIntentPolicy.requiresWebSearch(query.rawText) || limit <= 0) {
-            return emptyList()
-        }
+        val searchTerms = WebSearchIntentPolicy.searchTerms(query.rawText) ?: return emptyList()
+        if (limit <= 0) return emptyList()
         return withContext(Dispatchers.IO) {
-            val html = fetchResults(query.rawText) ?: return@withContext emptyList()
+            val html = fetchResults(searchTerms) ?: return@withContext emptyList()
             parseResults(html, query, limit.coerceAtMost(MAX_RESULTS))
         }
     }
@@ -149,14 +148,24 @@ class DuckDuckGoKnowledgeSource : KnowledgeSource {
 }
 
 object WebSearchIntentPolicy {
-    fun requiresWebSearch(text: String): Boolean {
-        val value = text.lowercase(Locale.ROOT)
-        return listOf(
-            "busca en internet", "busca en la web", "búscalo en internet",
-            "búscalo en la web", "investiga en internet", "investiga en la web",
-            "consulta internet", "consulta la web", "busca online",
-            "search the web", "search online", "look this up", "look it up online"
-        ).any(value::contains)
+    private val explicitPrefixes = listOf(
+        "busca en internet", "busca en la web", "búscalo en internet",
+        "búscalo en la web", "investiga en internet", "investiga en la web",
+        "consulta internet", "consulta la web", "busca online",
+        "search the web", "search online", "look this up", "look it up online"
+    )
+
+    fun requiresWebSearch(text: String): Boolean = searchTerms(text) != null
+
+    /** Removes the command prefix and common direct identifiers before sending a query. */
+    fun searchTerms(text: String): String? {
+        var value = text.trim()
+        val prefix = explicitPrefixes.firstOrNull { value.startsWith(it, ignoreCase = true) } ?: return null
+        value = value.drop(prefix.length).trimStart(' ', ':', ',', ';')
+        value = value.replace(Regex("[A-Z0-9._%+-]+@[A-Z0-9.-]+\\\\.[A-Z]{2,}", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("(?<!\\\\w)(?:\\\\+?\\\\d[\\\\d\\\\s().-]{7,}\\\\d)(?!\\\\w)"), " ")
+            .replace(Regex("\\\\s+"), " ").trim()
+        return value.takeIf { it.length >= 3 }?.take(240)
     }
 }
 
