@@ -1,5 +1,6 @@
 package com.orion.voicelab.ui
 
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,6 +36,11 @@ import androidx.compose.ui.unit.dp
 import com.orion.voicelab.connectors.AndroidKeystoreConnectorCredentialStore
 import com.orion.voicelab.connectors.ConnectorCatalog
 import com.orion.voicelab.connectors.ConnectorDescriptor
+import com.google.android.gms.auth.api.identity.AuthorizationRequest
+import com.google.android.gms.auth.api.identity.AuthorizationResult
+import com.google.android.gms.auth.api.identity.Identity
+import com.google.android.gms.common.api.Scope
+import com.orion.voicelab.connectors.gmail.GmailCredentialManager
 import com.orion.voicelab.connectors.github.GitHubCredentialManager
 import com.orion.voicelab.connectors.github.GitHubDeviceAuthorizationResult
 import com.orion.voicelab.connectors.github.GitHubDeviceFlowAuthenticator
@@ -46,10 +55,58 @@ fun ConnectorsSectionScreen(
     val credentialStore = remember(context) { AndroidKeystoreConnectorCredentialStore(context) }
     val githubCredentials = remember(credentialStore) { GitHubCredentialManager(credentialStore) }
     val githubAuth = remember { GitHubDeviceFlowAuthenticator() }
+    val gmailCredentials = remember(credentialStore) { GmailCredentialManager(credentialStore) }
+    var gmailConnected by remember { mutableStateOf(false) }
+    var gmailBusy by remember { mutableStateOf(false) }
+    var gmailStatus by remember { mutableStateOf("No conectado") }
+
+    val saveGmailAuthorization: (AuthorizationResult) -> Unit = { authorizationResult ->
+        scope.launch {
+            try {
+                val accessToken = authorizationResult.accessToken
+                require(!accessToken.isNullOrBlank()) { "Google no devolvió un token de acceso." }
+                val expiresIn = authorizationResult.tokenResponseParams
+                    ?.getString("expires_in")
+                    ?.toLongOrNull()
+                    ?: 3_600L
+                gmailCredentials.save(accessToken, expiresIn)
+                gmailConnected = true
+                gmailStatus = "Gmail autorizado para lectura. El acceso caduca y puede requerir renovar el permiso."
+            } catch (_: Exception) {
+                gmailConnected = false
+                gmailStatus = "No se pudo guardar la autorización de Gmail."
+            } finally {
+                gmailBusy = false
+            }
+        }
+    }
+
+    val gmailAuthorizationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            runCatching {
+                Identity.getAuthorizationClient(context)
+                    .getAuthorizationResultFromIntent(result.data!!)
+            }.onSuccess(saveGmailAuthorization)
+                .onFailure {
+                    gmailBusy = false
+                    gmailStatus = "Google no pudo completar la autorización."
+                }
+        } else {
+            gmailBusy = false
+            gmailStatus = "Autorización de Gmail cancelada."
+        }
+    }
     var githubConnected by remember { mutableStateOf(false) }
     var githubBusy by remember { mutableStateOf(false) }
     var githubUserCode by remember { mutableStateOf<String?>(null) }
     var githubStatus by remember { mutableStateOf("No conectado") }
+
+    LaunchedEffect(gmailCredentials) {
+        gmailConnected = runCatching { gmailCredentials.isConnected() }.getOrDefault(false)
+        gmailStatus = if (gmailConnected) "Token de lectura guardado de forma cifrada" else "No conectado"
+    }
 
     LaunchedEffect(githubCredentials) {
         githubConnected = runCatching { githubCredentials.isConnected() }.getOrDefault(false)
@@ -89,7 +146,56 @@ fun ConnectorsSectionScreen(
             }
         }
         items(ConnectorCatalog.planned, key = { it.id.name }) { connector ->
-            if (connector.id.name == "GITHUB") {
+            if (connector.id.name == "GMAIL") {
+                GmailConnectorCard(
+                    connector = connector,
+                    connected = gmailConnected,
+                    busy = gmailBusy,
+                    status = gmailStatus,
+                    onConnect = {
+                        gmailBusy = true
+                        gmailStatus = "Solicitando permiso de lectura a Google…"
+                        val request = AuthorizationRequest.builder()
+                            .setRequestedScopes(
+                                listOf(Scope(GMAIL_READONLY_SCOPE))
+                            )
+                            .build()
+                        Identity.getAuthorizationClient(context)
+                            .authorize(request)
+                            .addOnSuccessListener { authorizationResult ->
+                                if (authorizationResult.hasResolution()) {
+                                    val pendingIntent = authorizationResult.pendingIntent
+                                    if (pendingIntent == null) {
+                                        gmailBusy = false
+                                        gmailStatus = "Google no proporcionó la pantalla de autorización."
+                                    } else {
+                                        runCatching {
+                                            gmailAuthorizationLauncher.launch(
+                                                IntentSenderRequest.Builder(pendingIntent.intentSender).build()
+                                            )
+                                        }.onFailure {
+                                            gmailBusy = false
+                                            gmailStatus = "No se pudo abrir la autorización de Google."
+                                        }
+                                    }
+                                } else {
+                                    saveGmailAuthorization(authorizationResult)
+                                }
+                            }
+                            .addOnFailureListener {
+                                gmailBusy = false
+                                gmailStatus = "No se pudo iniciar la autorización de Gmail."
+                            }
+                    },
+                    onDisconnect = {
+                        scope.launch {
+                            gmailCredentials.disconnect()
+                            gmailConnected = false
+                            gmailStatus = "Gmail desconectado. Credencial local eliminada."
+                        }
+                    }
+                )
+            } else if (connector.id.name == "GITHUB") {
                 GitHubConnectorCard(
                     connector = connector,
                     configured = githubAuth.isConfigured(),
@@ -169,6 +275,63 @@ fun ConnectorsSectionScreen(
         }
     }
 }
+
+@Composable
+private fun GmailConnectorCard(
+    connector: ConnectorDescriptor,
+    connected: Boolean,
+    busy: Boolean,
+    status: String,
+    onConnect: () -> Unit,
+    onDisconnect: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(connector.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = if (connected) "Autorizado" else "Google Identity",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
+                )
+            }
+            Text(connector.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "Permiso inicial: lectura de mensajes. No se solicitan permisos para enviar ni modificar correo.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (busy) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CircularProgressIndicator()
+                    Text("Esperando autorización de Google…", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            if (connected) {
+                OutlinedButton(onClick = onDisconnect, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                    Text("Desconectar Gmail")
+                }
+            } else {
+                Button(onClick = onConnect, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (busy) "Autorizando…" else "Conectar Gmail")
+                }
+            }
+        }
+    }
+}
+
+private const val GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 
 @Composable
 private fun GitHubConnectorCard(
