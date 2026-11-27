@@ -146,31 +146,65 @@ object OrionSelfDiagnosticRegistry {
         }.take(maxChars)
     }
 
+    private data class FailureSignature(
+        val needles: List<String>,
+        val diagnosis: String,
+        val evidenceLabel: String,
+        val recovery: String
+    )
+
     private fun inferFailure(evidence: String): Triple<String, String, String>? {
         val rules = listOf(
-            Triple(listOf("outofmemoryerror", "low_memory", "reason=10", "reason=3"), "Presión de memoria o cierre por memoria", "OOM/LOW_MEMORY", "reducir modelos simultáneos, cerrar otras apps y volver a cargar un solo motor"),
-            Triple(listOf("unsatisfiedlinkerror", "dlopen failed", "jni"), "Carga de biblioteca nativa", "UnsatisfiedLinkError/JNI", "comprobar ABI del dispositivo y empaquetado de bibliotecas nativas; no reinstalar modelos sin evidencia"),
-            Triple(listOf("filenotfoundexception", "no such file", "model file missing", "modelo no encontrado"), "Archivo o modelo ausente", "FileNotFound/NoSuchFile", "verificar instalación y usar la descarga/reparación integrada"),
-            Triple(listOf("checksum", "sha-256", "integrity", "archivo corrupt"), "Integridad de descarga", "fallo de hash/integridad", "repetir descarga y validación; conservar el archivo original hasta confirmar reparación"),
-            Triple(listOf("securityexception", "permission denied", "not permitted"), "Permiso Android o acceso denegado", "SecurityException/Permission", "revisar el permiso concreto en Ajustes y concederlo solo si la función lo necesita"),
-            Triple(listOf("timeout", "sockettimeoutexception", "unknownhostexception", "connection refused"), "Conectividad o servicio remoto", "timeout/red", "comprobar conexión, endpoint y disponibilidad del proveedor; reintentar sin duplicar operaciones"),
-            Triple(listOf("anr", "application not responding", "input dispatching timed out"), "Bloqueo prolongado del proceso", "ANR", "revisar la traza y operaciones bloqueantes del hilo principal antes de cambiar código"),
-            Triple(listOf("cancellationexception", "cancelled", "canceled"), "Cancelación de una operación", "CancellationException", "determinar si fue una cancelación solicitada; no tratarla automáticamente como fallo")
+            FailureSignature(
+                listOf("outofmemoryerror", "low_memory", "reason=3 (low_memory)"),
+                "Presión de memoria o cierre por memoria",
+                "OOM/LOW_MEMORY",
+                "reducir modelos simultáneos, cerrar otras apps y volver a cargar un solo motor"
+            ),
+            FailureSignature(
+                listOf("unsatisfiedlinkerror", "dlopen failed", "jni"),
+                "Carga de biblioteca nativa",
+                "UnsatisfiedLinkError/JNI",
+                "comprobar ABI del dispositivo y empaquetado de bibliotecas nativas"
+            ),
+            FailureSignature(
+                listOf("filenotfoundexception", "no such file", "model file missing", "modelo no encontrado"),
+                "Archivo o modelo ausente",
+                "FileNotFound/NoSuchFile",
+                "verificar instalación y usar la descarga/reparación integrada"
+            ),
+            FailureSignature(
+                listOf("checksum", "sha-256", "integrity", "archivo corrupt"),
+                "Integridad de descarga",
+                "fallo de hash/integridad",
+                "repetir descarga y validación; conservar el archivo original hasta confirmar reparación"
+            ),
+            FailureSignature(
+                listOf("securityexception", "permission denied", "not permitted"),
+                "Permiso Android o acceso denegado",
+                "SecurityException/Permission",
+                "revisar el permiso concreto en Ajustes y concederlo solo si la función lo necesita"
+            ),
+            FailureSignature(
+                listOf("timeout", "sockettimeoutexception", "unknownhostexception", "connection refused"),
+                "Conectividad o servicio remoto",
+                "timeout/red",
+                "comprobar conexión, endpoint y disponibilidad del proveedor; reintentar sin duplicar operaciones"
+            ),
+            FailureSignature(
+                listOf("anr", "application not responding", "input dispatching timed out"),
+                "Bloqueo prolongado del proceso",
+                "ANR",
+                "revisar la traza y operaciones bloqueantes del hilo principal antes de cambiar código"
+            ),
+            FailureSignature(
+                listOf("cancellationexception", "cancelled", "canceled"),
+                "Cancelación de una operación",
+                "CancellationException",
+                "determinar si fue una cancelación solicitada; no tratarla automáticamente como fallo"
+            )
         )
-        return rules.firstOrNull { rule -> rule.first.any(evidence::contains) }
-            ?.let { Triple(it.second, it.third, it.third) }
-            ?.let { triple ->
-                val recovery = when (triple.first) {
-                    "Presión de memoria o cierre por memoria" -> "reducir modelos simultáneos, cerrar otras apps y volver a cargar un solo motor"
-                    "Carga de biblioteca nativa" -> "comprobar ABI del dispositivo y empaquetado de bibliotecas nativas"
-                    "Archivo o modelo ausente" -> "verificar instalación y usar la descarga/reparación integrada"
-                    "Integridad de descarga" -> "repetir descarga y validación"
-                    "Permiso Android o acceso denegado" -> "revisar el permiso concreto en Ajustes"
-                    "Conectividad o servicio remoto" -> "comprobar conexión, endpoint y disponibilidad del proveedor"
-                    "Bloqueo prolongado del proceso" -> "revisar traza y operaciones bloqueantes del hilo principal"
-                    else -> "determinar si fue una cancelación solicitada"
-                }
-                Triple(triple.first, triple.second, recovery)
-            }
+        val match = rules.firstOrNull { rule -> rule.needles.any(evidence::contains) } ?: return null
+        return Triple(match.diagnosis, match.evidenceLabel, match.recovery)
     }
 }
