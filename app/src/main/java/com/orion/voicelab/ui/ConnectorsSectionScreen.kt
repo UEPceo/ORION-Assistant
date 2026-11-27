@@ -203,7 +203,7 @@ private fun GitHubConnectorCard(
             }
             Text(connector.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
-                text = "Permisos solicitados: perfil básico y repositorios públicos. No permite acceder a repositorios privados.",
+                text = "Permiso solicitado: leer el perfil básico. Los repositorios públicos se consultan sin ampliar permisos; los privados requerirán autorización adicional.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
