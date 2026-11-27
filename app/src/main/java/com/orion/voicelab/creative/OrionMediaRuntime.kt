@@ -10,21 +10,22 @@ class OrionMediaRuntime(
     private val videoProviders: List<VideoGenerationProvider> = emptyList()
 ) {
     fun imageUnderstandingStatus(mimeType: String): MediaCapabilityStatus =
-        understandingProviders.firstNotNullOfOrNull { provider ->
-            provider.capability(mimeType).takeIf { it == MediaCapabilityStatus.AVAILABLE }
-        } ?: if (understandingProviders.isEmpty()) MediaCapabilityStatus.REQUIRES_CONFIGURATION
-        else MediaCapabilityStatus.UNSUPPORTED
+        aggregateStatus(understandingProviders.map { it.capability(mimeType) })
+
+    private fun aggregateStatus(statuses: List<MediaCapabilityStatus>): MediaCapabilityStatus = when {
+        statuses.any { it == MediaCapabilityStatus.AVAILABLE } -> MediaCapabilityStatus.AVAILABLE
+        statuses.any { it == MediaCapabilityStatus.REQUIRES_MODEL } -> MediaCapabilityStatus.REQUIRES_MODEL
+        statuses.any { it == MediaCapabilityStatus.REQUIRES_CONFIGURATION } -> MediaCapabilityStatus.REQUIRES_CONFIGURATION
+        statuses.isEmpty() -> MediaCapabilityStatus.REQUIRES_CONFIGURATION
+        else -> MediaCapabilityStatus.UNSUPPORTED
+    }
 
     fun videoUnderstandingStatus(): MediaCapabilityStatus =
         imageUnderstandingStatus("video/mp4")
 
-    fun imageGenerationStatus(): MediaCapabilityStatus =
-        imageProviders.firstNotNullOfOrNull { it.capability().takeIf { status -> status == MediaCapabilityStatus.AVAILABLE } }
-            ?: if (imageProviders.isEmpty()) MediaCapabilityStatus.REQUIRES_CONFIGURATION else MediaCapabilityStatus.UNSUPPORTED
+    fun imageGenerationStatus(): MediaCapabilityStatus = aggregateStatus(imageProviders.map { it.capability() })
 
-    fun videoGenerationStatus(): MediaCapabilityStatus =
-        videoProviders.firstNotNullOfOrNull { it.capability().takeIf { status -> status == MediaCapabilityStatus.AVAILABLE } }
-            ?: if (videoProviders.isEmpty()) MediaCapabilityStatus.REQUIRES_CONFIGURATION else MediaCapabilityStatus.UNSUPPORTED
+    fun videoGenerationStatus(): MediaCapabilityStatus = aggregateStatus(videoProviders.map { it.capability() })
 
     suspend fun understandImage(asset: MediaAsset): MediaUnderstandingResult {
         require(asset.mimeType.startsWith("image/")) { "El archivo seleccionado no es una imagen." }
