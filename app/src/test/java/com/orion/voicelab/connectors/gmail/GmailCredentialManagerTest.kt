@@ -3,6 +3,7 @@ package com.orion.voicelab.connectors.gmail
 import com.orion.voicelab.connectors.ConnectorCredentialStore
 import com.orion.voicelab.connectors.ConnectorId
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
