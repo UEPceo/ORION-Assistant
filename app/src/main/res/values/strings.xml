@@ -4,7 +4,6 @@
     <string name="brand_title">ORION</string>
     <string name="brand_subtitle">VOICE LAB 0.8.0 · ASISTENTE PERSONAL Y TAREAS</string>
     <string name="tab_call">Agenda</string>
-    <string name="tab_phone">Teléfono</string>
     <string name="tab_tasks">Tareas</string>
     <string name="tab_conversations">Chats</string>
     <string name="tab_memory">Memoria</string>
