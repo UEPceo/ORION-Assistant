@@ -30,7 +30,7 @@ Required setup outside the repository:
 
 No Google client secret is embedded in the APK. No refresh token is stored; the Android client obtains short-lived access tokens and must request authorization again when a token expires. Gmail draft/send scopes are not requested in this phase.
 
-Gmail API integration now supports bounded message search and metadata/snippet lookup for a known message ID. It deliberately does not fetch full MIME bodies, download attachments, create drafts or send mail. The access token is short-lived; if it expires, the user must reconnect Gmail.
+Gmail API integration supports bounded message search, metadata/snippet lookup and reading the plain-text part of an opened/latest message (maximum 3,000 characters returned to ORION). HTML-only content falls back to the Gmail snippet. Attachments are not downloaded; drafts and sending are not implemented. The access token is short-lived; if it expires, the user must reconnect Gmail.
 
 ## Common security rules
 
@@ -38,7 +38,7 @@ Gmail API integration now supports bounded message search and metadata/snippet l
 - The LLM never receives credentials. It may receive only sanitized action results needed to answer the user.
 - Read operations are executed only after a clear user request; follow-up requests may reuse the repository selected in the immediately preceding connector interaction.
 - GitHub read-only operations include repositories, issues and issue details, commits, repository file listings and Actions workflow runs.
-- Gmail read-only operations include message search and metadata/snippet lookup; message bodies and attachments are not fetched.
+- Gmail read-only operations include advanced message search, metadata/snippet lookup and bounded plain-text reading; attachments are not downloaded.
 - Sending email, creating or modifying remote resources, publishing comments, and deleting content require a contextual, one-shot confirmation bound to the exact action and expiring after 60 seconds. A refusal or unrelated next request clears the pending confirmation.
 - Connector failures must not stop ASR, local LLM, TTS, memory, tasks or phone functions.
 - Network calls use finite connect/read timeouts and run off the main thread.
