@@ -46,13 +46,17 @@ class OnnxMultilingualEmbeddingEncoder(context: Context) : Closeable {
 
     private fun createSession(): OrtSession {
         val options = OrtSession.SessionOptions()
-        options.setIntraOpNumThreads(2)
-        options.setInterOpNumThreads(1)
-        val extensionsPath = Class.forName(EXTENSIONS_PACKAGE)
-            .getMethod("getLibraryPath")
-            .invoke(null) as String
-        options.registerCustomOpLibrary(extensionsPath)
-        return environment.createSession(manager.modelFile.absolutePath, options)
+        try {
+            options.setIntraOpNumThreads(2)
+            options.setInterOpNumThreads(1)
+            val extensionsPath = Class.forName(EXTENSIONS_PACKAGE)
+                .getMethod("getLibraryPath")
+                .invoke(null) as String
+            options.registerCustomOpLibrary(extensionsPath)
+            return environment.createSession(manager.modelFile.absolutePath, options)
+        } finally {
+            options.close()
+        }
     }
 
     private fun normalize(vector: FloatArray): FloatArray {
