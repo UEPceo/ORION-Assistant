@@ -24,7 +24,7 @@ class GitHubCredentialManagerTest {
         )
 
         assertTrue(manager.isConnected())
-        assertArrayEquals(token.toByteArray(Charsets.UTF_8), store.value)
+        assertArrayEquals(token.toByteArray(Charsets.UTF_8), store.value!!)
 
         manager.disconnect()
 
