@@ -15,7 +15,7 @@ androidxTestCore = "1.6.1"
 googlePlayServicesAuth = "22.0.0"
 room = "2.8.4"
 work = "2.10.1"
-onnxRuntime = "1.22.0"
+onnxRuntime = "1.28.0"
 onnxExtensions = "0.13.0"
 ksp = "2.3.6"
 
