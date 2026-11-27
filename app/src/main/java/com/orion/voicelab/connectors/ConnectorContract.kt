@@ -61,6 +61,8 @@ sealed interface ConnectorResult {
     ) : ConnectorResult
 
     data class NeedsUserInput(val prompt: String) : ConnectorResult
+
+    data class ConfirmationRequired(val action: ConnectorAction, val prompt: String) : ConnectorResult
     data class Failure(val safeMessage: String, val retryable: Boolean) : ConnectorResult
 }
 
