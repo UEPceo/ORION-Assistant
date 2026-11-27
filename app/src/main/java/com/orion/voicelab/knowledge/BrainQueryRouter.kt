@@ -12,8 +12,10 @@ object BrainQueryRouter {
                 KnowledgeDomain.LAW_AND_REGULATION
             containsAny(normalized, "salud", "médico", "medicina", "síntoma", "seguridad", "emergencia") ->
                 KnowledgeDomain.HEALTH_AND_SAFETY
-            containsAny(normalized, "surfcasting", "surf casting", "playa de pesca", "aparejo", "cebo", "captura", "lubina", "sargo", "pesca") ->
+            containsAny(normalized, "surfcasting", "surf casting", "aparejo", "cebo", "lubina", "sargo") ->
                 KnowledgeDomain.SURFCASTING
+            containsAny(normalized, "pesca", "pesca recreativa", "normativa pesquera", "licencia de pesca", "talla mínima") ->
+                KnowledgeDomain.FISHING
             containsAny(normalized, "meteorología", "tiempo", "viento", "oleaje", "marejada", "corriente", "temporal", "mar de fondo", "marea") ->
                 KnowledgeDomain.MARINE_WEATHER
             containsAny(normalized, "ciberseguridad", "malware", "phishing", "vulnerabilidad", "ransomware") ->
