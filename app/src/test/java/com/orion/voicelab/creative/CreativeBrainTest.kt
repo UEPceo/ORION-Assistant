@@ -26,6 +26,18 @@ class CreativeBrainTest {
     }
 
     @Test
+    fun socialCoworkerGetsSpecialistGuidance() {
+        val prompt = CreativeBrainPromptComposer.compose(
+            userText = "Prepara contenido",
+            skill = CreativeSkill.SOCIAL_STRATEGY,
+            activeRole = "Community Manager"
+        )
+        assertTrue(prompt.contains("ESTRATEGIA DE REDES SOCIALES"))
+        assertTrue(prompt.contains("responsable de redes"))
+        assertTrue(prompt.contains("ORION"))
+    }
+
+    @Test
     fun videoSamplingIsBoundedAndChronological() {
         val frames = VideoFrameSamplingPolicy.timestamps(durationMs = 60_000L, maxFrames = 8)
         assertEquals(8, frames.size)
