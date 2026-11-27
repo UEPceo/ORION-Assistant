@@ -24,26 +24,31 @@ object ConnectorCatalog {
             isImplemented = true
         ),
         ConnectorDescriptor(
-            id = ConnectorId.GOOGLE_CALENDAR,
-            displayName = "Google Calendar",
-            description = "Consultar disponibilidad y gestionar eventos con confirmación.",
-            capabilities = setOf(
-                ConnectorCapability.SEARCH,
-                ConnectorCapability.READ,
-                ConnectorCapability.CREATE,
-                ConnectorCapability.UPDATE,
-                ConnectorCapability.DELETE
-            ),
+            id = ConnectorId.ANDROID_NOTES,
+            displayName = "Notas del móvil",
+            description = "Importar notas compartidas, consultar la biblioteca local de ORION y crear notas en aplicaciones compatibles.",
+            capabilities = setOf(ConnectorCapability.READ, ConnectorCapability.CREATE, ConnectorCapability.UPDATE),
             isImplemented = false
         ),
         ConnectorDescriptor(
-            id = ConnectorId.GOOGLE_DRIVE,
-            displayName = "Google Drive",
-            description = "Buscar y consultar documentos autorizados.",
-            capabilities = setOf(
-                ConnectorCapability.SEARCH,
-                ConnectorCapability.READ
-            ),
+            id = ConnectorId.ANDROID_CALENDAR,
+            displayName = "Calendario",
+            description = "Consultar eventos y disponibilidad; crear o modificar eventos con confirmación y permisos del sistema.",
+            capabilities = setOf(ConnectorCapability.SEARCH, ConnectorCapability.READ, ConnectorCapability.CREATE, ConnectorCapability.UPDATE, ConnectorCapability.DELETE),
+            isImplemented = false
+        ),
+        ConnectorDescriptor(
+            id = ConnectorId.GOOGLE_MAPS,
+            displayName = "Google Maps",
+            description = "Buscar lugares, abrir ubicaciones y preparar rutas o navegación mediante Google Maps.",
+            capabilities = setOf(ConnectorCapability.SEARCH, ConnectorCapability.READ),
+            isImplemented = false
+        ),
+        ConnectorDescriptor(
+            id = ConnectorId.PESCAIA,
+            displayName = "PescaIA Surfcasting",
+            description = "Consultar playas, previsión marina, mareas, solunar, técnicas y normativa con fuentes y fecha de revisión.",
+            capabilities = setOf(ConnectorCapability.SEARCH, ConnectorCapability.READ),
             isImplemented = false
         )
     )
