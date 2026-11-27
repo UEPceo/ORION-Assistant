@@ -93,6 +93,30 @@ class ConnectorVoiceIntentRouterTest {
     }
 
     @Test
+    fun explicitMapsSearchRoutesPlaceQuery() {
+        val routed = ConnectorVoiceIntentRouter.route("Busca en Google Maps la playa de Zahara")
+        assertEquals(ConnectorId.GOOGLE_MAPS, routed?.action?.connectorId)
+        assertEquals("search_place", routed?.action?.operation)
+        assertEquals("la playa de Zahara", routed?.action?.arguments?.get("destination"))
+    }
+
+    @Test
+    fun mapsNavigationRoutesDestinationAndMode() {
+        val routed = ConnectorVoiceIntentRouter.route("Navega a Google Maps hacia Zahara de los Atunes a pie")
+        assertEquals(ConnectorId.GOOGLE_MAPS, routed?.action?.connectorId)
+        assertEquals("navigate", routed?.action?.operation)
+        assertEquals("walking", routed?.action?.arguments?.get("mode"))
+    }
+
+    @Test
+    fun pescaiaPublicQueryIsRouted() {
+        val routed = ConnectorVoiceIntentRouter.route("Consulta en PescaIA: mareas de Cádiz")
+        assertEquals(ConnectorId.PESCAIA, routed?.action?.connectorId)
+        assertEquals("search_public", routed?.action?.operation)
+        assertEquals("mareas de Cádiz", routed?.action?.arguments?.get("query"))
+    }
+
+    @Test
     fun unrelatedTextDoesNotTriggerExternalConnector() {
         assertNull(ConnectorVoiceIntentRouter.route("¿Qué tiempo hace hoy?"))
     }
