@@ -245,7 +245,7 @@ fun ConnectorsSectionScreen(
                                     is GitHubDeviceAuthorizationResult.Authorized -> {
                                         githubCredentials.save(result)
                                         githubConnected = true
-                                        githubStatus = "GitHub conectado. Acceso inicial: repositorios públicos."
+                                        githubStatus = "GitHub autorizado. Los repositorios públicos se consultan sin ampliar permisos."
                                         githubUserCode = null
                                     }
                                     GitHubDeviceAuthorizationResult.AccessDenied -> {
@@ -318,7 +318,7 @@ private fun GmailConnectorCard(
             }
             Text(connector.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
-                "Permiso inicial: lectura de mensajes. No se solicitan permisos para enviar ni modificar correo.",
+                "Permiso inicial: lectura de mensajes. No se solicitan permisos para enviar ni modificar correo. Google puede exigir verificación de la app para este alcance.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
