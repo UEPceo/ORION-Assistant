@@ -87,10 +87,9 @@ class AndroidKeystoreConnectorCredentialStore(
         }
     }
 
-    @Synchronized
-    private fun getOrCreateKey(): SecretKey {
+    private fun getOrCreateKey(): SecretKey = synchronized(KEY_LOCK) {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-        (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+        (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return@synchronized it }
 
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
         generator.init(
@@ -104,10 +103,11 @@ class AndroidKeystoreConnectorCredentialStore(
                 .setRandomizedEncryptionRequired(true)
                 .build()
         )
-        return generator.generateKey()
+        generator.generateKey()
     }
 
     private companion object {
+        val KEY_LOCK = Any()
         const val PREFERENCES_NAME = "orion_connector_credentials"
         const val ANDROID_KEYSTORE = "AndroidKeyStore"
         const val KEY_ALIAS = "orion_connector_credentials_aes_gcm_v1"
