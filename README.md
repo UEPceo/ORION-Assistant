@@ -24,7 +24,7 @@
 
 ## Nueva base de conectores — estructura inicial
 
-- Conectores actuales: Gmail y GitHub en modo lectura. Se han definido como siguientes prioridades Notas del móvil, Calendario Android, Google Maps y PescaIA Surfcasting; sus contratos y adaptadores aún deben implementarse.
+- Conectores disponibles en esta fase: Gmail y GitHub en lectura; Google Keep mediante envío compartido; Calendario mediante creación revisada por la app de destino; Google Maps mediante búsqueda/navegación por intents; PescaIA mediante consulta limitada de páginas públicas de playas y metodología.
 - Contratos comunes para proveedores, capacidades, estado de conexión, acciones y resultados; registro explícito de adaptadores.
 - Política central para impedir acciones sobre proveedores desconectados y exigir confirmación en operaciones con efectos externos o destructivos.
 - Almacenamiento inicial de credenciales cifradas con AES-256-GCM y clave no exportable protegida por Android Keystore.
@@ -40,7 +40,7 @@
 - La exportación es manual y permanece en el destino que el usuario elija; ORION no envía el informe a ningún servidor.
 
 
-Asistente personal y conversacional de voz en español para Android (`arm64-v8a`), con núcleo de voz/LLM/memoria local y offline tras descargar los modelos. Los conectores opcionales Gmail y GitHub requieren Internet y autorización OAuth. Construido con **Kotlin**, **Jetpack Compose (Material 3)**, **Room + KSP**, **sherpa-onnx** (`1.13.8`) y **llama.cpp** (`io.github.ljcamargo:llamacpp-kotlin:0.4.0`).
+Asistente personal y conversacional de voz en español para Android (`arm64-v8a`), con núcleo de voz/LLM/memoria local y offline tras descargar los modelos. Los conectores externos requieren Internet cuando se usan; Gmail y GitHub requieren autorización OAuth, mientras que Keep, Calendario y Maps utilizan mecanismos del sistema Android. Construido con **Kotlin**, **Jetpack Compose (Material 3)**, **Room + KSP**, **sherpa-onnx** (`1.13.8`) y **llama.cpp** (`io.github.ljcamargo:llamacpp-kotlin:0.4.0`).
 
 ## Novedades de la Fase 0.7.0 (Asistente personal, tareas y recordatorios locales)
 
