@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.orion.voicelab.OrionCrashDiagnostics
 import com.orion.voicelab.asr.MoonshineSpeechRecognitionEngine
 import com.orion.voicelab.audio.AudioRoutingController
 import com.orion.voicelab.conversation.ConversationEngine
