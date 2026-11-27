@@ -3,7 +3,7 @@ import java.util.Locale
 object PlanningPromptComposer {
  fun isMultiStepRequest(text:String):Boolean {
   val v=text.lowercase(Locale.ROOT)
-  val terms=listOf("planifica","organiza los pasos","paso a paso","de principio a fin","hasta terminar","automatiza","encárgate de","encargate de","prepara y","investiga y","compara y","implementa y prueba")
+  val terms=listOf("planifica","haz un plan","crea un plan","prepara un plan","plan de trabajo","desglosa","organiza los pasos","paso a paso","de principio a fin","hasta terminar","resuelve de principio a fin","automatiza","encárgate de","encargate de","prepara y","investiga y","compara y","implementa y prueba")
   return terms.any(v::contains)||Regex("\\b(primer[oa]|después|luego|finalmente)\\b").containsMatchIn(v)
  }
  fun compose(userText:String):String {
