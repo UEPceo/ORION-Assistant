@@ -708,7 +708,7 @@ private fun TabSegmentButton(
         modifier = modifier
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(10.dp))
-            .semantics { selected = this@TabSegmentButton.selected }
+            .semantics { this.selected = selected }
             .clickable(role = Role.Tab, onClick = onClick),
         shape = RoundedCornerShape(10.dp),
         color = bgColor
