@@ -83,6 +83,7 @@ object ConnectorVoiceIntentRouter {
             val navigate = containsAny(normalized, "navega", "llévame", "llevame", "cómo llego", "como llego", "ruta")
             val destination = text.replace(Regex("""(?i)^.*?(?:google\s+maps|maps|mapa(?:\s+de)?)\s*"""), "")
                 .replace(Regex("""(?i)^(?:a|hasta|hacia)\s+"""), "")
+                .replace(Regex("""(?i)\\s+(?:a pie|andando|caminando|en coche|en transporte público|en transporte publico)$"""), "")
                 .trim().ifBlank { "" }
             return RoutedAction(ConnectorAction(
                 ConnectorId.GOOGLE_MAPS,
