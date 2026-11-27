@@ -171,12 +171,10 @@ fun OrionVoiceLabScreen(
         contract = ActivityResultContracts.CreateDocument("text/plain")
     ) { uri ->
         if (uri != null) {
-            showReportExportResult@ run {
-                val saved = viewModel.writeReport(uri)
-                coroutineScope.launch {
-                    snackbarHostState.currentSnackbarData?.dismiss()
-                    snackbarHostState.showSnackbar(if (saved) reportExportedMsg else reportExportFailedMsg)
-                }
+            val saved = viewModel.writeReport(uri)
+            coroutineScope.launch {
+                snackbarHostState.currentSnackbarData?.dismiss()
+                snackbarHostState.showSnackbar(if (saved) reportExportedMsg else reportExportFailedMsg)
             }
         }
     }
