@@ -4,6 +4,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.*
+import com.orion.voicelab.connectors.ConnectorId
 import org.junit.Test
 
 class PlanningContractsTest {
@@ -16,7 +17,7 @@ class PlanningContractsTest {
         assertTrue(PlanValidator.validate(missing).errors.any { it.contains("inexistente") })
     }
     @Test fun requiresFreshApprovalForExternalWrites() {
-        val plan = OrionPlan("p", "send email", listOf(PlannedStep("send", PlanStepKind.SEND_MESSAGE, "Enviar", "", PlanRisk.HIGH)))
+        val plan = OrionPlan("p", "send email", listOf(PlannedStep("send", PlanStepKind.CONNECTOR_WRITE, "Crear borrador", "", PlanRisk.HIGH, connectorId = ConnectorId.GMAIL, connectorOperation = "create_draft")))
         val result = runBlocking { PlanExecutionCoordinator().execute(plan, emptySet()) { _, _ -> StepExecution(StepStatus.SUCCEEDED, "sent") } }
         assertEquals(PlanStatus.AWAITING_APPROVAL, result.status)
     }
