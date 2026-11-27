@@ -7,6 +7,15 @@
 - Se conserva el orden TTS → ASR → LLM, el progreso, la cancelación, la reanudación de descargas parciales y la verificación de integridad existente.
 - Una descarga fallida no bloquea los demás módulos de la aplicación: muestra el error y permite reintentar.
 
+## Autenticación inicial de conectores
+
+- GitHub incorpora OAuth App Device Flow para Android, sin client secret dentro del APK.
+- El Client ID público se configura mediante la propiedad Gradle `ORION_GITHUB_CLIENT_ID` o la variable de entorno homónima.
+- El primer permiso solicitado es `read:user,public_repo`; no habilita repositorios privados.
+- Los tokens se guardan mediante AES-256-GCM con clave de Android Keystore y pueden eliminarse desde la pantalla Conectores.
+- Gmail requiere configurar Google Identity Services, proyecto OAuth, paquete y huella de firma Android. No se activa hasta disponer de esa configuración.
+- Guía: `docs/CONNECTORS_AUTHENTICATION.md`.
+
 ## Nueva base de conectores — estructura inicial
 
 - Nueva pestaña **Conectores** con catálogo inicial de Gmail, GitHub, Google Calendar y Google Drive. Los proveedores aparecen como próximos; todavía no se anuncian como integraciones operativas.
