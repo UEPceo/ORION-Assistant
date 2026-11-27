@@ -262,7 +262,10 @@ Esta actualización incorpora las primeras implementaciones de los seis frentes 
 ### 3. Conocimiento offline
 - Catálogo de seis packs previstos: normativa España/UE, seguridad España, ciberseguridad, Android/Kotlin, Python/Internet y pesca recreativa Andalucía.
 - Cada pack declara versión, dominios, jurisdicción, fuentes, licencia y frecuencia de revisión.
-- **Estado real: catálogo únicamente. No hay contenido empaquetado ni packs instalados.** No se contabiliza un pack como conocimiento offline hasta incluir sus documentos, hashes, licencias y pruebas de actualización.
+- **Estado actualizado: seis packs con contenido real incluido en APK assets, 11 documentos fuente y un instalador local versionado.** Los documentos se incorporan al corpus privado al primer uso del cerebro, sin red ni descarga. Se calcula SHA-256 del contenido, se conserva URL/editor/autoridad/jurisdicción y se valida cada documento antes de guardarlo.
+- Packs incluidos: Android/Kotlin (ciclo de vida y coroutines), Python (fundamentos), ciberseguridad (OWASP Top 10 e higiene digital INCIBE), legislación España/UE (consulta BOE y EUR-Lex), seguridad general y pesca recreativa Andalucía (licencias, PescaREC y aviso sobre cambios judiciales).
+- La instalación es idempotente y versionada; el paquete andaluz está en versión 2 para reflejar información institucional consultada el 27/11/2026. Si un paquete falla, se registra el error y no se marca como instalado.
+- El contenido es una síntesis educativa con enlaces a las fuentes, no una copia íntegra ni una base legal exhaustiva. El conocimiento normativo y de seguridad debe verificarse online antes de actuar; las fechas de revisión y las advertencias de vigencia se conservan.
 
 ### 4. Modelos y razonamiento
 - Catálogo de perfiles separa modelo ligero local, futuro modelo local avanzado y futuro proveedor remoto consentido.
@@ -277,9 +280,18 @@ Esta actualización incorpora las primeras implementaciones de los seis frentes 
 
 ### 6. Evaluación continua
 - Evaluador ponderado por áreas con puntuación 0–10, brechas y criterio global: todas las áreas deben llegar a 8/10.
-- Línea base conservadora calculada desde capacidades realmente implementadas: conocimiento 6/10; planificación 6,7/10; conocimiento offline 4/10; razonamiento/modelo 4/10; herramientas 4/10; multimedia 4/10; fiabilidad/seguridad 4/10 (CI de esta revisión pendiente). Mínimo global: **4/10**; media aproximada: **4,3/10**.
+- Línea base conservadora calculada desde capacidades realmente implementadas: conocimiento 6/10; planificación 6,7/10; conocimiento offline 7/10; razonamiento/modelo 4/10; herramientas 4/10; multimedia 4/10; fiabilidad/seguridad 4/10 (CI de esta revisión pendiente). Mínimo global: **4/10**; media aproximada: **5,1/10**.
 - Esta puntuación es una línea base de ingeniería basada en criterios explícitos, no una prueba independiente de inteligencia. Se recalculará cuando haya pruebas automatizadas y resultados de ejecución.
 - La meta 8/10 no está alcanzada. El mayor déficit está en contenido offline real, ejecución multipaso conectada, motores avanzados y multimedia operativa.
 
 ### Criterio de aceptación para declarar 8/10
 Cada área debe disponer de criterios reproducibles, pruebas unitarias e integración, evidencia de ejecución y cobertura suficiente. Ninguna capacidad marcada como catálogo, contrato, configuración pendiente o no implementada puede sumar como operativa. La puntuación mínima entre áreas gobierna el resultado global; una media alta no puede ocultar un área débil.
+
+
+### Incorporación de conocimiento offline real — 27/11/2026
+- Assets: `app/src/main/assets/knowledge_packs/*.json` con seis packs y once documentos en castellano.
+- Instalador: `BundledKnowledgePackInstaller`; integra en `OrionBrainRuntime.retrieve()` antes de la primera recuperación. No realiza peticiones de red.
+- Persistencia: corpus privado existente; versión por pack en preferencias privadas. Reintento automático si un pack falla antes de marcar su versión como instalada.
+- Integridad: SHA-256 al ingerir y comprobación del hash al leer el corpus. Las fuentes y jurisdicciones se conservan para filtrar y ordenar resultados.
+- Tests: contenido y atribución de los seis assets, instalación real con Robolectric, repetición idempotente, búsqueda posterior y estado dinámico de instalación.
+- Limitación: no se incluye un índice vectorial; el ranking sigue siendo léxico ponderado. El paquete legal no sustituye la consulta de vigencia. El contenido inicial es deliberadamente compacto para no aumentar mucho el tamaño de APK.
