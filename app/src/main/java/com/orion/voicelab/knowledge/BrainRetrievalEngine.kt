@@ -14,13 +14,18 @@ class BrainRetrievalEngine(
 ) {
     suspend fun retrieve(query: BrainQuery): BrainContext {
         val retrieved = mutableListOf<KnowledgeDocument>()
+        val sourceFailures = mutableListOf<KnowledgeSourceFailure>()
         for (source in sources) {
             try {
                 retrieved.addAll(source.search(query, maxDocuments))
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (_: Exception) {
-                // A failed optional source must not prevent other sources from answering.
+            } catch (error: Exception) {
+                // Keep failures visible without exposing provider messages, URLs or credentials.
+                sourceFailures += KnowledgeSourceFailure(
+                    sourceId = source.sourceId.take(100),
+                    errorType = error::class.java.simpleName.take(100)
+                )
             }
         }
         val candidates = retrieved.filter { document ->
@@ -64,7 +69,9 @@ class BrainRetrievalEngine(
             query = query,
             documents = candidates,
             verification = verification,
+            sourceFailures = sourceFailures,
             presentation = when {
+                candidates.isEmpty() && sourceFailures.isNotEmpty() -> BrainPresentation.SOURCE_FAILURE
                 candidates.isEmpty() -> BrainPresentation.NO_SOURCES
                 safeToPresentAsVerified -> BrainPresentation.EVIDENCE_SUPPORTED
                 verification.verdict == KnowledgeVerdict.STALE -> BrainPresentation.HISTORICAL
@@ -109,12 +116,19 @@ enum class BrainPresentation {
     EVIDENCE_SUPPORTED,
     UNVERIFIED,
     HISTORICAL,
-    NO_SOURCES
+    NO_SOURCES,
+    SOURCE_FAILURE
 }
+
+data class KnowledgeSourceFailure(
+    val sourceId: String,
+    val errorType: String
+)
 
 data class BrainContext(
     val query: BrainQuery,
     val documents: List<KnowledgeDocument>,
     val verification: KnowledgeVerification,
-    val presentation: BrainPresentation
+    val presentation: BrainPresentation,
+    val sourceFailures: List<KnowledgeSourceFailure> = emptyList()
 )
