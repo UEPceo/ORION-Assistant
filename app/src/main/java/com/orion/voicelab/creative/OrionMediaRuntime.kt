@@ -1,68 +1,48 @@
 package com.orion.voicelab.creative
 
-/**
- * Media orchestration boundary. Concrete local/remote providers are injected by product
- * configuration; absence is reported honestly instead of fabricating an output.
- */
+/** Capability-aware media orchestration. Remote execution is disabled by default. */
 class OrionMediaRuntime(
-    private val understandingProviders: List<MediaUnderstandingProvider> = emptyList(),
-    private val imageProviders: List<ImageGenerationProvider> = emptyList(),
-    private val videoProviders: List<VideoGenerationProvider> = emptyList()
+ private val understandingProviders:List<MediaUnderstandingProvider> = emptyList(),
+ private val imageProviders:List<ImageGenerationProvider> = emptyList(),
+ private val videoProviders:List<VideoGenerationProvider> = emptyList()
 ) {
-    fun imageUnderstandingStatus(mimeType: String): MediaCapabilityStatus =
-        aggregateStatus(understandingProviders.map { it.capability(mimeType) })
-
-    private fun aggregateStatus(statuses: List<MediaCapabilityStatus>): MediaCapabilityStatus = when {
-        statuses.any { it == MediaCapabilityStatus.AVAILABLE } -> MediaCapabilityStatus.AVAILABLE
-        statuses.any { it == MediaCapabilityStatus.REQUIRES_MODEL } -> MediaCapabilityStatus.REQUIRES_MODEL
-        statuses.any { it == MediaCapabilityStatus.REQUIRES_CONFIGURATION } -> MediaCapabilityStatus.REQUIRES_CONFIGURATION
-        statuses.isEmpty() -> MediaCapabilityStatus.REQUIRES_CONFIGURATION
-        else -> MediaCapabilityStatus.UNSUPPORTED
-    }
-
-    fun videoUnderstandingStatus(): MediaCapabilityStatus =
-        imageUnderstandingStatus("video/mp4")
-
-    fun imageGenerationStatus(): MediaCapabilityStatus = aggregateStatus(imageProviders.map { it.capability() })
-
-    fun videoGenerationStatus(): MediaCapabilityStatus = aggregateStatus(videoProviders.map { it.capability() })
-
-    suspend fun understandImage(asset: MediaAsset): MediaUnderstandingResult {
-        require(asset.mimeType.startsWith("image/")) { "El archivo seleccionado no es una imagen." }
-        val provider = understandingProviders.firstOrNull {
-            it.capability(asset.mimeType) == MediaCapabilityStatus.AVAILABLE
-        } ?: throw MediaCapabilityUnavailableException("No hay un motor de visión configurado para imágenes.")
-        return provider.understandImage(asset)
-    }
-
-    suspend fun understandVideo(asset: MediaAsset, frames: List<MediaFrame>): MediaUnderstandingResult {
-        require(asset.mimeType.startsWith("video/")) { "El archivo seleccionado no es un vídeo." }
-        require(frames.size <= MAX_VIDEO_FRAMES) { "El análisis supera el límite de fotogramas." }
-        val ordered = frames.sortedBy { it.timestampMs }
-        require(ordered.all { it.timestampMs >= 0L && (asset.durationMs == null || it.timestampMs < asset.durationMs) }) {
-            "La cronología de fotogramas no es válida."
-        }
-        val provider = understandingProviders.firstOrNull {
-            it.capability(asset.mimeType) == MediaCapabilityStatus.AVAILABLE
-        } ?: throw MediaCapabilityUnavailableException("No hay un motor de visión configurado para vídeo.")
-        return provider.understandVideo(asset, ordered)
-    }
-
-    suspend fun generateImage(request: MediaGenerationRequest): GeneratedMedia {
-        val provider = imageProviders.firstOrNull { it.capability() == MediaCapabilityStatus.AVAILABLE }
-            ?: throw MediaCapabilityUnavailableException("No hay un proveedor de generación de imágenes configurado.")
-        return provider.generate(request)
-    }
-
-    suspend fun generateVideo(request: MediaGenerationRequest): GeneratedMedia {
-        val provider = videoProviders.firstOrNull { it.capability() == MediaCapabilityStatus.AVAILABLE }
-            ?: throw MediaCapabilityUnavailableException("No hay un proveedor de generación de vídeo configurado.")
-        return provider.generate(request)
-    }
-
-    companion object {
-        const val MAX_VIDEO_FRAMES = 24
-    }
+ fun imageUnderstandingStatus(mimeType:String,policy:MediaRoutingPolicy=MediaRoutingPolicy())=MediaProviderRouter.status(understandingProviders,{it.kind},{it.capability(mimeType)},policy)
+ fun videoUnderstandingStatus(policy:MediaRoutingPolicy=MediaRoutingPolicy())=imageUnderstandingStatus("video/mp4",policy)
+ fun imageGenerationStatus(policy:MediaRoutingPolicy=MediaRoutingPolicy())=MediaProviderRouter.status(imageProviders,{it.kind},{it.capability()},policy)
+ fun videoGenerationStatus(policy:MediaRoutingPolicy=MediaRoutingPolicy())=MediaProviderRouter.status(videoProviders,{it.kind},{it.capability()},policy)
+ suspend fun understandImage(asset:MediaAsset,policy:MediaRoutingPolicy=MediaRoutingPolicy()):MediaUnderstandingResult {
+  require(asset.mimeType.startsWith("image/")){"El archivo seleccionado no es una imagen."}
+  val p=MediaProviderRouter.select(understandingProviders,{it.kind},{it.capability(asset.mimeType)},policy)
+   ?:throw MediaCapabilityUnavailableException(imageUnderstandingStatus(asset.mimeType,policy).message())
+  return p.understandImage(asset)
+ }
+ suspend fun understandVideo(asset:MediaAsset,frames:List<MediaFrame>,policy:MediaRoutingPolicy=MediaRoutingPolicy()):MediaUnderstandingResult {
+  require(asset.mimeType.startsWith("video/")){"El archivo seleccionado no es un vídeo."}
+  require(frames.size<=MAX_VIDEO_FRAMES){"El análisis supera el límite de fotogramas."}
+  val ordered=frames.sortedBy{it.timestampMs}
+  require(ordered.all{it.timestampMs>=0L&&(asset.durationMs==null||it.timestampMs<asset.durationMs)}){"La cronología de fotogramas no es válida."}
+  val p=MediaProviderRouter.select(understandingProviders,{it.kind},{it.capability(asset.mimeType)},policy)
+   ?:throw MediaCapabilityUnavailableException(videoUnderstandingStatus(policy).message())
+  return p.understandVideo(asset,ordered)
+ }
+ suspend fun generateImage(request:MediaGenerationRequest,policy:MediaRoutingPolicy=MediaRoutingPolicy()):GeneratedMedia {
+  val p=MediaProviderRouter.select(imageProviders,{it.kind},{it.capability()},policy)
+   ?:throw MediaCapabilityUnavailableException(imageGenerationStatus(policy).message())
+  return p.generate(request)
+ }
+ suspend fun generateVideo(request:MediaGenerationRequest,policy:MediaRoutingPolicy=MediaRoutingPolicy()):GeneratedMedia {
+  val p=MediaProviderRouter.select(videoProviders,{it.kind},{it.capability()},policy)
+   ?:throw MediaCapabilityUnavailableException(videoGenerationStatus(policy).message())
+  return p.generate(request)
+ }
+ companion object { const val MAX_VIDEO_FRAMES=24 }
 }
-
-class MediaCapabilityUnavailableException(message: String) : IllegalStateException(message)
+private fun MediaCapabilityStatus.message()=when(this) {
+ MediaCapabilityStatus.REQUIRES_USER_CONSENT -> "El proveedor disponible requiere autorización expresa para enviar el contenido a la nube."
+ MediaCapabilityStatus.REQUIRES_NETWORK -> "El proveedor remoto está configurado, pero no hay conexión de red."
+ MediaCapabilityStatus.REQUIRES_MODEL -> "Falta descargar o preparar el modelo local."
+ MediaCapabilityStatus.REQUIRES_CONFIGURATION -> "No hay ningún proveedor multimedia configurado."
+ MediaCapabilityStatus.UNSUPPORTED -> "Ningún proveedor admite este tipo de contenido."
+ MediaCapabilityStatus.AVAILABLE -> "La capacidad multimedia está disponible."
+}
+class MediaCapabilityUnavailableException(message:String):IllegalStateException(message)
