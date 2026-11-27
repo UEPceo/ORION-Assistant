@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -11,8 +12,8 @@ android {
         applicationId = "com.aistudio.orionvoicelab.kxrqmw"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.4.2"
+        versionCode = 7
+        versionName = "0.5.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -100,6 +101,9 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
     implementation(libs.sherpa.onnx)
     implementation(libs.commons.compress)
     implementation(libs.llamacpp.kotlin)

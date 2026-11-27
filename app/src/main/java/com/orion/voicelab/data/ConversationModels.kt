@@ -39,7 +39,8 @@ data class ConversationTurn(
     val text: String,
     val audioMs: Long = 0L,
     val decodeMs: Long = 0L,
-    val latency: TurnLatencyMetrics? = null
+    val latency: TurnLatencyMetrics? = null,
+    val timestampMs: Long = System.currentTimeMillis()
 )
 
 data class VoiceProfile(

@@ -88,7 +88,20 @@ data class VoiceLabUiState(
     val llmLoaded: Boolean = false,
     val ttsLoaded: Boolean = false,
     val audioHardwareStatus: AudioHardwareStatus = AudioHardwareStatus(),
-    val recentErrors: List<String> = emptyList()
+    val recentErrors: List<String> = emptyList(),
+    // Voice Lab 0.5 persistent conversations, memory and identity
+    val conversations: List<ConversationSummary> = emptyList(),
+    val activeConversationId: Long = 0L,
+    val activeConversationTitle: String = "Nueva conversación",
+    val memories: List<MemoryItem> = emptyList(),
+    val pendingMemorySuggestions: List<MemorySuggestion> = emptyList(),
+    val assistantIdentity: AssistantIdentity = AssistantIdentity(),
+    // Agenda / Co-workers & auto-download
+    val contacts: List<ContactProfile> = emptyList(),
+    val selectedContactId: Long = ContactProfile.PRIMARY_CONTACT_ID,
+    val isInCallScreen: Boolean = false,
+    val isAutoDownloadingInitialModels: Boolean = false,
+    val autoDownloadError: String? = null
 ) {
     val isModelReady: Boolean
         get() = modelState is ModelInstallState.Installed
@@ -104,4 +117,14 @@ data class VoiceLabUiState(
         get() = isModelReady &&
             llmModelState is ComponentModelState.Installed &&
             ttsModelState is ComponentModelState.Installed
+
+    val primaryContact: ContactProfile
+        get() = ContactProfile.primaryFromIdentity(assistantIdentity, selectedVoiceId)
+
+    val activeContact: ContactProfile
+        get() = if (selectedContactId == ContactProfile.PRIMARY_CONTACT_ID) {
+            primaryContact
+        } else {
+            contacts.firstOrNull { it.id == selectedContactId } ?: primaryContact
+        }
 }

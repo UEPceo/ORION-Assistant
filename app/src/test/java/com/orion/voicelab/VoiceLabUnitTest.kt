@@ -23,12 +23,18 @@ import com.orion.voicelab.conversation.ConversationEngine
 import com.orion.voicelab.conversation.ConversationSession
 import com.orion.voicelab.conversation.SpeechSentenceChunker
 import com.orion.voicelab.data.AsrStats
+import com.orion.voicelab.data.AssistantIdentity
 import com.orion.voicelab.data.CallTelemetry
 import com.orion.voicelab.data.ChatMessage
 import com.orion.voicelab.data.ChatRole
+import com.orion.voicelab.data.ContactProfile
 import com.orion.voicelab.data.ConversationState
 import com.orion.voicelab.data.ConversationTurn
 import com.orion.voicelab.data.DeviceMetrics
+import com.orion.voicelab.data.FormalityLevel
+import com.orion.voicelab.data.MemoryCategory
+import com.orion.voicelab.data.MemoryItem
+import com.orion.voicelab.data.TurnContext
 import com.orion.voicelab.data.TurnLatencyMetrics
 import com.orion.voicelab.data.VoiceProfile
 import com.orion.voicelab.engine.MoonshineModelManager
@@ -38,9 +44,26 @@ import com.orion.voicelab.llm.LlamaCppLanguageModel
 import com.orion.voicelab.llm.LlamaRuntimeBridge
 import com.orion.voicelab.llm.LlmGenerationResult
 import com.orion.voicelab.llm.LocalLanguageModel
+import com.orion.voicelab.memory.ContextPromptBuilder
+import com.orion.voicelab.memory.MemoryCandidateExtractor
+import com.orion.voicelab.memory.MemorySelector
 import com.orion.voicelab.model.DownloadSpec
 import com.orion.voicelab.model.ModelManager
 import com.orion.voicelab.model.ResumableHttpDownloader
+import com.orion.voicelab.persistence.AssistantIdentityEntity
+import com.orion.voicelab.persistence.ContactDao
+import com.orion.voicelab.persistence.ContactRepository
+import com.orion.voicelab.persistence.ConversationDao
+import com.orion.voicelab.persistence.ConversationEntity
+import com.orion.voicelab.persistence.ConversationMessageEntity
+import com.orion.voicelab.persistence.ConversationRepository
+import com.orion.voicelab.persistence.ConversationRowTuple
+import com.orion.voicelab.persistence.CoworkerContactEntity
+import com.orion.voicelab.persistence.IdentityDao
+import com.orion.voicelab.persistence.IdentityRepository
+import com.orion.voicelab.persistence.MemoryDao
+import com.orion.voicelab.persistence.MemoryItemEntity
+import com.orion.voicelab.persistence.MemoryRepository
 import com.orion.voicelab.tts.LocalSpeechSynthesizer
 import com.orion.voicelab.tts.SherpaOnnxSpeechSynthesizer
 import com.orion.voicelab.tts.SynthesisResult
@@ -49,6 +72,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -1663,6 +1690,560 @@ class VoiceLabUnitTest {
 
         override fun release() {
             playing = false
+        }
+    }
+
+    // =========================================================================
+    // Phase 0.5 tests: persistent conversations, controlled memory, identity
+    // =========================================================================
+
+    @Test
+    fun `conversation repository persists turns, auto-titles, summarizes older messages, and deletes cleanly`() = runBlocking {
+        val clock = AtomicLong(10_000L)
+        val dao = InMemoryConversationDao()
+        val repo = ConversationRepository(dao = dao, clockMs = { clock.addAndGet(1_000L) })
+
+        val conv1 = repo.ensureLatestOrCreateConversation()
+        val u1 = repo.appendUserMessage(
+            conv1,
+            "Hola ORION, revisemos el proyecto de voz offline",
+            audioMs = 1_500L,
+            decodeMs = 210L
+        )
+        assertEquals(ChatRole.USER, u1.role)
+
+        val latency = TurnLatencyMetrics(
+            asrMs = 210L,
+            llmFirstTokenMs = 300L,
+            llmTotalMs = 1_100L,
+            llmTokensGenerated = 18,
+            llmTokensPerSec = 16.4,
+            ttsSynthMs = 220L,
+            synthesizedAudioMs = 1_600L,
+            endToSpeechStartMs = 730L,
+            responseDurationMs = 1_650L
+        )
+        repo.appendAssistantMessage(conv1, "Claro, dime qué parte revisamos primero.", latency)
+
+        // Append enough additional turns to trigger rolling summary (> 8 messages)
+        for (i in 2..6) {
+            repo.appendUserMessage(conv1, "Punto $i sobre memoria local", audioMs = 900L, decodeMs = 150L)
+            repo.appendAssistantMessage(conv1, "Anotado punto $i.", latency)
+        }
+
+        val turns = repo.loadConversationTurns(conv1)
+        assertEquals(12, turns.size)
+        assertEquals("Hola ORION, revisemos el proyecto de voz offline", turns.first().text)
+        assertEquals(1_100L, turns[1].latency?.llmTotalMs)
+
+        val summary1 = repo.getConversationSummary(conv1)!!
+        assertEquals("Hola ORION, revisemos el proyecto de voz…", summary1.title)
+        assertTrue(summary1.summaryText.contains("revisemos"))
+
+        // Create second conversation without losing the first
+        val conv2 = repo.createConversation()
+        repo.appendUserMessage(conv2, "Plan de mañana", audioMs = 800L, decodeMs = 120L)
+        val list = repo.observeConversations().first()
+        assertEquals(2, list.size)
+        assertEquals(conv2, list.first().id)
+
+        // Delete first conversation keeps second intact
+        repo.deleteConversation(conv1)
+        val remaining = repo.observeConversations().first()
+        assertEquals(1, remaining.size)
+        assertEquals(conv2, remaining.single().id)
+        assertTrue(repo.loadConversationTurns(conv1).isEmpty())
+    }
+
+    @Test
+    fun `memory repository handles CRUD, near-duplicate merge, and clear all`() = runBlocking {
+        val clock = AtomicLong(1_000L)
+        val repo = MemoryRepository(dao = InMemoryMemoryDao(), clockMs = { clock.addAndGet(500L) })
+
+        val id1 = repo.addMemory(
+            category = MemoryCategory.IDENTITY,
+            content = "El usuario prefiere que le llamen Marcos",
+            importance = 5,
+            sourceConversationId = 1L
+        )
+        // Near-duplicate must update existing row instead of duplicating
+        val id1Dup = repo.addMemory(
+            category = MemoryCategory.IDENTITY,
+            content = "El usuario prefiere que le llamen Marcos!",
+            importance = 4,
+            sourceConversationId = 2L
+        )
+        assertEquals(id1, id1Dup)
+        assertEquals(1, repo.getAllMemories().size)
+        assertEquals(5, repo.getAllMemories().single().importance)
+
+        val id2 = repo.addMemory(MemoryCategory.PROJECT, "Proyecto activo: ORION Voice Lab", importance = 4)
+        assertEquals(2, repo.observeMemories().first().size)
+
+        repo.updateMemory(id2, MemoryCategory.PROJECT, "Proyecto activo: ORION 0.5", importance = 5)
+        assertEquals("Proyecto activo: ORION 0.5", repo.getAllMemories().first { it.id == id2 }.content)
+
+        repo.deleteMemory(id1)
+        assertEquals(1, repo.getAllMemories().size)
+
+        repo.clearAllMemories()
+        assertTrue(repo.getAllMemories().isEmpty())
+    }
+
+    @Test
+    fun `identity repository initializes defaults, saves sanitized config, toggles memory, and resets`() = runBlocking {
+        val clock = AtomicLong(5_000L)
+        val repo = IdentityRepository(dao = InMemoryIdentityDao(), clockMs = { clock.addAndGet(100L) })
+
+        val initial = repo.ensureInitialized()
+        assertEquals(AssistantIdentity.DEFAULT_NAME, initial.assistantName)
+        assertEquals(FormalityLevel.CERCANO, initial.formality)
+        assertTrue(initial.memoryEnabled)
+
+        repo.saveIdentity(
+            AssistantIdentity(
+                assistantName = "Atlas",
+                personality = "Técnico y conciso",
+                tone = "Directo",
+                formality = FormalityLevel.FORMAL,
+                basePrompt = "Responde con máxima precisión.",
+                memoryEnabled = false
+            )
+        )
+        val saved = repo.observeIdentity().first()
+        assertEquals("Atlas", saved.assistantName)
+        assertEquals(FormalityLevel.FORMAL, saved.formality)
+        assertFalse(saved.memoryEnabled)
+
+        // Blank fields safely fall back to defaults
+        repo.saveIdentity(saved.copy(assistantName = "   ", basePrompt = ""))
+        val sanitized = repo.getIdentity()
+        assertEquals(AssistantIdentity.DEFAULT_NAME, sanitized.assistantName)
+        assertEquals(AssistantIdentity.DEFAULT_BASE_PROMPT, sanitized.basePrompt)
+
+        // Reset restores defaults while preserving memoryEnabled preference
+        repo.setMemoryEnabled(false)
+        repo.resetToDefaults()
+        val afterReset = repo.getIdentity()
+        assertEquals(AssistantIdentity.DEFAULT_PERSONALITY, afterReset.personality)
+        assertEquals(FormalityLevel.CERCANO, afterReset.formality)
+        assertFalse(afterReset.memoryEnabled)
+    }
+
+    @Test
+    fun `memory candidate extractor extracts controlled facts and ignores casual chatter or duplicates`() {
+        val nameCandidates = MemoryCandidateExtractor.extractCandidates(
+            userUtterance = "Hola, me llamo Carlos y recuerda que trabajo desde casa los viernes",
+            existingMemories = emptyList(),
+            sourceConversationId = 7L
+        )
+        assertEquals(2, nameCandidates.size)
+        assertTrue(nameCandidates.any { it.category == MemoryCategory.IDENTITY && it.content.contains("Carlos") })
+        assertTrue(nameCandidates.any { it.category == MemoryCategory.GENERAL && it.content.contains("viernes") })
+
+        val projectCandidates = MemoryCandidateExtractor.extractCandidates(
+            userUtterance = "Estoy trabajando en el asistente offline ORION para Android",
+            existingMemories = emptyList()
+        )
+        assertEquals(1, projectCandidates.size)
+        assertEquals(MemoryCategory.PROJECT, projectCandidates.single().category)
+
+        // Casual small-talk must NOT produce unwanted memory clutter
+        val smallTalk = MemoryCandidateExtractor.extractCandidates(
+            userUtterance = "Qué hora es hoy, gracias",
+            existingMemories = emptyList()
+        )
+        assertTrue(smallTalk.isEmpty())
+
+        // Duplicate against already-saved memory is filtered out
+        val existing = listOf(
+            MemoryItem(
+                id = 1L,
+                category = MemoryCategory.IDENTITY,
+                content = "El usuario prefiere que le llamen Carlos",
+                importance = 5
+            )
+        )
+        val dup = MemoryCandidateExtractor.extractCandidates(
+            userUtterance = "Me llamo Carlos",
+            existingMemories = existing
+        )
+        assertTrue(dup.isEmpty())
+    }
+
+    @Test
+    fun `memory selector and context prompt builder enforce budgets, formality, and anti-hallucination`() {
+        val memories = listOf(
+            MemoryItem(id = 1L, category = MemoryCategory.IDENTITY, content = "El usuario se llama Elena", importance = 5),
+            MemoryItem(id = 2L, category = MemoryCategory.ROUTINE, content = "Rutina: corre a las siete de la mañana", importance = 3),
+            MemoryItem(id = 3L, category = MemoryCategory.PROJECT, content = "Proyecto: motor Room para ORION offline", importance = 4),
+            MemoryItem(id = 4L, category = MemoryCategory.PREFERENCE, content = "Prefiere respuestas muy cortas sin rodeos", importance = 4)
+        )
+        val identity = AssistantIdentity(
+            assistantName = "ORION",
+            personality = "Directo y práctico",
+            tone = "Natural",
+            formality = FormalityLevel.FORMAL,
+            basePrompt = "Asistente local por voz.",
+            memoryEnabled = true
+        )
+        val history = listOf(
+            ChatMessage(ChatRole.USER, "Mensaje antiguo 1 " + "x".repeat(400)),
+            ChatMessage(ChatRole.ASSISTANT, "Respuesta antigua 1 " + "y".repeat(400)),
+            ChatMessage(ChatRole.USER, "¿Cómo llevamos el proyecto Room?"),
+            ChatMessage(ChatRole.ASSISTANT, "Listo para integrar.")
+        )
+
+        val ctx = ContextPromptBuilder.buildTurnContext(
+            identity = identity,
+            allMemories = memories,
+            conversationSummary = "U: Hablamos de arquitectura offline",
+            recentHistory = history,
+            currentQuery = "Sigue con el proyecto Room de ORION",
+            maxHistoryMessages = 3,
+            maxHistoryChars = 500
+        )
+
+        assertTrue(ctx.systemPrompt.contains("Tu nombre es ORION."))
+        assertTrue(ctx.systemPrompt.contains("Trata de usted"))
+        assertTrue(ctx.systemPrompt.contains("nunca inventes hechos"))
+        assertTrue(ctx.systemPrompt.contains("Elena"))
+        assertTrue(ctx.systemPrompt.contains("motor Room para ORION offline"))
+        assertTrue(ctx.systemPrompt.contains("Resumen previo"))
+        assertEquals(2, ctx.recentHistory.size) // trimmed by 500 char budget
+        assertEquals(memories.first { it.id == 3L }, ctx.usedMemories.first())
+
+        // Memory disabled skips memory injection cleanly
+        val noMemCtx = ContextPromptBuilder.buildTurnContext(
+            identity = identity.copy(memoryEnabled = false),
+            allMemories = memories,
+            conversationSummary = "",
+            recentHistory = history,
+            currentQuery = "¿Cómo me llamo?"
+        )
+        assertTrue(noMemCtx.usedMemories.isEmpty())
+        assertFalse(noMemCtx.systemPrompt.contains("Elena"))
+    }
+
+    @Test
+    fun `conversation session restores saved turns and engine invokes turn context and commit callbacks`() = runBlocking {
+        val session = ConversationSession(maxHistoryMessages = 6)
+        session.loadTurns(
+            listOf(
+                ConversationTurn(id = 10L, role = ChatRole.USER, text = "Hola", timestampMs = 100L),
+                ConversationTurn(id = 12L, role = ChatRole.ASSISTANT, text = "Buenas", timestampMs = 200L)
+            )
+        )
+        assertEquals(2, session.historySnapshot().size)
+        val next = session.addUserMessage("Seguimos", audioMs = 500L, decodeMs = 40L)
+        assertEquals(13L, next.id)
+
+        val fakeInput = FakeVoiceInputController()
+        val fakeVad = FakeVad()
+        val fakeAsr = FakeSpeechRecognizer()
+        val fakeLlm = FakeLanguageModel()
+        val fakeTts = FakeSpeechSynthesizer()
+        val fakePlayback = FakeAudioOutputSink()
+        val nowMs = AtomicLong(1_000L)
+
+        var resolvedPromptSeen = ""
+        val engine = ConversationEngine(
+            speechRecognizer = fakeAsr,
+            languageModel = fakeLlm,
+            speechSynthesizer = fakeTts,
+            playbackEngine = fakePlayback,
+            vadFactory = { fakeVad },
+            clockMs = { nowMs.addAndGet(20L) },
+            turnContextResolver = { query, history ->
+                resolvedPromptSeen = "SYS_CON_MEMORIA:$query:${history.size}"
+                TurnContext(systemPrompt = resolvedPromptSeen, recentHistory = history)
+            },
+            inputFactory = { fakeInput }
+        )
+
+        val listeningLatch = CountDownLatch(1)
+        val assistantCommittedLatch = CountDownLatch(1)
+        val committedUserTexts = CopyOnWriteArrayList<String>()
+        val committedAssistantTexts = CopyOnWriteArrayList<String>()
+
+        engine.attachCallbacks(object : ConversationEngine.Callbacks {
+            override fun onStateChanged(state: ConversationState, statusText: String) {
+                if (state == ConversationState.LISTENING) listeningLatch.countDown()
+            }
+            override fun onSpeechDetectedChanged(detected: Boolean) {}
+            override fun onAudioLevel(level: Float) {}
+            override fun onTurnsUpdated(turns: List<ConversationTurn>) {}
+            override fun onUserTurnCommitted(turn: ConversationTurn) {
+                committedUserTexts.add(turn.text)
+            }
+            override fun onAssistantTurnCommitted(turn: ConversationTurn) {
+                committedAssistantTexts.add(turn.text)
+                assistantCommittedLatch.countDown()
+            }
+            override fun onStreamingText(text: String) {}
+            override fun onTelemetryUpdated(telemetry: CallTelemetry) {}
+            override fun onModelsInRamChanged(loaded: Boolean) {}
+            override fun onCallEnded() {}
+        })
+
+        engine.startCall()
+        assertTrue(listeningLatch.await(3, TimeUnit.SECONDS))
+        fakeVad.enqueueSegment(FloatArray(8_000) { 0.2f })
+        fakeInput.emitFrame(FloatArray(512) { 0.2f }, 0.3f)
+
+        assertTrue(assistantCommittedLatch.await(4, TimeUnit.SECONDS))
+        assertTrue(resolvedPromptSeen.startsWith("SYS_CON_MEMORIA:Hola ORION"))
+        assertEquals(listOf("Hola ORION"), committedUserTexts.toList())
+        assertEquals(1, committedAssistantTexts.size)
+        engine.shutdown()
+    }
+
+    private class InMemoryConversationDao : ConversationDao {
+        private var nextConvId = 1L
+        private var nextMsgId = 1L
+        private val conversations = linkedMapOf<Long, ConversationEntity>()
+        private val messages = mutableListOf<ConversationMessageEntity>()
+        private val rowsFlow = MutableStateFlow<List<ConversationRowTuple>>(emptyList())
+
+        private fun emit() {
+            rowsFlow.value = conversations.values
+                .sortedByDescending { it.updatedAtMs }
+                .map { conv ->
+                    val convMsgs = messages.filter { it.conversationId == conv.id }
+                    ConversationRowTuple(
+                        id = conv.id,
+                        title = conv.title,
+                        createdAtMs = conv.createdAtMs,
+                        updatedAtMs = conv.updatedAtMs,
+                        summaryText = conv.summaryText,
+                        messageCount = convMsgs.size,
+                        lastPreview = convMsgs.maxByOrNull { it.createdAtMs }?.text
+                    )
+                }
+        }
+
+        override fun observeConversationRows(): Flow<List<ConversationRowTuple>> = rowsFlow
+
+        override suspend fun insertConversation(entity: ConversationEntity): Long {
+            val id = nextConvId++
+            conversations[id] = entity.copy(id = id)
+            emit()
+            return id
+        }
+
+        override suspend fun getLatestConversation(): ConversationEntity? =
+            conversations.values.maxByOrNull { it.updatedAtMs }
+
+        override suspend fun getConversationById(id: Long): ConversationEntity? =
+            conversations[id]
+
+        override suspend fun updateTitleAndTimestamp(id: Long, title: String, updatedAtMs: Long) {
+            conversations[id]?.let {
+                conversations[id] = it.copy(title = title, updatedAtMs = updatedAtMs)
+                emit()
+            }
+        }
+
+        override suspend fun updateTimestampAndSummary(id: Long, updatedAtMs: Long, summaryText: String) {
+            conversations[id]?.let {
+                conversations[id] = it.copy(updatedAtMs = updatedAtMs, summaryText = summaryText)
+                emit()
+            }
+        }
+
+        override suspend fun deleteConversationById(id: Long) {
+            conversations.remove(id)
+            messages.removeAll { it.conversationId == id }
+            emit()
+        }
+
+        override suspend fun insertMessage(entity: ConversationMessageEntity): Long {
+            val id = nextMsgId++
+            messages.add(entity.copy(id = id))
+            emit()
+            return id
+        }
+
+        override suspend fun getMessagesForConversation(conversationId: Long): List<ConversationMessageEntity> =
+            messages.filter { it.conversationId == conversationId }.sortedWith(compareBy({ it.createdAtMs }, { it.id }))
+    }
+
+    private class InMemoryMemoryDao : MemoryDao {
+        private var nextId = 1L
+        private val items = MutableStateFlow<List<MemoryItemEntity>>(emptyList())
+
+        override fun observeAllMemories(): Flow<List<MemoryItemEntity>> =
+            items.map { list -> list.sortedWith(compareByDescending<MemoryItemEntity> { it.importance }.thenByDescending { it.updatedAtMs }) }
+
+        override suspend fun getAllMemories(): List<MemoryItemEntity> =
+            items.value.sortedWith(compareByDescending<MemoryItemEntity> { it.importance }.thenByDescending { it.updatedAtMs })
+
+        override suspend fun insertMemory(entity: MemoryItemEntity): Long {
+            val id = nextId++
+            items.value = items.value + entity.copy(id = id)
+            return id
+        }
+
+        override suspend fun updateMemory(
+            id: Long,
+            category: String,
+            content: String,
+            importance: Int,
+            updatedAtMs: Long
+        ) {
+            items.value = items.value.map {
+                if (it.id == id) it.copy(category = category, content = content, importance = importance, updatedAtMs = updatedAtMs) else it
+            }
+        }
+
+        override suspend fun deleteMemoryById(id: Long) {
+            items.value = items.value.filterNot { it.id == id }
+        }
+
+        override suspend fun deleteAllMemories() {
+            items.value = emptyList()
+        }
+    }
+
+    private class InMemoryIdentityDao : IdentityDao {
+        private val flow = MutableStateFlow<AssistantIdentityEntity?>(null)
+
+        override fun observeIdentity(): Flow<AssistantIdentityEntity?> = flow
+
+        override suspend fun getIdentity(): AssistantIdentityEntity? = flow.value
+
+        override suspend fun upsertIdentity(entity: AssistantIdentityEntity) {
+            flow.value = entity
+        }
+    }
+
+    @Test
+    fun `contact repository handles coworker CRUD, defaults, and reactive ordering`() = runBlocking {
+        val clock = AtomicLong(2_000L)
+        val repo = ContactRepository(dao = InMemoryContactDao(), clockMs = { clock.addAndGet(500L) })
+
+        val id1 = repo.addCoworker(
+            name = "Vega",
+            roleTitle = "Estrategia y Finanzas",
+            specialtyPrompt = "Ayuda a evaluar presupuestos y rentabilidad.",
+            voiceId = "sharvard_f"
+        )
+        val id2 = repo.addCoworker(
+            name = "Kael",
+            roleTitle = "",
+            specialtyPrompt = "",
+            voiceId = "sharvard_m"
+        )
+
+        val initial = repo.observeCoworkers().first()
+        assertEquals(2, initial.size)
+        assertEquals("Kael", initial.first().name)
+        assertEquals(ContactRepository.DEFAULT_ROLE, initial.first().roleTitle)
+        assertEquals(ContactRepository.DEFAULT_SPECIALTY_PROMPT, initial.first().specialtyPrompt)
+
+        repo.updateCoworker(
+            id = id1,
+            name = "Vega Pro",
+            roleTitle = "Analista Financiera",
+            specialtyPrompt = "Calcula flujo de caja y prioridades.",
+            voiceId = "sharvard_f"
+        )
+        val updated = repo.getAllCoworkers().first { it.id == id1 }
+        assertEquals("Vega Pro", updated.name)
+        assertEquals("Analista Financiera", updated.roleTitle)
+
+        repo.deleteCoworker(id2)
+        val remaining = repo.observeCoworkers().first()
+        assertEquals(1, remaining.size)
+        assertEquals(id1, remaining.single().id)
+    }
+
+    @Test
+    fun `primary contact and context prompt builder integrate coworker specialty with ORION identity and memories`() {
+        val identity = AssistantIdentity(
+            assistantName = "ORION Prime",
+            personality = "Analítico y claro",
+            tone = "Directo",
+            formality = FormalityLevel.CERCANO,
+            basePrompt = "Asistente coordinador.",
+            memoryEnabled = true
+        )
+        val primary = ContactProfile.primaryFromIdentity(identity, voiceId = "sharvard_m")
+        assertTrue(primary.isPrimary)
+        assertEquals(ContactProfile.PRIMARY_CONTACT_ID, primary.id)
+        assertEquals("ORION Prime", primary.name)
+
+        val coworker = ContactProfile(
+            id = 3L,
+            name = "Nora",
+            roleTitle = "Arquitecta Android",
+            specialtyPrompt = "Revisa código Kotlin y rendimiento offline en móviles.",
+            voiceId = "sharvard_f",
+            isPrimary = false
+        )
+        val memories = listOf(
+            MemoryItem(id = 1L, category = MemoryCategory.IDENTITY, content = "El usuario se llama Luis", importance = 5),
+            MemoryItem(id = 2L, category = MemoryCategory.PROJECT, content = "Proyecto Kotlin offline para Galaxy A17", importance = 4)
+        )
+
+        val ctx = ContextPromptBuilder.buildTurnContext(
+            identity = identity,
+            allMemories = memories,
+            conversationSummary = "",
+            recentHistory = emptyList(),
+            currentQuery = "Revisa el rendimiento Kotlin",
+            activeCoworker = coworker
+        )
+
+        assertTrue(ctx.systemPrompt.contains("Tu nombre es Nora."))
+        assertTrue(ctx.systemPrompt.contains("Arquitecta Android"))
+        assertTrue(ctx.systemPrompt.contains("complementa a ORION Prime (ORION Principal)"))
+        assertTrue(ctx.systemPrompt.contains("Revisa código Kotlin y rendimiento offline en móviles."))
+        assertTrue(ctx.systemPrompt.contains("Luis"))
+        assertTrue(ctx.systemPrompt.contains("Tutea de forma natural"))
+    }
+
+    private class InMemoryContactDao : ContactDao {
+        private var nextId = 1L
+        private val items = MutableStateFlow<List<CoworkerContactEntity>>(emptyList())
+
+        override fun observeCoworkers(): Flow<List<CoworkerContactEntity>> =
+            items.map { list -> list.sortedWith(compareByDescending<CoworkerContactEntity> { it.updatedAtMs }.thenByDescending { it.id }) }
+
+        override suspend fun getAllCoworkers(): List<CoworkerContactEntity> =
+            items.value.sortedWith(compareByDescending<CoworkerContactEntity> { it.updatedAtMs }.thenByDescending { it.id })
+
+        override suspend fun insertCoworker(entity: CoworkerContactEntity): Long {
+            val id = nextId++
+            items.value = items.value + entity.copy(id = id)
+            return id
+        }
+
+        override suspend fun updateCoworker(
+            id: Long,
+            name: String,
+            roleTitle: String,
+            specialtyPrompt: String,
+            voiceId: String,
+            updatedAtMs: Long
+        ) {
+            items.value = items.value.map {
+                if (it.id == id) {
+                    it.copy(
+                        name = name,
+                        roleTitle = roleTitle,
+                        specialtyPrompt = specialtyPrompt,
+                        voiceId = voiceId,
+                        updatedAtMs = updatedAtMs
+                    )
+                } else {
+                    it
+                }
+            }
+        }
+
+        override suspend fun deleteCoworkerById(id: Long) {
+            items.value = items.value.filterNot { it.id == id }
         }
     }
 }

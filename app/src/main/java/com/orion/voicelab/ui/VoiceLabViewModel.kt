@@ -1,6 +1,7 @@
 package com.orion.voicelab.ui
 
 import android.app.Application
+import android.content.Context
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,20 +9,32 @@ import com.orion.voicelab.asr.MoonshineSpeechRecognitionEngine
 import com.orion.voicelab.audio.AudioRoutingController
 import com.orion.voicelab.conversation.ConversationEngine
 import com.orion.voicelab.data.AsrStats
+import com.orion.voicelab.data.AssistantIdentity
 import com.orion.voicelab.data.AudioHardwareStatus
 import com.orion.voicelab.data.CallTelemetry
 import com.orion.voicelab.data.ComponentModelState
+import com.orion.voicelab.data.ContactProfile
 import com.orion.voicelab.data.ConversationState
 import com.orion.voicelab.data.ConversationTurn
 import com.orion.voicelab.data.DeviceMetrics
 import com.orion.voicelab.data.ListeningState
+import com.orion.voicelab.data.MemoryCategory
+import com.orion.voicelab.data.MemoryItem
 import com.orion.voicelab.data.ModelInstallState
 import com.orion.voicelab.data.TranscriptEntry
+import com.orion.voicelab.data.TurnLatencyMetrics
 import com.orion.voicelab.data.VoiceLabUiState
 import com.orion.voicelab.engine.MoonshineModelManager
 import com.orion.voicelab.engine.OrionVoiceEngine
 import com.orion.voicelab.llm.LlamaCppLanguageModel
+import com.orion.voicelab.memory.ContextPromptBuilder
+import com.orion.voicelab.memory.MemoryCandidateExtractor
 import com.orion.voicelab.model.ModelManager
+import com.orion.voicelab.persistence.ContactRepository
+import com.orion.voicelab.persistence.ConversationRepository
+import com.orion.voicelab.persistence.IdentityRepository
+import com.orion.voicelab.persistence.MemoryRepository
+import com.orion.voicelab.persistence.OrionDatabase
 import com.orion.voicelab.tts.SherpaOnnxSpeechSynthesizer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +46,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -43,9 +58,40 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         private const val METRICS_TICK_MS = 15_000L
         private const val CALL_TIMER_TICK_MS = 1_000L
         private const val MAX_RECENT_ERRORS = 8
+        private const val PREFS_NAME = "orion_voice_prefs"
+        private const val KEY_INITIAL_DOWNLOADS_DONE = "initial_models_auto_download_done"
     }
 
     private val appContext = application.applicationContext
+    private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val database = OrionDatabase.getInstance(appContext)
+    private val conversationRepository = ConversationRepository(database.conversationDao())
+    private val memoryRepository = MemoryRepository(database.memoryDao())
+    private val identityRepository = IdentityRepository(database.identityDao())
+    private val contactRepository = ContactRepository(database.contactDao())
+    private val persistenceMutex = Mutex()
+    private val asrDownloadMutex = Mutex()
+    private val ttsDownloadMutex = Mutex()
+    private val llmDownloadMutex = Mutex()
+
+    @Volatile
+    private var latestIdentity: AssistantIdentity = AssistantIdentity()
+
+    @Volatile
+    private var latestMemories: List<MemoryItem> = emptyList()
+
+    @Volatile
+    private var latestConversationSummary: String = ""
+
+    @Volatile
+    private var activeConversationIdSnapshot: Long = 0L
+
+    @Volatile
+    private var latestSelectedCoworker: ContactProfile? = null
+
+    @Volatile
+    private var userInteractedWithConversations = false
+
     private val engine = OrionVoiceEngine()
     private val audioRoutingController = AudioRoutingController(appContext)
 
@@ -64,11 +110,22 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         speechRecognizer = speechRecognizer,
         languageModel = languageModel,
         speechSynthesizer = speechSynthesizer,
-        audioRoutingController = audioRoutingController
+        audioRoutingController = audioRoutingController,
+        turnContextResolver = { userText, recentHistory ->
+            ContextPromptBuilder.buildTurnContext(
+                identity = latestIdentity,
+                allMemories = latestMemories,
+                conversationSummary = latestConversationSummary,
+                recentHistory = recentHistory,
+                currentQuery = userText,
+                activeCoworker = latestSelectedCoworker
+            )
+        }
     )
 
     private var tickerJob: Job? = null
     private var callTimerJob: Job? = null
+    private var autoDownloadJob: Job? = null
     private var nextTranscriptId = 1L
 
     private val _uiState = MutableStateFlow(
@@ -84,8 +141,100 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     init {
         attachConversationCallbacks()
+        observePersistenceFlows()
+        initializePersistence()
         refreshModelState()
         refreshMetrics()
+        ensureInitialModelsDownloaded()
+    }
+
+    private fun observePersistenceFlows() {
+        viewModelScope.launch(Dispatchers.IO) {
+            conversationRepository.observeConversations().collect { list ->
+                val active = list.firstOrNull { it.id == activeConversationIdSnapshot }
+                if (active != null) {
+                    latestConversationSummary = active.summaryText
+                }
+                _uiState.update { current ->
+                    current.copy(
+                        conversations = list,
+                        activeConversationTitle = active?.title ?: current.activeConversationTitle
+                    )
+                }
+            }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            memoryRepository.observeMemories().collect { items ->
+                latestMemories = items
+                _uiState.update { it.copy(memories = items) }
+            }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            identityRepository.observeIdentity().collect { identity ->
+                latestIdentity = identity
+                conversationEngine.updateSystemPrompt(
+                    ContextPromptBuilder.buildSystemPrompt(
+                        identity = identity,
+                        conversationSummary = latestConversationSummary,
+                        activeCoworker = latestSelectedCoworker
+                    )
+                )
+                _uiState.update { it.copy(assistantIdentity = identity) }
+            }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            contactRepository.observeCoworkers().collect { coworkers ->
+                val currentSelected = _uiState.value.selectedContactId
+                val updatedActiveCoworker = if (currentSelected == ContactProfile.PRIMARY_CONTACT_ID) {
+                    null
+                } else {
+                    coworkers.firstOrNull { it.id == currentSelected }
+                }
+                val fallbackId = if (currentSelected != ContactProfile.PRIMARY_CONTACT_ID && updatedActiveCoworker == null) {
+                    ContactProfile.PRIMARY_CONTACT_ID
+                } else {
+                    currentSelected
+                }
+                latestSelectedCoworker = updatedActiveCoworker
+                _uiState.update { current ->
+                    current.copy(
+                        contacts = coworkers,
+                        selectedContactId = fallbackId
+                    )
+                }
+            }
+        }
+    }
+
+    private fun initializePersistence() {
+        viewModelScope.launch(Dispatchers.IO) {
+            persistenceMutex.withLock {
+                val identity = identityRepository.ensureInitialized()
+                latestIdentity = identity
+                if (userInteractedWithConversations) return@withLock
+
+                val activeId = conversationRepository.ensureLatestOrCreateConversation()
+                val summary = conversationRepository.getConversationSummary(activeId)
+                val savedTurns = conversationRepository.loadConversationTurns(activeId)
+
+                activeConversationIdSnapshot = activeId
+                latestConversationSummary = summary?.summaryText.orEmpty()
+                conversationEngine.restoreConversation(
+                    turns = savedTurns,
+                    systemPrompt = ContextPromptBuilder.buildSystemPrompt(
+                        identity = identity,
+                        conversationSummary = latestConversationSummary
+                    )
+                )
+                _uiState.update {
+                    it.copy(
+                        activeConversationId = activeId,
+                        activeConversationTitle = summary?.title ?: ConversationRepository.DEFAULT_CONVERSATION_TITLE,
+                        assistantIdentity = identity
+                    )
+                }
+            }
+        }
     }
 
     private fun attachConversationCallbacks() {
@@ -115,6 +264,87 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
             override fun onTurnsUpdated(turns: List<ConversationTurn>) {
                 _uiState.update { it.copy(conversationTurns = turns) }
+            }
+
+            override fun onUserTurnCommitted(turn: ConversationTurn) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    var targetConvId = 0L
+                    persistenceMutex.withLock {
+                        val convId = if (activeConversationIdSnapshot > 0L) {
+                            activeConversationIdSnapshot
+                        } else {
+                            conversationRepository.ensureLatestOrCreateConversation().also {
+                                activeConversationIdSnapshot = it
+                            }
+                        }
+                        targetConvId = convId
+                        conversationRepository.appendUserMessage(
+                            conversationId = convId,
+                            text = turn.text,
+                            audioMs = turn.audioMs,
+                            decodeMs = turn.decodeMs
+                        )
+                        val summary = conversationRepository.getConversationSummary(convId)
+                        latestConversationSummary = summary?.summaryText.orEmpty()
+                        _uiState.update {
+                            it.copy(
+                                activeConversationId = convId,
+                                activeConversationTitle = summary?.title ?: it.activeConversationTitle
+                            )
+                        }
+                    }
+
+                    if (latestIdentity.memoryEnabled) {
+                        val currentSuggestions = _uiState.value.pendingMemorySuggestions
+                        val detected = MemoryCandidateExtractor.extractCandidates(
+                            userUtterance = turn.text,
+                            existingMemories = latestMemories,
+                            pendingSuggestions = currentSuggestions,
+                            sourceConversationId = targetConvId
+                        )
+                        if (detected.isNotEmpty()) {
+                            _uiState.update { current ->
+                                current.copy(
+                                    pendingMemorySuggestions = (current.pendingMemorySuggestions + detected)
+                                        .distinctBy { it.id }
+                                        .take(6)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            override fun onAssistantTurnCommitted(turn: ConversationTurn) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    persistenceMutex.withLock {
+                        val convId = if (activeConversationIdSnapshot > 0L) {
+                            activeConversationIdSnapshot
+                        } else {
+                            conversationRepository.ensureLatestOrCreateConversation().also {
+                                activeConversationIdSnapshot = it
+                            }
+                        }
+                        val latency = turn.latency ?: TurnLatencyMetrics(
+                            asrMs = 0L,
+                            llmFirstTokenMs = 0L,
+                            llmTotalMs = 0L,
+                            llmTokensGenerated = 0,
+                            llmTokensPerSec = 0.0,
+                            ttsSynthMs = 0L,
+                            synthesizedAudioMs = 0L,
+                            endToSpeechStartMs = 0L,
+                            responseDurationMs = 0L
+                        )
+                        conversationRepository.appendAssistantMessage(
+                            conversationId = convId,
+                            text = turn.text,
+                            latency = latency
+                        )
+                        val summary = conversationRepository.getConversationSummary(convId)
+                        latestConversationSummary = summary?.summaryText.orEmpty()
+                    }
+                }
             }
 
             override fun onStreamingText(text: String) {
@@ -241,22 +471,101 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun downloadModel() {
-        if (_uiState.value.isDownloading || _uiState.value.isModelReady) return
+    private fun ensureInitialModelsDownloaded() {
+        val asrReady = ModelManager.isAsrInstalled(appContext.filesDir)
+        val ttsReady = ModelManager.isTtsInstalled(appContext.filesDir)
+        val llmReady = ModelManager.isLlmInstalled(appContext.filesDir)
+        if (asrReady && ttsReady && llmReady) {
+            prefs.edit().putBoolean(KEY_INITIAL_DOWNLOADS_DONE, true).apply()
+            return
+        }
+        if (prefs.getBoolean(KEY_INITIAL_DOWNLOADS_DONE, false)) {
+            return
+        }
+        startInitialAutoDownloads()
+    }
 
+    fun retryInitialDownloads() {
+        startInitialAutoDownloads()
+    }
+
+    fun pauseInitialDownloads() {
+        autoDownloadJob?.cancel()
+        autoDownloadJob = null
         _uiState.update {
             it.copy(
-                modelState = ModelInstallState.Downloading(0),
-                statusMessage = "Descargando modelo oficial Moonshine Base ES…"
+                isAutoDownloadingInitialModels = false,
+                callStatusMessage = "Descarga automática pausada. Pulsa «Reanudar» cuando quieras continuar."
             )
         }
+    }
 
+    private fun startInitialAutoDownloads() {
+        if (autoDownloadJob?.isActive == true) return
+        autoDownloadJob = viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update {
+                it.copy(
+                    isAutoDownloadingInitialModels = true,
+                    autoDownloadError = null
+                )
+            }
+            try {
+                // Orden: voz TTS (~23.5 MB) -> oído ASR (~125 MB) -> cerebro LLM (~1.04 GB)
+                installTtsSuspend(throwOnError = true)
+                installAsrSuspend(throwOnError = true)
+                installLlmSuspend(throwOnError = true)
+
+                val allReady = ModelManager.isAsrInstalled(appContext.filesDir) &&
+                    ModelManager.isTtsInstalled(appContext.filesDir) &&
+                    ModelManager.isLlmInstalled(appContext.filesDir)
+                if (allReady) {
+                    prefs.edit().putBoolean(KEY_INITIAL_DOWNLOADS_DONE, true).apply()
+                }
+                _uiState.update {
+                    it.copy(
+                        isAutoDownloadingInitialModels = false,
+                        autoDownloadError = null
+                    )
+                }
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(isAutoDownloadingInitialModels = false) }
+                throw e
+            } catch (e: Exception) {
+                val msg = e.message ?: "error de red al descargar los modelos iniciales"
+                _uiState.update {
+                    it.copy(
+                        isAutoDownloadingInitialModels = false,
+                        autoDownloadError = msg
+                    )
+                }
+            }
+        }
+    }
+
+    fun downloadModel() {
+        if (_uiState.value.isDownloading || _uiState.value.isModelReady) return
         viewModelScope.launch(Dispatchers.IO) {
+            installAsrSuspend(throwOnError = false)
+        }
+    }
+
+    private suspend fun installAsrSuspend(throwOnError: Boolean) {
+        asrDownloadMutex.withLock {
+            if (ModelManager.isAsrInstalled(appContext.filesDir)) {
+                refreshModelState()
+                return
+            }
+            _uiState.update {
+                it.copy(
+                    modelState = ModelInstallState.Downloading(0),
+                    statusMessage = "Descargando modelo oficial Moonshine Base ES…"
+                )
+            }
             try {
                 MoonshineModelManager.downloadAndInstall(
                     filesDir = appContext.filesDir,
                     cacheDir = appContext.cacheDir,
-                    shouldCancel = { !isActive },
+                    shouldCancel = { !viewModelScope.isActive },
                     onProgress = { percent ->
                         _uiState.update {
                             it.copy(modelState = ModelInstallState.Downloading(percent))
@@ -274,6 +583,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 refreshModelState()
                 refreshMetrics()
             } catch (e: CancellationException) {
+                refreshModelState()
                 throw e
             } catch (e: Exception) {
                 val msg = e.message ?: "error desconocido"
@@ -284,6 +594,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                         statusMessage = "No se pudo instalar el modelo: $msg"
                     )
                 }
+                if (throwOnError) throw e
             }
         }
     }
@@ -291,19 +602,27 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     fun downloadLlmModel() {
         val cur = _uiState.value.llmModelState
         if (cur is ComponentModelState.Downloading || cur is ComponentModelState.Installed) return
-
-        _uiState.update {
-            it.copy(
-                llmModelState = ComponentModelState.Downloading(0, 0L, 1065L),
-                callStatusMessage = "Descargando Qwen2.5-1.5B-Instruct (Q4_K_M, ~1.04 GB)…"
-            )
-        }
-
         viewModelScope.launch(Dispatchers.IO) {
+            installLlmSuspend(throwOnError = false)
+        }
+    }
+
+    private suspend fun installLlmSuspend(throwOnError: Boolean) {
+        llmDownloadMutex.withLock {
+            if (ModelManager.isLlmInstalled(appContext.filesDir)) {
+                refreshModelState()
+                return
+            }
+            _uiState.update {
+                it.copy(
+                    llmModelState = ComponentModelState.Downloading(0, 0L, 1065L),
+                    callStatusMessage = "Descargando Qwen2.5-1.5B-Instruct (Q4_K_M, ~1.04 GB)…"
+                )
+            }
             try {
                 ModelManager.downloadAndInstallLlm(
                     filesDir = appContext.filesDir,
-                    shouldCancel = { !isActive }
+                    shouldCancel = { !viewModelScope.isActive }
                 ) { percent, downMb, totalMb ->
                     _uiState.update {
                         it.copy(
@@ -318,6 +637,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 refreshModelState()
                 refreshMetrics()
             } catch (e: CancellationException) {
+                refreshModelState()
                 throw e
             } catch (e: Exception) {
                 val msg = e.message ?: "error desconocido"
@@ -328,6 +648,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                         callStatusMessage = "No se pudo descargar el LLM: $msg"
                     )
                 }
+                if (throwOnError) throw e
             }
         }
     }
@@ -341,20 +662,28 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         ) {
             return
         }
-
-        _uiState.update {
-            it.copy(
-                ttsModelState = ComponentModelState.Downloading(0, 0L, 24L),
-                callStatusMessage = "Descargando voz Piper Sharvard ES (~23.5 MB)…"
-            )
-        }
-
         viewModelScope.launch(Dispatchers.IO) {
+            installTtsSuspend(throwOnError = false)
+        }
+    }
+
+    private suspend fun installTtsSuspend(throwOnError: Boolean) {
+        ttsDownloadMutex.withLock {
+            if (ModelManager.isTtsInstalled(appContext.filesDir)) {
+                refreshModelState()
+                return
+            }
+            _uiState.update {
+                it.copy(
+                    ttsModelState = ComponentModelState.Downloading(0, 0L, 24L),
+                    callStatusMessage = "Descargando voz Piper Sharvard ES (~23.5 MB)…"
+                )
+            }
             try {
                 ModelManager.downloadAndInstallTts(
                     filesDir = appContext.filesDir,
                     cacheDir = appContext.cacheDir,
-                    shouldCancel = { !isActive },
+                    shouldCancel = { !viewModelScope.isActive },
                     onProgress = { percent, downMb, totalMb ->
                         _uiState.update {
                             it.copy(
@@ -378,6 +707,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 refreshModelState()
                 refreshMetrics()
             } catch (e: CancellationException) {
+                refreshModelState()
                 throw e
             } catch (e: Exception) {
                 val msg = e.message ?: "error desconocido"
@@ -388,14 +718,147 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                         callStatusMessage = "No se pudo instalar la voz TTS: $msg"
                     )
                 }
+                if (throwOnError) throw e
             }
+        }
+    }
+
+    fun openContactCallScreen(contactId: Long) {
+        applySelectedContact(contactId)
+        _uiState.update { it.copy(isInCallScreen = true) }
+    }
+
+    fun callContact(contactId: Long) {
+        val switchingWhileInCall = conversationEngine.isCallActive() &&
+            _uiState.value.selectedContactId != contactId
+        if (switchingWhileInCall) {
+            conversationEngine.endCall(unloadModels = false)
+        }
+        applySelectedContact(contactId)
+        _uiState.update { it.copy(isInCallScreen = true) }
+        if (!switchingWhileInCall && _uiState.value.areAllConversationalModelsReady) {
+            startCall()
+        }
+    }
+
+    fun returnToAgenda() {
+        _uiState.update { it.copy(isInCallScreen = false) }
+    }
+
+    fun openActiveCallScreen() {
+        _uiState.update { it.copy(isInCallScreen = true) }
+    }
+
+    fun renamePrimaryAssistant(newName: String) {
+        val clean = newName.trim()
+        if (clean.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = identityRepository.getIdentity()
+            identityRepository.saveIdentity(current.copy(assistantName = clean))
+        }
+    }
+
+    fun addCoworker(
+        name: String,
+        roleTitle: String,
+        specialtyPrompt: String,
+        voiceId: String
+    ) {
+        val cleanName = name.trim()
+        if (cleanName.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            contactRepository.addCoworker(
+                name = cleanName,
+                roleTitle = roleTitle,
+                specialtyPrompt = specialtyPrompt,
+                voiceId = voiceId
+            )
+        }
+    }
+
+    fun updateCoworker(
+        id: Long,
+        name: String,
+        roleTitle: String,
+        specialtyPrompt: String,
+        voiceId: String
+    ) {
+        val cleanName = name.trim()
+        if (cleanName.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            contactRepository.updateCoworker(
+                id = id,
+                name = cleanName,
+                roleTitle = roleTitle,
+                specialtyPrompt = specialtyPrompt,
+                voiceId = voiceId
+            )
+            if (_uiState.value.selectedContactId == id) {
+                val updated = ContactProfile(
+                    id = id,
+                    name = cleanName,
+                    roleTitle = roleTitle.trim().ifBlank { ContactRepository.DEFAULT_ROLE },
+                    specialtyPrompt = specialtyPrompt.trim().ifBlank { ContactRepository.DEFAULT_SPECIALTY_PROMPT },
+                    voiceId = voiceId
+                )
+                latestSelectedCoworker = updated
+                conversationEngine.selectVoice(voiceId)
+                conversationEngine.updateSystemPrompt(
+                    ContextPromptBuilder.buildSystemPrompt(
+                        identity = latestIdentity,
+                        conversationSummary = latestConversationSummary,
+                        activeCoworker = updated
+                    )
+                )
+            }
+        }
+    }
+
+    fun deleteCoworker(id: Long) {
+        if (id == _uiState.value.selectedContactId && conversationEngine.isCallActive()) {
+            conversationEngine.endCall(unloadModels = false)
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            contactRepository.deleteCoworker(id)
+            if (_uiState.value.selectedContactId == id) {
+                applySelectedContact(ContactProfile.PRIMARY_CONTACT_ID)
+            }
+        }
+    }
+
+    private fun applySelectedContact(contactId: Long) {
+        val targetCoworker = if (contactId == ContactProfile.PRIMARY_CONTACT_ID) {
+            null
+        } else {
+            _uiState.value.contacts.firstOrNull { it.id == contactId }
+        }
+        val effectiveId = targetCoworker?.id ?: ContactProfile.PRIMARY_CONTACT_ID
+        latestSelectedCoworker = targetCoworker
+        if (targetCoworker != null) {
+            conversationEngine.selectVoice(targetCoworker.voiceId)
+        }
+        conversationEngine.updateSystemPrompt(
+            ContextPromptBuilder.buildSystemPrompt(
+                identity = latestIdentity,
+                conversationSummary = latestConversationSummary,
+                activeCoworker = targetCoworker
+            )
+        )
+        _uiState.update { current ->
+            current.copy(
+                selectedContactId = effectiveId,
+                selectedVoiceId = targetCoworker?.voiceId ?: current.selectedVoiceId
+            )
         }
     }
 
     fun startCall() {
         if (!_uiState.value.areAllConversationalModelsReady) {
             _uiState.update {
-                it.copy(callStatusMessage = "Instala ASR, LLM y voz TTS antes de iniciar la llamada.")
+                it.copy(
+                    isInCallScreen = true,
+                    callStatusMessage = "Los modelos offline se están preparando. Espera a que finalice la instalación."
+                )
             }
             return
         }
@@ -407,6 +870,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val begin = DeviceMetrics.snapshot(appContext, appContext.filesDir)
         _uiState.update {
             it.copy(
+                isInCallScreen = true,
                 isCallActive = true,
                 callDurationSeconds = 0L,
                 startSnapshot = begin,
@@ -458,17 +922,193 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun resetCallSession() {
-        conversationEngine.resetSession()
-        _uiState.update {
-            it.copy(
-                conversationTurns = emptyList(),
-                streamingAssistantText = "",
-                callTelemetry = CallTelemetry(
-                    asrLoadMs = it.callTelemetry.asrLoadMs,
-                    llmLoadMs = it.callTelemetry.llmLoadMs,
-                    ttsLoadMs = it.callTelemetry.ttsLoadMs
+        createNewConversation()
+    }
+
+    fun createNewConversation() {
+        userInteractedWithConversations = true
+        if (conversationEngine.isCallActive()) {
+            conversationEngine.endCall(unloadModels = false)
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            persistenceMutex.withLock {
+                val newId = conversationRepository.createConversation()
+                activeConversationIdSnapshot = newId
+                latestConversationSummary = ""
+                conversationEngine.restoreConversation(
+                    turns = emptyList(),
+                    systemPrompt = ContextPromptBuilder.buildSystemPrompt(
+                        identity = latestIdentity,
+                        conversationSummary = "",
+                        activeCoworker = latestSelectedCoworker
+                    )
                 )
+                _uiState.update {
+                    it.copy(
+                        activeConversationId = newId,
+                        activeConversationTitle = ConversationRepository.DEFAULT_CONVERSATION_TITLE,
+                        conversationTurns = emptyList(),
+                        streamingAssistantText = "",
+                        callTelemetry = CallTelemetry(
+                            asrLoadMs = it.callTelemetry.asrLoadMs,
+                            llmLoadMs = it.callTelemetry.llmLoadMs,
+                            ttsLoadMs = it.callTelemetry.ttsLoadMs
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    fun selectConversation(conversationId: Long) {
+        if (conversationId <= 0L) return
+        userInteractedWithConversations = true
+        if (conversationEngine.isCallActive()) {
+            conversationEngine.endCall(unloadModels = false)
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            persistenceMutex.withLock {
+                val summary = conversationRepository.getConversationSummary(conversationId) ?: return@withLock
+                val turns = conversationRepository.loadConversationTurns(conversationId)
+                activeConversationIdSnapshot = conversationId
+                latestConversationSummary = summary.summaryText
+                conversationEngine.restoreConversation(
+                    turns = turns,
+                    systemPrompt = ContextPromptBuilder.buildSystemPrompt(
+                        identity = latestIdentity,
+                        conversationSummary = summary.summaryText,
+                        activeCoworker = latestSelectedCoworker
+                    )
+                )
+                _uiState.update {
+                    it.copy(
+                        activeConversationId = conversationId,
+                        activeConversationTitle = summary.title,
+                        streamingAssistantText = ""
+                    )
+                }
+            }
+        }
+    }
+
+    fun deleteConversation(conversationId: Long) {
+        if (conversationId <= 0L) return
+        userInteractedWithConversations = true
+        val deletingActive = conversationId == activeConversationIdSnapshot
+        if (deletingActive && conversationEngine.isCallActive()) {
+            conversationEngine.endCall(unloadModels = false)
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            persistenceMutex.withLock {
+                conversationRepository.deleteConversation(conversationId)
+                if (deletingActive) {
+                    val nextId = conversationRepository.ensureLatestOrCreateConversation()
+                    val summary = conversationRepository.getConversationSummary(nextId)
+                    val turns = conversationRepository.loadConversationTurns(nextId)
+                    activeConversationIdSnapshot = nextId
+                    latestConversationSummary = summary?.summaryText.orEmpty()
+                    conversationEngine.restoreConversation(
+                        turns = turns,
+                        systemPrompt = ContextPromptBuilder.buildSystemPrompt(
+                            identity = latestIdentity,
+                            conversationSummary = latestConversationSummary,
+                            activeCoworker = latestSelectedCoworker
+                        )
+                    )
+                    _uiState.update {
+                        it.copy(
+                            activeConversationId = nextId,
+                            activeConversationTitle = summary?.title ?: ConversationRepository.DEFAULT_CONVERSATION_TITLE,
+                            streamingAssistantText = ""
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun acceptMemorySuggestion(suggestionId: String) {
+        val suggestion = _uiState.value.pendingMemorySuggestions.firstOrNull { it.id == suggestionId } ?: return
+        _uiState.update { current ->
+            current.copy(
+                pendingMemorySuggestions = current.pendingMemorySuggestions.filterNot { it.id == suggestionId }
             )
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            memoryRepository.addMemory(
+                category = suggestion.category,
+                content = suggestion.content,
+                importance = suggestion.importance,
+                sourceConversationId = suggestion.sourceConversationId
+            )
+        }
+    }
+
+    fun dismissMemorySuggestion(suggestionId: String) {
+        _uiState.update { current ->
+            current.copy(
+                pendingMemorySuggestions = current.pendingMemorySuggestions.filterNot { it.id == suggestionId }
+            )
+        }
+    }
+
+    fun addManualMemory(category: MemoryCategory, content: String, importance: Int = 3) {
+        val clean = content.trim()
+        if (clean.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            memoryRepository.addMemory(
+                category = category,
+                content = clean,
+                importance = importance,
+                sourceConversationId = activeConversationIdSnapshot.takeIf { it > 0L }
+            )
+        }
+    }
+
+    fun updateMemory(id: Long, category: MemoryCategory, content: String, importance: Int) {
+        val clean = content.trim()
+        if (clean.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            memoryRepository.updateMemory(
+                id = id,
+                category = category,
+                content = clean,
+                importance = importance
+            )
+        }
+    }
+
+    fun deleteMemory(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            memoryRepository.deleteMemory(id)
+        }
+    }
+
+    fun clearAllMemories() {
+        _uiState.update { it.copy(pendingMemorySuggestions = emptyList()) }
+        viewModelScope.launch(Dispatchers.IO) {
+            memoryRepository.clearAllMemories()
+        }
+    }
+
+    fun setMemoryEnabled(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            identityRepository.setMemoryEnabled(enabled)
+        }
+        if (!enabled) {
+            _uiState.update { it.copy(pendingMemorySuggestions = emptyList()) }
+        }
+    }
+
+    fun saveAssistantIdentity(identity: AssistantIdentity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            identityRepository.saveIdentity(identity)
+        }
+    }
+
+    fun resetAssistantIdentity() {
+        viewModelScope.launch(Dispatchers.IO) {
+            identityRepository.resetToDefaults()
         }
     }
 
@@ -711,8 +1351,13 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val callTel = state.callTelemetry
         val hw = state.audioHardwareStatus
         return buildString {
-            appendLine("ORION Voice Lab 0.4.2 — informe de diagnóstico")
+            appendLine("ORION Voice Lab 0.5.0 — informe de diagnóstico")
             appendLine(DeviceMetrics.deviceSummary())
+            appendLine(
+                "Memoria local: conversaciones=${state.conversations.size} (activa: ${state.activeConversationTitle}) · " +
+                    "recuerdos=${state.memories.size} · memoria=${if (state.assistantIdentity.memoryEnabled) "activa" else "desactivada"} · " +
+                    "identidad=${state.assistantIdentity.assistantName} (${state.assistantIdentity.formality.displayName})"
+            )
             appendLine("Ahora:")
             appendLine(DeviceMetrics.describe(now))
             appendLine(
@@ -842,6 +1487,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     }
 
     override fun onCleared() {
+        autoDownloadJob?.cancel()
         stopCallTimer()
         stopMetricsTicker()
         engine.destroy()

@@ -2,10 +2,12 @@
 <resources>
     <string name="app_name">ORION Voice Lab</string>
     <string name="brand_title">ORION</string>
-    <string name="brand_subtitle">VOICE LAB 0.4.1 · NÚCLEO CONVERSACIONAL OFFLINE</string>
-    <string name="tab_call">Llamada</string>
-    <string name="tab_lab">Laboratorio</string>
-    <string name="section_diagnostics">DIAGNÓSTICO LOCAL · 0.4.1</string>
+    <string name="brand_subtitle">VOICE LAB 0.5.0 · MEMORIA E IDENTIDAD OFFLINE</string>
+    <string name="tab_call">Agenda</string>
+    <string name="tab_conversations">Chats</string>
+    <string name="tab_memory">Memoria</string>
+    <string name="tab_lab">Lab</string>
+    <string name="section_diagnostics">DIAGNÓSTICO LOCAL · 0.5.0</string>
 
     <!-- Voice Lab 0.3 preserved strings -->
     <string name="status_model_ready">Moonshine Base ES instalado. Reconocimiento local disponible sin Internet.</string>
@@ -38,8 +40,67 @@
     <string name="call_interrupt">Interrumpir</string>
     <string name="call_release_memory">Liberar RAM</string>
     <string name="call_models_title">MODELOS OFFLINE (0 €)</string>
-    <string name="call_empty_hint">Pulsa «Llamar a ORION» para iniciar una conversación de voz completamente local y sin conexión.</string>
-    <string name="call_models_required_hint">Instala los 3 modelos locales (ASR, LLM y Voz TTS) una única vez con Wi-Fi para conversar 100 % offline.</string>
+    <string name="call_empty_hint">Pulsa «Llamar» para iniciar una conversación de voz completamente local y sin conexión.</string>
+    <string name="call_models_required_hint">Descargando los modelos locales automáticamente para conversar 100 % offline.</string>
+
+    <!-- Agenda & Co-workers strings -->
+    <string name="agenda_title">Agenda de ORION</string>
+    <string name="agenda_subtitle">Toca un contacto para abrir su sala o pulsa Llamar</string>
+    <string name="agenda_search_hint">Buscar contacto o especialidad…</string>
+    <string name="agenda_add_coworker">Añadir Co-worker</string>
+    <string name="agenda_add_coworker_short">Co-worker</string>
+    <string name="agenda_primary_badge">PRINCIPAL</string>
+    <string name="agenda_coworkers_header">CO-WORKERS (%1$d)</string>
+    <string name="agenda_empty_coworkers">Todavía no has añadido Co-workers.\n\nAñade contactos especialistas (por ejemplo: Finanzas, Código, Idiomas o Planificación) que complementen el trabajo de ORION Principal.</string>
+    <string name="agenda_no_search_results">No hay contactos que coincidan con «%1$s».</string>
+    <string name="agenda_rename_primary_title">Cambiar nombre del contacto principal</string>
+    <string name="agenda_rename_primary_label">Nombre del asistente principal</string>
+    <string name="agenda_coworker_new_title">Nuevo Co-worker</string>
+    <string name="agenda_coworker_edit_title">Editar Co-worker</string>
+    <string name="agenda_coworker_name_label">Nombre del contacto</string>
+    <string name="agenda_coworker_role_label">Rol o especialidad</string>
+    <string name="agenda_coworker_prompt_label">Instrucciones para este Co-worker</string>
+    <string name="agenda_coworker_voice_label">Voz en español</string>
+    <string name="agenda_delete_coworker_title">Eliminar Co-worker</string>
+    <string name="agenda_delete_coworker_confirm">Se eliminará el contacto «%1$s» de tu agenda local.</string>
+    <string name="agenda_back_button">Agenda</string>
+    <string name="agenda_call_action">Llamar</string>
+    <string name="agenda_last_chat_prefix">Última charla:</string>
+    <string name="agenda_open_last_chat">Abrir</string>
+    <string name="auto_dl_title_active">Preparando ORION offline…</string>
+    <string name="auto_dl_title_paused">Modelos pendientes de descarga</string>
+    <string name="auto_dl_pause">Pausar</string>
+    <string name="auto_dl_resume">Reanudar</string>
+    <string name="auto_dl_retry">Reintentar</string>
+    <string name="action_save">Guardar</string>
+
+    <!-- Voice Lab 0.5 Conversations, Memory & Identity strings -->
+    <string name="conv_new">Nueva conversación</string>
+    <string name="conv_new_short">Nueva</string>
+    <string name="conv_active_badge">ACTIVA</string>
+    <string name="conv_empty">Todavía no hay mensajes guardados en esta conversación.\n\nTodo el historial se almacena solo en este dispositivo.</string>
+    <string name="conv_delete_title">Eliminar conversación</string>
+    <string name="conv_delete_confirm">Se borrarán todos los mensajes guardados de «%1$s» de forma permanente.</string>
+    <string name="memory_subtab_memories">Memoria de ORION</string>
+    <string name="memory_subtab_identity">Identidad</string>
+    <string name="memory_toggle_title">Usar memoria persistente</string>
+    <string name="memory_toggle_desc_on">ORION recuerda tus preferencias y contexto entre sesiones sin conexión.</string>
+    <string name="memory_toggle_desc_off">Memoria en pausa: los recuerdos siguen guardados pero no se inyectan al modelo.</string>
+    <string name="memory_add">Añadir recuerdo</string>
+    <string name="memory_clear_all">Borrar todo</string>
+    <string name="memory_clear_title">Borrar toda la memoria</string>
+    <string name="memory_clear_confirm">Se eliminarán todos los recuerdos personales guardados en este dispositivo. Esta acción no se puede deshacer.</string>
+    <string name="memory_empty">Aún no hay recuerdos guardados.\n\nPuedes añadirlos manualmente o aprobar las sugerencias que ORION detecte durante tus llamadas.</string>
+    <string name="memory_suggestions_title">¿Quieres que ORION recuerde esto?</string>
+    <string name="memory_save">Guardar</string>
+    <string name="memory_dismiss">Descartar</string>
+    <string name="memory_saved_feedback">Recuerdo guardado en local</string>
+    <string name="identity_save">Guardar identidad</string>
+    <string name="identity_reset">Restablecer por defecto</string>
+    <string name="identity_saved_feedback">Identidad actualizada en local</string>
+    <string name="identity_reset_feedback">Identidad restablecida a valores predeterminados</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_delete">Eliminar</string>
 
     <!-- Accessibility -->
     <string name="cd_voice_status">Indicador de estado de voz</string>
@@ -51,4 +112,13 @@
     <string name="cd_clear_icon">Borrar datos</string>
     <string name="cd_call_icon">Iniciar o finalizar llamada</string>
     <string name="cd_interrupt_icon">Interrumpir respuesta</string>
+    <string name="cd_delete_conversation">Eliminar conversación</string>
+    <string name="cd_edit_memory">Editar recuerdo</string>
+    <string name="cd_delete_memory">Eliminar recuerdo</string>
+    <string name="cd_add_coworker">Añadir Co-worker</string>
+    <string name="cd_edit_contact">Editar contacto</string>
+    <string name="cd_delete_contact">Eliminar contacto</string>
+    <string name="cd_call_contact">Llamar a este contacto</string>
+    <string name="cd_back_agenda">Volver a la agenda</string>
+    <string name="cd_search_contacts">Buscar contactos</string>
 </resources>

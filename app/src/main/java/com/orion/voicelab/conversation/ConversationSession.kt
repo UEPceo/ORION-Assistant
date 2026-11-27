@@ -110,6 +110,27 @@ class ConversationSession(
         _turns.toList()
     }
 
+    fun loadTurns(turns: List<ConversationTurn>) = synchronized(lock) {
+        _history.clear()
+        _turns.clear()
+        var maxId = 0L
+        for (turn in turns) {
+            _turns.add(turn)
+            if (turn.role == ChatRole.USER || turn.role == ChatRole.ASSISTANT) {
+                _history.add(
+                    ChatMessage(
+                        role = turn.role,
+                        content = turn.text,
+                        timestampMs = turn.timestampMs
+                    )
+                )
+            }
+            if (turn.id > maxId) maxId = turn.id
+        }
+        trimHistoryLocked()
+        nextTurnId = maxId + 1L
+    }
+
     fun reset() = synchronized(lock) {
         _history.clear()
         _turns.clear()

@@ -13,8 +13,10 @@ import com.orion.voicelab.audio.VoiceInputController
 import com.orion.voicelab.audio.VoiceInputEngine
 import com.orion.voicelab.data.AudioHardwareStatus
 import com.orion.voicelab.data.CallTelemetry
+import com.orion.voicelab.data.ChatMessage
 import com.orion.voicelab.data.ConversationState
 import com.orion.voicelab.data.ConversationTurn
+import com.orion.voicelab.data.TurnContext
 import com.orion.voicelab.data.TurnLatencyMetrics
 import com.orion.voicelab.llm.LocalLanguageModel
 import com.orion.voicelab.tts.LocalSpeechSynthesizer
@@ -46,6 +48,7 @@ class ConversationEngine internal constructor(
     private val clockMs: () -> Long = { SystemClock.elapsedRealtime() },
     private val workerDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val turnContextResolver: ((userText: String, recentHistory: List<ChatMessage>) -> TurnContext)? = null,
     inputFactory: (() -> VoiceInputController)? = null
 ) {
     constructor(
@@ -54,9 +57,10 @@ class ConversationEngine internal constructor(
         languageModel: LocalLanguageModel,
         speechSynthesizer: LocalSpeechSynthesizer,
         audioRoutingController: AudioRoutingController? = null,
-        playbackEngine: AudioPlaybackEngine = AudioPlaybackEngine(),
+        playbackEngine: AudioOutputSink = AudioPlaybackEngine(),
         vadFactory: () -> VoiceActivityDetector = { SileroVoiceActivityDetector(assets) },
-        sampleRate: Int = SileroVoiceActivityDetector.SAMPLE_RATE
+        sampleRate: Int = SileroVoiceActivityDetector.SAMPLE_RATE,
+        turnContextResolver: ((userText: String, recentHistory: List<ChatMessage>) -> TurnContext)? = null
     ) : this(
         speechRecognizer = speechRecognizer,
         languageModel = languageModel,
@@ -65,7 +69,8 @@ class ConversationEngine internal constructor(
         audioRoutingController = audioRoutingController,
         vadFactory = vadFactory,
         sampleRate = sampleRate,
-        clockMs = { SystemClock.elapsedRealtime() }
+        clockMs = { SystemClock.elapsedRealtime() },
+        turnContextResolver = turnContextResolver
     )
 
     companion object {
@@ -80,6 +85,8 @@ class ConversationEngine internal constructor(
         fun onSpeechDetectedChanged(detected: Boolean)
         fun onAudioLevel(level: Float)
         fun onTurnsUpdated(turns: List<ConversationTurn>)
+        fun onUserTurnCommitted(turn: ConversationTurn) {}
+        fun onAssistantTurnCommitted(turn: ConversationTurn) {}
         fun onStreamingText(text: String)
         fun onTelemetryUpdated(telemetry: CallTelemetry)
         fun onModelsInRamChanged(loaded: Boolean)
@@ -152,6 +159,21 @@ class ConversationEngine internal constructor(
 
     fun selectVoice(voiceId: String) {
         speechSynthesizer.selectVoice(voiceId)
+    }
+
+    fun updateSystemPrompt(prompt: String) {
+        if (prompt.isNotBlank()) {
+            session.systemPrompt = prompt
+        }
+    }
+
+    fun restoreConversation(turns: List<ConversationTurn>, systemPrompt: String = session.systemPrompt) {
+        if (systemPrompt.isNotBlank()) {
+            session.systemPrompt = systemPrompt
+        }
+        session.loadTurns(turns)
+        callbacks?.onTurnsUpdated(session.turnsSnapshot())
+        callbacks?.onStreamingText("")
     }
 
     fun resetSession() {
@@ -433,12 +455,13 @@ class ConversationEngine internal constructor(
                     return@launch
                 }
 
-                session.addUserMessage(
+                val userTurn = session.addUserMessage(
                     text = userText,
                     audioMs = asrResult.audioMs,
                     decodeMs = asrResult.decodeMs
                 )
                 callbacks?.onTurnsUpdated(session.turnsSnapshot())
+                callbacks?.onUserTurnCommitted(userTurn)
                 updateState(ConversationState.PROCESSING, "ORION está pensando…")
 
                 val sentenceChannel = Channel<String>(Channel.UNLIMITED)
@@ -491,9 +514,10 @@ class ConversationEngine internal constructor(
                     }
                 }
 
+                val resolvedContext = turnContextResolver?.invoke(userText, session.historySnapshot())
                 val llmResult = languageModel.generateReply(
-                    systemPrompt = session.systemPrompt,
-                    history = session.historySnapshot()
+                    systemPrompt = resolvedContext?.systemPrompt ?: session.systemPrompt,
+                    history = resolvedContext?.recentHistory ?: session.historySnapshot()
                 ) { token ->
                     if (!callActive.get() ||
                         callSessionEpoch.get() != sessionEpoch ||
@@ -556,9 +580,10 @@ class ConversationEngine internal constructor(
                         endToSpeechStartMs = endToSpeech,
                         responseDurationMs = responseDurationMs
                     )
-                    session.addAssistantMessage(replyText, turnMetrics)
+                    val assistantTurn = session.addAssistantMessage(replyText, turnMetrics)
                     telemetry = telemetry.withTurn(turnMetrics)
                     callbacks?.onTurnsUpdated(session.turnsSnapshot())
+                    callbacks?.onAssistantTurnCommitted(assistantTurn)
                     callbacks?.onTelemetryUpdated(telemetry)
                 }
 

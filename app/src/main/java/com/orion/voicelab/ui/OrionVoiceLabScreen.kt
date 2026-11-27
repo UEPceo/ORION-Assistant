@@ -49,9 +49,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
@@ -62,11 +63,11 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DeleteSweep
-import androidx.compose.material.icons.outlined.ExpandLess
-import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.PhoneInTalk
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.Button
@@ -86,6 +87,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -118,6 +120,7 @@ import com.orion.voicelab.data.ConversationState
 import com.orion.voicelab.data.ConversationTurn
 import com.orion.voicelab.data.DeviceMetrics
 import com.orion.voicelab.data.ListeningState
+import com.orion.voicelab.data.MemoryCategory
 import com.orion.voicelab.data.ModelInstallState
 import com.orion.voicelab.data.TranscriptEntry
 import com.orion.voicelab.data.VoiceLabUiState
@@ -128,6 +131,8 @@ import java.util.Locale
 
 private enum class OrionTab {
     CALL,
+    CONVERSATIONS,
+    MEMORY,
     LAB
 }
 
@@ -145,12 +150,26 @@ fun OrionVoiceLabScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val reportCopiedMsg = stringResource(R.string.report_copied)
+    val memorySavedMsg = stringResource(R.string.memory_saved_feedback)
+    val identitySavedMsg = stringResource(R.string.identity_saved_feedback)
+    val identityResetMsg = stringResource(R.string.identity_reset_feedback)
 
     var selectedTab by rememberSaveable { mutableStateOf(OrionTab.CALL) }
     var pendingPermissionTarget by remember { mutableStateOf(MicPermissionTarget.CALL) }
 
-    BackHandler(enabled = selectedTab == OrionTab.LAB) {
-        selectedTab = OrionTab.CALL
+    BackHandler(enabled = selectedTab != OrionTab.CALL || (state.isInCallScreen && !state.isCallActive)) {
+        if (selectedTab != OrionTab.CALL) {
+            selectedTab = OrionTab.CALL
+        } else if (state.isInCallScreen && !state.isCallActive) {
+            viewModel.returnToAgenda()
+        }
+    }
+
+    val showToast: (String) -> Unit = { message ->
+        coroutineScope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(message)
+        }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -185,6 +204,24 @@ fun OrionVoiceLabScreen(
 
     val onStartCallClicked: () -> Unit = {
         requestMicAndRun(MicPermissionTarget.CALL) { viewModel.startCall() }
+    }
+
+    val onCallContactClicked: (Long) -> Unit = { contactId ->
+        if (!state.areAllConversationalModelsReady) {
+            viewModel.callContact(contactId)
+        } else {
+            val granted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+            if (granted) {
+                viewModel.callContact(contactId)
+            } else {
+                viewModel.openContactCallScreen(contactId)
+                pendingPermissionTarget = MicPermissionTarget.CALL
+                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
     }
 
     val onCopyReportClicked: () -> Unit = {
@@ -224,7 +261,13 @@ fun OrionVoiceLabScreen(
             ) {
                 TopBrandAndTabs(
                     selectedTab = selectedTab,
-                    onSelectTab = { selectedTab = it }
+                    onSelectTab = { tab ->
+                        if (tab == OrionTab.CALL && selectedTab == OrionTab.CALL && state.isInCallScreen && !state.isCallActive) {
+                            viewModel.returnToAgenda()
+                        } else {
+                            selectedTab = tab
+                        }
+                    }
                 )
 
                 BoxWithConstraints(
@@ -233,23 +276,94 @@ fun OrionVoiceLabScreen(
                         .fillMaxWidth()
                 ) {
                     val isWide = maxWidth >= 720.dp
+                    val onEditAndSaveSuggestion: (String, MemoryCategory, String, Int) -> Unit =
+                        { suggestionId, category, content, importance ->
+                            viewModel.dismissMemorySuggestion(suggestionId)
+                            viewModel.addManualMemory(category, content, importance)
+                            showToast(memorySavedMsg)
+                        }
                     when (selectedTab) {
                         OrionTab.CALL -> {
-                            VirtualCallScreen(
+                            if (state.isInCallScreen || state.isCallActive) {
+                                VirtualCallScreen(
+                                    state = state,
+                                    audioLevelFlow = viewModel.audioLevel,
+                                    isWide = isWide,
+                                    onBackToAgenda = viewModel::returnToAgenda,
+                                    onStartCall = onStartCallClicked,
+                                    onEndCall = viewModel::endCall,
+                                    onToggleMute = viewModel::toggleMute,
+                                    onInterrupt = viewModel::interruptCall,
+                                    onSelectVoice = viewModel::selectVoice,
+                                    onReleaseRam = viewModel::releaseLoadedModels,
+                                    onNewConversation = viewModel::createNewConversation,
+                                    onOpenConversations = { selectedTab = OrionTab.CONVERSATIONS },
+                                    onAcceptSuggestion = { id ->
+                                        viewModel.acceptMemorySuggestion(id)
+                                        showToast(memorySavedMsg)
+                                    },
+                                    onEditAndSaveSuggestion = onEditAndSaveSuggestion,
+                                    onDismissSuggestion = viewModel::dismissMemorySuggestion,
+                                    onCopyReport = onCopyReportClicked
+                                )
+                            } else {
+                                ContactsAgendaScreen(
+                                    state = state,
+                                    onOpenContact = viewModel::openContactCallScreen,
+                                    onCallContact = onCallContactClicked,
+                                    onRenamePrimary = viewModel::renamePrimaryAssistant,
+                                    onAddCoworker = viewModel::addCoworker,
+                                    onUpdateCoworker = viewModel::updateCoworker,
+                                    onDeleteCoworker = viewModel::deleteCoworker,
+                                    onResumeLastChat = viewModel::openActiveCallScreen,
+                                    onPauseAutoDownload = viewModel::pauseInitialDownloads,
+                                    onRetryAutoDownload = viewModel::retryInitialDownloads
+                                )
+                            }
+                        }
+
+                        OrionTab.CONVERSATIONS -> {
+                            ConversationsHistoryScreen(
                                 state = state,
-                                audioLevelFlow = viewModel.audioLevel,
-                                isWide = isWide,
-                                onDownloadAsr = viewModel::downloadModel,
-                                onDownloadLlm = viewModel::downloadLlmModel,
-                                onDownloadTts = viewModel::downloadTtsModel,
-                                onStartCall = onStartCallClicked,
-                                onEndCall = viewModel::endCall,
-                                onToggleMute = viewModel::toggleMute,
-                                onInterrupt = viewModel::interruptCall,
-                                onSelectVoice = viewModel::selectVoice,
-                                onReleaseRam = viewModel::releaseLoadedModels,
-                                onResetSession = viewModel::resetCallSession,
-                                onCopyReport = onCopyReportClicked
+                                onCreateNewConversation = {
+                                    viewModel.createNewConversation()
+                                    viewModel.openActiveCallScreen()
+                                    selectedTab = OrionTab.CALL
+                                },
+                                onSelectConversation = { id ->
+                                    viewModel.selectConversation(id)
+                                    viewModel.openActiveCallScreen()
+                                    selectedTab = OrionTab.CALL
+                                },
+                                onDeleteConversation = viewModel::deleteConversation
+                            )
+                        }
+
+                        OrionTab.MEMORY -> {
+                            MemoryAndIdentityScreen(
+                                state = state,
+                                onSetMemoryEnabled = viewModel::setMemoryEnabled,
+                                onAddMemory = { category, content, importance ->
+                                    viewModel.addManualMemory(category, content, importance)
+                                    showToast(memorySavedMsg)
+                                },
+                                onUpdateMemory = viewModel::updateMemory,
+                                onDeleteMemory = viewModel::deleteMemory,
+                                onClearAllMemories = viewModel::clearAllMemories,
+                                onAcceptSuggestion = { id ->
+                                    viewModel.acceptMemorySuggestion(id)
+                                    showToast(memorySavedMsg)
+                                },
+                                onEditAndSaveSuggestion = onEditAndSaveSuggestion,
+                                onDismissSuggestion = viewModel::dismissMemorySuggestion,
+                                onSaveIdentity = { identity ->
+                                    viewModel.saveAssistantIdentity(identity)
+                                    showToast(identitySavedMsg)
+                                },
+                                onResetIdentity = {
+                                    viewModel.resetAssistantIdentity()
+                                    showToast(identityResetMsg)
+                                }
                             )
                         }
 
@@ -309,7 +423,9 @@ private fun TopBrandAndTabs(
             textAlign = TextAlign.Center
         )
         Surface(
-            modifier = Modifier.widthIn(max = 380.dp).fillMaxWidth(),
+            modifier = Modifier
+                .widthIn(max = 580.dp)
+                .fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
             color = MaterialTheme.colorScheme.surface,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
@@ -318,7 +434,7 @@ private fun TopBrandAndTabs(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 TabSegmentButton(
                     selected = selectedTab == OrionTab.CALL,
@@ -328,6 +444,24 @@ private fun TopBrandAndTabs(
                     modifier = Modifier
                         .weight(1f)
                         .testTag("tab_call")
+                )
+                TabSegmentButton(
+                    selected = selectedTab == OrionTab.CONVERSATIONS,
+                    icon = Icons.Outlined.Forum,
+                    label = stringResource(R.string.tab_conversations),
+                    onClick = { onSelectTab(OrionTab.CONVERSATIONS) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("tab_conversations")
+                )
+                TabSegmentButton(
+                    selected = selectedTab == OrionTab.MEMORY,
+                    icon = Icons.Outlined.Psychology,
+                    label = stringResource(R.string.tab_memory),
+                    onClick = { onSelectTab(OrionTab.MEMORY) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("tab_memory")
                 )
                 TabSegmentButton(
                     selected = selectedTab == OrionTab.LAB,
@@ -365,7 +499,7 @@ private fun TabSegmentButton(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 6.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -373,12 +507,12 @@ private fun TabSegmentButton(
                 imageVector = icon,
                 contentDescription = null,
                 tint = fgColor,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(16.dp)
             )
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 color = fgColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -392,26 +526,37 @@ private fun VirtualCallScreen(
     state: VoiceLabUiState,
     audioLevelFlow: StateFlow<Float>,
     isWide: Boolean,
-    onDownloadAsr: () -> Unit,
-    onDownloadLlm: () -> Unit,
-    onDownloadTts: () -> Unit,
+    onBackToAgenda: () -> Unit,
     onStartCall: () -> Unit,
     onEndCall: () -> Unit,
     onToggleMute: () -> Unit,
     onInterrupt: () -> Unit,
     onSelectVoice: (String) -> Unit,
     onReleaseRam: () -> Unit,
-    onResetSession: () -> Unit,
+    onNewConversation: () -> Unit,
+    onOpenConversations: () -> Unit,
+    onAcceptSuggestion: (String) -> Unit,
+    onEditAndSaveSuggestion: (String, MemoryCategory, String, Int) -> Unit,
+    onDismissSuggestion: (String) -> Unit,
     onCopyReport: () -> Unit
 ) {
     val listState = rememberLazyListState()
-    LaunchedEffect(state.conversationTurns.size, state.streamingAssistantText) {
-        val total = state.conversationTurns.size + if (state.streamingAssistantText.isNotBlank()) 1 else 0
-        if (total > 0) {
-            val offset = if (isWide) 0 else 2
-            listState.animateScrollToItem(offset + total - 1)
+    LaunchedEffect(
+        state.conversationTurns.size,
+        state.streamingAssistantText,
+        state.pendingMemorySuggestions.size
+    ) {
+        val hasFeedContent = state.conversationTurns.isNotEmpty() || state.streamingAssistantText.isNotBlank()
+        if (hasFeedContent) {
+            val lastIdx = (listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
+            if (lastIdx > 0) {
+                listState.animateScrollToItem(lastIdx)
+            }
         }
     }
+
+    val activeContact = state.activeContact
+    val assistantDisplayName = activeContact.name.ifBlank { "ORION" }
 
     if (isWide) {
         Row(
@@ -432,12 +577,15 @@ private fun VirtualCallScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    ActiveContactCallHeaderBar(
+                        contactName = assistantDisplayName,
+                        contactRole = activeContact.roleTitle,
+                        canGoBack = !state.isCallActive,
+                        onBackToAgenda = onBackToAgenda
+                    )
                     OrionPresenceStage(state = state, audioLevelFlow = audioLevelFlow)
-                    OfflineModelsCard(
+                    CallVoiceAndRamControls(
                         state = state,
-                        onDownloadAsr = onDownloadAsr,
-                        onDownloadLlm = onDownloadLlm,
-                        onDownloadTts = onDownloadTts,
                         onSelectVoice = onSelectVoice,
                         onReleaseRam = onReleaseRam
                     )
@@ -459,8 +607,10 @@ private fun VirtualCallScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 CallFeedHeaderRow(
-                    hasTurns = state.conversationTurns.isNotEmpty(),
-                    onResetSession = onResetSession,
+                    conversationTitle = state.activeConversationTitle,
+                    memoryEnabled = state.assistantIdentity.memoryEnabled,
+                    onNewConversation = onNewConversation,
+                    onOpenConversations = onOpenConversations,
                     onCopyReport = onCopyReport
                 )
                 LazyColumn(
@@ -469,17 +619,33 @@ private fun VirtualCallScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
+                    if (state.pendingMemorySuggestions.isNotEmpty()) {
+                        item(key = "call_memory_suggestions") {
+                            PendingMemorySuggestionsCard(
+                                suggestions = state.pendingMemorySuggestions,
+                                onAcceptSuggestion = onAcceptSuggestion,
+                                onEditAndSaveSuggestion = onEditAndSaveSuggestion,
+                                onDismissSuggestion = onDismissSuggestion
+                            )
+                        }
+                    }
                     if (state.conversationTurns.isEmpty() && state.streamingAssistantText.isBlank()) {
                         item(key = "empty_call") {
                             EmptyCallHintCard(modelsReady = state.areAllConversationalModelsReady)
                         }
                     } else {
                         items(items = state.conversationTurns, key = { it.id }) { turn ->
-                            ConversationTurnCard(turn = turn)
+                            ConversationTurnCard(
+                                turn = turn,
+                                assistantName = assistantDisplayName
+                            )
                         }
                         if (state.streamingAssistantText.isNotBlank()) {
                             item(key = "streaming_reply") {
-                                StreamingReplyCard(text = state.streamingAssistantText)
+                                StreamingReplyCard(
+                                    text = state.streamingAssistantText,
+                                    assistantName = assistantDisplayName
+                                )
                             }
                         }
                     }
@@ -502,25 +668,44 @@ private fun VirtualCallScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                item(key = "active_contact_bar") {
+                    ActiveContactCallHeaderBar(
+                        contactName = assistantDisplayName,
+                        contactRole = activeContact.roleTitle,
+                        canGoBack = !state.isCallActive,
+                        onBackToAgenda = onBackToAgenda
+                    )
+                }
                 item(key = "presence") {
                     OrionPresenceStage(state = state, audioLevelFlow = audioLevelFlow)
                 }
-                item(key = "models") {
-                    OfflineModelsCard(
-                        state = state,
-                        onDownloadAsr = onDownloadAsr,
-                        onDownloadLlm = onDownloadLlm,
-                        onDownloadTts = onDownloadTts,
-                        onSelectVoice = onSelectVoice,
-                        onReleaseRam = onReleaseRam
-                    )
+                if (state.availableVoices.isNotEmpty() || state.areLoadedModelsInRam) {
+                    item(key = "voice_ram_controls") {
+                        CallVoiceAndRamControls(
+                            state = state,
+                            onSelectVoice = onSelectVoice,
+                            onReleaseRam = onReleaseRam
+                        )
+                    }
                 }
                 item(key = "feed_header") {
                     CallFeedHeaderRow(
-                        hasTurns = state.conversationTurns.isNotEmpty(),
-                        onResetSession = onResetSession,
+                        conversationTitle = state.activeConversationTitle,
+                        memoryEnabled = state.assistantIdentity.memoryEnabled,
+                        onNewConversation = onNewConversation,
+                        onOpenConversations = onOpenConversations,
                         onCopyReport = onCopyReport
                     )
+                }
+                if (state.pendingMemorySuggestions.isNotEmpty()) {
+                    item(key = "call_memory_suggestions") {
+                        PendingMemorySuggestionsCard(
+                            suggestions = state.pendingMemorySuggestions,
+                            onAcceptSuggestion = onAcceptSuggestion,
+                            onEditAndSaveSuggestion = onEditAndSaveSuggestion,
+                            onDismissSuggestion = onDismissSuggestion
+                        )
+                    }
                 }
                 if (state.conversationTurns.isEmpty() && state.streamingAssistantText.isBlank()) {
                     item(key = "empty_call") {
@@ -528,11 +713,17 @@ private fun VirtualCallScreen(
                     }
                 } else {
                     items(items = state.conversationTurns, key = { it.id }) { turn ->
-                        ConversationTurnCard(turn = turn)
+                        ConversationTurnCard(
+                            turn = turn,
+                            assistantName = assistantDisplayName
+                        )
                     }
                     if (state.streamingAssistantText.isNotBlank()) {
                         item(key = "streaming_reply") {
-                            StreamingReplyCard(text = state.streamingAssistantText)
+                            StreamingReplyCard(
+                                text = state.streamingAssistantText,
+                                assistantName = assistantDisplayName
+                            )
                         }
                     }
                 }
@@ -552,6 +743,69 @@ private fun VirtualCallScreen(
                     onToggleMute = onToggleMute,
                     onInterrupt = onInterrupt,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActiveContactCallHeaderBar(
+    contactName: String,
+    contactRole: String,
+    canGoBack: Boolean,
+    onBackToAgenda: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("active_contact_call_bar"),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            TextButton(
+                onClick = onBackToAgenda,
+                enabled = canGoBack,
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .testTag("back_to_agenda_button")
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.cd_back_agenda),
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(text = stringResource(R.string.agenda_back_button))
+            }
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp),
+                horizontalAlignment = Alignment.End
+            ) {
+                Text(
+                    text = contactName,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = contactRole,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -602,6 +856,7 @@ fun OrionPresenceStage(
         label = "presenceColor"
     )
 
+    val assistantLabel = state.activeContact.name.ifBlank { "ORION" }.uppercase(Locale.getDefault())
     val stateLabel = when (state.conversationState) {
         ConversationState.IDLE -> "LISTO PARA LLAMAR"
         ConversationState.LISTENING -> if (state.isMuted) {
@@ -612,7 +867,7 @@ fun OrionPresenceStage(
             "ESCUCHANDO"
         }
         ConversationState.PROCESSING -> "PENSANDO EN LOCAL"
-        ConversationState.SPEAKING -> "ORION HABLANDO"
+        ConversationState.SPEAKING -> "$assistantLabel HABLANDO"
         ConversationState.INTERRUPTED -> "INTERRUMPIDO"
         ConversationState.ERROR -> "ATENCIÓN"
     }
@@ -760,292 +1015,65 @@ fun OrionPresenceStage(
 }
 
 @Composable
-private fun OfflineModelsCard(
+private fun CallVoiceAndRamControls(
     state: VoiceLabUiState,
-    onDownloadAsr: () -> Unit,
-    onDownloadLlm: () -> Unit,
-    onDownloadTts: () -> Unit,
     onSelectVoice: (String) -> Unit,
     onReleaseRam: () -> Unit
 ) {
-    val anyDownloading = state.isDownloading ||
-        state.llmModelState is ComponentModelState.Downloading ||
-        state.ttsModelState is ComponentModelState.Downloading ||
-        state.ttsModelState is ComponentModelState.Extracting
+    if (state.availableVoices.isEmpty() && !state.areLoadedModelsInRam) return
 
-    var expanded by rememberSaveable { mutableStateOf(!state.areAllConversationalModelsReady) }
-    LaunchedEffect(state.areAllConversationalModelsReady, anyDownloading) {
-        if (!state.areAllConversationalModelsReady || anyDownloading) {
-            expanded = true
-        }
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("call_models_card"),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+        if (state.availableVoices.isNotEmpty()) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                state.availableVoices.forEach { voice ->
+                    val selected = voice.id == state.selectedVoiceId
+                    FilterChip(
+                        selected = selected,
+                        onClick = { onSelectVoice(voice.id) },
+                        label = {
+                            Text(
+                                text = voice.displayName,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                            .testTag("voice_chip_${voice.id}"),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                }
+            }
+        }
+
+        if (state.areLoadedModelsInRam) {
+            OutlinedButton(
+                onClick = onReleaseRam,
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 48.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { expanded = !expanded }
-                    .padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .minimumInteractiveComponentSize()
+                    .testTag("release_ram_button"),
+                shape = MaterialTheme.shapes.small,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = if (state.areAllConversationalModelsReady) {
-                            Icons.Filled.CheckCircle
-                        } else {
-                            Icons.Outlined.Memory
-                        },
-                        contentDescription = null,
-                        tint = if (state.areAllConversationalModelsReady) {
-                            MaterialTheme.colorScheme.secondary
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        text = stringResource(R.string.call_models_title),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
                 Icon(
-                    imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                    imageVector = Icons.Outlined.CleaningServices,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.size(16.dp)
                 )
-            }
-
-            AnimatedVisibility(visible = expanded) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    val asrComponentState = when (val s = state.modelState) {
-                        is ModelInstallState.NotInstalled -> ComponentModelState.NotInstalled
-                        is ModelInstallState.Downloading -> ComponentModelState.Downloading(s.progressPercent, 0L, 125L)
-                        is ModelInstallState.Extracting -> ComponentModelState.Extracting
-                        is ModelInstallState.Installed -> ComponentModelState.Installed(s.sizeMb)
-                        is ModelInstallState.Error -> ComponentModelState.Error(s.message)
-                    }
-
-                    ModelDownloadRow(
-                        title = "Oído ASR · Moonshine Base ES",
-                        subtitle = "sherpa-onnx · ~125 MB · Reconocimiento offline",
-                        modelState = asrComponentState,
-                        onDownload = onDownloadAsr,
-                        buttonTestTag = "download_asr_button"
-                    )
-
-                    ModelDownloadRow(
-                        title = "Cerebro LLM · Qwen2.5-1.5B Instruct",
-                        subtitle = "llama.cpp Q4_K_M · Apache 2.0 · ~1.04 GB",
-                        modelState = state.llmModelState,
-                        onDownload = onDownloadLlm,
-                        buttonTestTag = "download_llm_button"
-                    )
-
-                    ModelDownloadRow(
-                        title = "Voz TTS · Piper Sharvard es_ES",
-                        subtitle = "sherpa-onnx VITS INT8 · MIT/CC-BY · ~23.5 MB",
-                        modelState = state.ttsModelState,
-                        onDownload = onDownloadTts,
-                        buttonTestTag = "download_tts_button"
-                    )
-
-                    if (state.availableVoices.isNotEmpty()) {
-                        Text(
-                            text = "Voz de respuesta en español",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            state.availableVoices.forEach { voice ->
-                                val selected = voice.id == state.selectedVoiceId
-                                FilterChip(
-                                    selected = selected,
-                                    onClick = { onSelectVoice(voice.id) },
-                                    label = {
-                                        Text(
-                                            text = voice.displayName,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .heightIn(min = 48.dp)
-                                        .testTag("voice_chip_${voice.id}"),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                        selectedLabelColor = MaterialTheme.colorScheme.primary
-                                    )
-                                )
-                            }
-                        }
-                    }
-
-                    if (state.areLoadedModelsInRam) {
-                        OutlinedButton(
-                            onClick = onReleaseRam,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 48.dp)
-                                .minimumInteractiveComponentSize()
-                                .testTag("release_ram_button"),
-                            shape = MaterialTheme.shapes.small,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.CleaningServices,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = stringResource(R.string.call_release_memory))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ModelDownloadRow(
-    title: String,
-    subtitle: String,
-    modelState: ComponentModelState,
-    onDownload: () -> Unit,
-    buttonTestTag: String
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                when (modelState) {
-                    is ComponentModelState.Installed -> {
-                        Text(
-                            text = "${modelState.sizeMb} MB",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                    }
-                    is ComponentModelState.Downloading -> {
-                        val mbLabel = if (modelState.totalMb > 0) {
-                            "${modelState.downloadedMb}/${modelState.totalMb} MB"
-                        } else {
-                            "${modelState.progressPercent} %"
-                        }
-                        Text(
-                            text = mbLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    is ComponentModelState.Extracting -> {
-                        Text(
-                            text = "Extrayendo…",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    is ComponentModelState.NotInstalled, is ComponentModelState.Error -> {
-                        FilledTonalButton(
-                            onClick = onDownload,
-                            modifier = Modifier
-                                .heightIn(min = 48.dp)
-                                .minimumInteractiveComponentSize()
-                                .testTag(buttonTestTag),
-                            shape = MaterialTheme.shapes.small
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.CloudDownload,
-                                contentDescription = stringResource(R.string.cd_download_icon),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Instalar")
-                        }
-                    }
-                }
-            }
-
-            if (modelState is ComponentModelState.Downloading) {
-                if (modelState.progressPercent > 0) {
-                    LinearProgressIndicator(
-                        progress = { modelState.progressPercent / 100f },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(5.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                    )
-                } else {
-                    LinearProgressIndicator(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(5.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                    )
-                }
-            } else if (modelState is ComponentModelState.Extracting) {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(5.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                )
-            } else if (modelState is ComponentModelState.Error) {
-                Text(
-                    text = "Error: ${modelState.message}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = stringResource(R.string.call_release_memory))
             }
         }
     }
@@ -1053,40 +1081,70 @@ private fun ModelDownloadRow(
 
 @Composable
 private fun CallFeedHeaderRow(
-    hasTurns: Boolean,
-    onResetSession: () -> Unit,
+    conversationTitle: String,
+    memoryEnabled: Boolean,
+    onNewConversation: () -> Unit,
+    onOpenConversations: () -> Unit,
     onCopyReport: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        SectionLabel(text = "CONVERSACIÓN EN VIVO")
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            IconButton(
-                onClick = onCopyReport,
-                modifier = Modifier
-                    .minimumInteractiveComponentSize()
-                    .testTag("call_copy_report_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.ContentCopy,
-                    contentDescription = stringResource(R.string.cd_copy_icon),
-                    tint = MaterialTheme.colorScheme.primary
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                SectionLabel(text = "CONVERSACIÓN ACTIVA")
+                Text(
+                    text = "$conversationTitle · ${if (memoryEnabled) "Memoria activa" else "Memoria en pausa"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-            if (hasTurns) {
-                IconButton(
-                    onClick = onResetSession,
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = onOpenConversations,
                     modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .testTag("call_open_chats_button")
+                ) {
+                    Text(text = stringResource(R.string.tab_conversations))
+                }
+                FilledTonalButton(
+                    onClick = onNewConversation,
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
                         .minimumInteractiveComponentSize()
-                        .testTag("call_clear_chat_button")
+                        .testTag("call_new_chat_button"),
+                    contentPadding = PaddingValues(horizontal = 10.dp),
+                    shape = MaterialTheme.shapes.small
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.DeleteSweep,
-                        contentDescription = stringResource(R.string.cd_clear_icon),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = stringResource(R.string.conv_new_short))
+                }
+                IconButton(
+                    onClick = onCopyReport,
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .testTag("call_copy_report_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.ContentCopy,
+                        contentDescription = stringResource(R.string.cd_copy_icon),
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -1130,7 +1188,10 @@ private fun EmptyCallHintCard(modelsReady: Boolean) {
 }
 
 @Composable
-private fun ConversationTurnCard(turn: ConversationTurn) {
+private fun ConversationTurnCard(
+    turn: ConversationTurn,
+    assistantName: String = "ORION"
+) {
     val isUser = turn.role == ChatRole.USER
     Surface(
         modifier = Modifier
@@ -1158,7 +1219,7 @@ private fun ConversationTurnCard(turn: ConversationTurn) {
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = if (isUser) "TÚ" else "ORION",
+                text = if (isUser) "TÚ" else assistantName.uppercase(Locale.getDefault()),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (isUser) {
                     MaterialTheme.colorScheme.tertiary
@@ -1195,7 +1256,10 @@ private fun ConversationTurnCard(turn: ConversationTurn) {
 }
 
 @Composable
-private fun StreamingReplyCard(text: String) {
+private fun StreamingReplyCard(
+    text: String,
+    assistantName: String = "ORION"
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
@@ -1209,7 +1273,7 @@ private fun StreamingReplyCard(text: String) {
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = "ORION · RESPONDIENDO",
+                text = "${assistantName.uppercase(Locale.getDefault())} · RESPONDIENDO",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.secondary
             )
@@ -1302,7 +1366,7 @@ private fun VirtualCallBar(
                 text = if (state.isCallActive) {
                     stringResource(R.string.call_end)
                 } else {
-                    stringResource(R.string.call_start)
+                    "Llamar a ${state.activeContact.name.ifBlank { "ORION" }}"
                 },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
