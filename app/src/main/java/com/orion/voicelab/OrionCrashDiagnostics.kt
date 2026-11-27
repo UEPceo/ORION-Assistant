@@ -137,6 +137,15 @@ object OrionCrashDiagnostics {
         )
     }
 
+    /** Returns a bounded tail of the private diagnostic log for local self-diagnosis. */
+    fun readRecentDiagnostics(context: Context, maxChars: Int = 6_000): String {
+        if (maxChars <= 0) return ""
+        return runCatching {
+            val file = File(context.applicationContext.filesDir, "orion_diagnostics.log")
+            if (!file.exists() || !file.isFile) "" else file.readText().takeLast(maxChars)
+        }.getOrDefault("")
+    }
+
     fun recordMemoryPressure(context: Context, level: Int) {
         record(context.applicationContext, "MEMORY", "onTrimMemory level=$level")
     }
