@@ -311,3 +311,20 @@ Cada área debe disponer de criterios reproducibles, pruebas unitarias e integra
 - `KnowledgePackUpdateScheduler`: trabajo semanal en red no medida y batería suficiente, con backoff exponencial. El SO puede retrasarlo; no es una actualización en tiempo real.
 - Canal de publicación: `app/src/main/assets/knowledge_packs/updates/manifest.json` y paquetes versionados. Para publicar una actualización hay que subir el JSON de paquete y actualizar versión, URL y SHA-256 del manifiesto.
 - Limitación reconocida: el índice no usa aún embeddings neuronales. Los hashes no sustituyen una firma de editor independiente. Los tests de integración y el CI deben confirmar la implementación antes de considerarla validada.
+
+
+### Ampliación del corpus multidisciplinar — 27/11/2026
+
+El catálogo pasa de seis a quince paquetes locales. Se añaden nueve áreas: informática, matemáticas, ciencia, ingeniería, finanzas, empresa, comunicación, creatividad y conocimiento general. Se mantienen los seis paquetes previos de normativa, seguridad, ciberseguridad, Android/Kotlin, Python/Internet y pesca recreativa de Andalucía.
+
+- Nuevos paquetes: `computer-science`, `mathematics`, `science`, `engineering`, `finance`, `business`, `communication`, `creativity` y `general-knowledge`.
+- Primera versión: dos documentos por paquete nuevo (18 documentos adicionales), cada uno con título, URL HTTPS, editor, dominio, autoridad, jurisdicción cuando aplica y fecha de revisión.
+- Fuentes iniciales: NIST, MIT OpenCourseWare, OpenStax, NASA, NOAA, CNMV, Banco de España, OCDE, Comisión Europea, W3C, Purdue OWL, Creative Commons, Adobe y UNESCO.
+- Los textos son síntesis educativas redactadas para el corpus, no copias íntegras. El enlace a una fuente no implica permiso para reproducir su contenido; las licencias y condiciones de reutilización se revisan por recurso.
+- Se incorporan los dominios `MATHEMATICS`, `SCIENCE`, `ENGINEERING` y `COMMUNICATION`; el router determinista y el mapa semántico reconocen vocabulario de estas disciplinas. Finanzas y empresa utilizan dominios ya existentes.
+- Cada paquete tiene versión propia y copia de actualización bajo `knowledge_packs/updates/`. El manifiesto se publica después de disponer de todos los payloads y contiene su SHA-256. El worker existente valida host/ruta, tamaño, ID, versión y hash; el instalador vuelve a verificar la caché antes de ingerirla.
+- Finanzas: los conceptos de presupuesto, riesgo y diversificación son educativos; cotizaciones, tipos, impuestos y condiciones de productos deben consultarse en fuentes actuales.
+- Empresa: ayudas, obligaciones y requisitos deben verificarse por jurisdicción y fecha. Ciencia e ingeniería: las fichas introducen principios; estudios, normas, tolerancias y diseños críticos requieren fuentes técnicas primarias y revisión profesional.
+- Creatividad: se separan técnicas de diseño y licencias. Una licencia no implica que cualquier obra pueda reutilizarse; se comprueban titular y condiciones concretas.
+
+La expansión añade 18 documentos y nueve paquetes; no incrementa por sí sola la capacidad de razonamiento del modelo. La evaluación debe medir recuperación por dominio, exactitud de atribución, frescura y comportamiento ante preguntas sin evidencia.
