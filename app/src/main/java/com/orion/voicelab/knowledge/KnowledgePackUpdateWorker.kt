@@ -33,6 +33,9 @@ class KnowledgePackUpdateWorker(
                 require(id.matches(Regex("[a-z0-9-]{2,64}"))) { "Identificador de paquete inválido." }
                 val version = item.getInt("version")
                 require(version > 0) { "Versión inválida." }
+                val bundledVersion = KnowledgePackCatalog.packs.firstOrNull { it.id == id }?.version
+                    ?: error("Paquete no reconocido.")
+                require(version >= bundledVersion) { "El manifiesto intenta ofrecer una versión anterior a la incluida." }
                 val url = item.getString("url")
                 require(isAllowedPackageUrl(url, id)) { "Origen de paquete no permitido." }
                 val expectedHash = item.getString("sha256").lowercase()
@@ -43,7 +46,11 @@ class KnowledgePackUpdateWorker(
                 val cachedVersion = cachedBytes?.let {
                     runCatching { JSONObject(it.toString(Charsets.UTF_8)).optInt("version") }.getOrDefault(0)
                 } ?: 0
-                if (cachedVersion == version && cachedBytes != null && sha256(cachedBytes) == expectedHash) continue
+                if (cachedVersion > version) continue
+                if (cachedVersion == version && cachedBytes != null && sha256(cachedBytes) == expectedHash) {
+                    File(updateDirectory, "$id.sha256").writeText(expectedHash, Charsets.US_ASCII)
+                    continue
+                }
 
                 val bytes = downloadBytes(url, MAX_PACKAGE_BYTES)
                 require(sha256(bytes) == expectedHash) { "La integridad del paquete $id no coincide." }
