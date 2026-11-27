@@ -1,6 +1,6 @@
 {
   "id": "python-web",
-  "version": 2,
+  "version": 3,
   "title": "Python y fundamentos de programación",
   "documents": [
     {
@@ -22,6 +22,16 @@
       "authority": "PRIMARY_TECHNICAL",
       "jurisdiction": null,
       "content": "HTTP es un protocolo de aplicación basado en un modelo cliente-servidor: un cliente envía una solicitud a un servidor y recibe una respuesta. Una solicitud incluye un método, una URL, cabeceras y, cuando procede, un cuerpo. La respuesta incluye un código de estado, cabeceras y, cuando procede, contenido. GET suele recuperar una representación; POST envía datos para que el servidor los procese; PUT sustituye o crea una representación en una URI conocida; PATCH aplica modificaciones parciales; DELETE solicita eliminar un recurso. Los métodos y sus propiedades de seguridad e idempotencia importan al diseñar reintentos. Las cabeceras transportan metadatos como tipo de contenido, negociación, autenticación y caché. Los códigos 2xx indican éxito, 3xx redirección, 4xx problemas asociados a la solicitud o autorización y 5xx errores del servidor; el significado exacto depende del código. HTTP es sin estado a nivel de protocolo: cada solicitud debe poder interpretarse sin asumir que el servidor recuerda automáticamente la anterior, aunque cookies, tokens y otros mecanismos pueden mantener sesiones. HTTPS protege el canal mediante TLS, aportando confidencialidad e integridad en tránsito y autenticación del servidor cuando el certificado se valida correctamente. No confundas HTTPS con seguridad completa de la aplicación: autorización, validación de entradas, gestión de sesiones y protección de datos siguen siendo necesarias."
+    },
+    {
+      "id": "python-exceptions-testing",
+      "title": "Python: excepciones, pruebas y diseño de errores",
+      "url": "https://docs.python.org/3/tutorial/errors.html",
+      "publisher": "Python Documentation",
+      "domain": "PROGRAMMING",
+      "authority": "PRIMARY_TECHNICAL",
+      "jurisdiction": null,
+      "content": "En Python, las excepciones separan el flujo normal de los casos de error. Una operación puede lanzar una excepción; try delimita el bloque que puede fallar, except captura tipos concretos y finally permite liberar recursos o ejecutar limpieza. Capturar Exception indiscriminadamente puede ocultar defectos y convertir fallos inesperados en resultados aparentemente válidos. Es preferible capturar la excepción más específica que se pueda manejar y volver a lanzar cuando la capa actual no pueda resolverla. La cláusula else permite separar el código que solo debe ejecutarse si el bloque try terminó sin excepciones. Para archivos y recursos que admiten gestión de contexto, with garantiza cierre incluso si ocurre un error. Las excepciones propias deben representar condiciones que el llamador pueda interpretar y aportar mensajes útiles sin exponer secretos. Las pruebas automatizadas deben cubrir resultados normales, límites, entradas inválidas, errores de dependencias y cancelaciones cuando proceda. Una prueba unitaria comprueba una unidad aislada; una prueba de integración verifica colaboración entre componentes reales; una prueba de extremo a extremo valida un flujo completo. Las pruebas deben ser deterministas, independientes y no depender de red pública o estado compartido. Los dobles de prueba son útiles, pero no sustituyen todas las pruebas de integración. El objetivo es que un fallo sea visible, reproducible y manejable, no que el test pase ocultando el error."
     }
   ]
 }
