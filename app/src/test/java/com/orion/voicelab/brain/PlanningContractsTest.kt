@@ -67,4 +67,80 @@ class PlanningContractsTest {
         assertEquals(StepStatus.FAILED, result.steps["slow"]?.status)
     }
 
+    @Test fun resumesOnlyUnfinishedStepsAndNeverRepeatsSuccessfulWork() {
+        val plan = OrionPlan("resume", "read then calculate", listOf(
+            PlannedStep("read", PlanStepKind.READ, "Read", "", PlanRisk.LOW),
+            PlannedStep("calc", PlanStepKind.CALCULATE, "Calculate", "", PlanRisk.LOW, setOf("read"))
+        ))
+        val attempts = AtomicInteger(0)
+        val prior = mapOf("read" to StepExecution(StepStatus.SUCCEEDED, "already read", "local:doc-1"))
+        val result = runBlocking {
+            PlanExecutionCoordinator().executeResumable(
+                plan = plan,
+                approvedStepIds = emptySet(),
+                runner = PlanStepRunner { step, _ ->
+                    attempts.incrementAndGet()
+                    assertEquals("calc", step.id)
+                    StepExecution(StepStatus.SUCCEEDED, "calculated")
+                },
+                initialResults = prior
+            )
+        }
+        assertEquals(1, attempts.get())
+        assertEquals(PlanStatus.COMPLETED, result.status)
+        assertEquals("local:doc-1", result.steps["read"]?.outputReference)
+    }
+
+    @Test fun failedStepRequiresExplicitRetrySelection() {
+        val plan = OrionPlan("retry", "retry read", listOf(
+            PlannedStep("read", PlanStepKind.READ, "Read", "", PlanRisk.LOW)
+        ))
+        val prior = mapOf("read" to StepExecution(StepStatus.FAILED, "interrupted; verify first"))
+        var attempts = 0
+        val noRetry = runBlocking {
+            PlanExecutionCoordinator().executeResumable(
+                plan, emptySet(), PlanStepRunner { _, _ ->
+                    attempts++
+                    StepExecution(StepStatus.SUCCEEDED, "unexpected")
+                }, initialResults = prior
+            )
+        }
+        assertEquals(0, attempts)
+        assertEquals(StepStatus.FAILED, noRetry.steps["read"]?.status)
+
+        val retry = runBlocking {
+            PlanExecutionCoordinator().executeResumable(
+                plan, emptySet(), PlanStepRunner { _, _ ->
+                    attempts++
+                    StepExecution(StepStatus.SUCCEEDED, "verified")
+                }, initialResults = prior, retryStepIds = setOf("read")
+            )
+        }
+        assertEquals(1, attempts)
+        assertEquals(PlanStatus.COMPLETED, retry.status)
+    }
+
+    @Test fun cancellationPersistsPausedStateAndMarksActiveStepUncertain() {
+        val plan = OrionPlan("cancel", "long task", listOf(
+            PlannedStep("write", PlanStepKind.CREATE_DRAFT, "Create draft", "", PlanRisk.HIGH)
+        ))
+        val observed = mutableListOf<Pair<PlanStatus, Map<String, StepExecution>>>()
+        try {
+            runBlocking {
+                PlanExecutionCoordinator().executeResumable(
+                    plan, setOf("write"),
+                    PlanStepRunner { _, _ -> throw kotlinx.coroutines.CancellationException("stop") },
+                    observer = PlanExecutionObserver { status, steps, _ -> observed += status to steps }
+                )
+            }
+            fail("Cancellation must propagate")
+        } catch (_: kotlinx.coroutines.CancellationException) {
+            // Expected: callers retain cancellation semantics while the observer stores a pause.
+        }
+        assertTrue(observed.any { it.first == PlanStatus.PAUSED })
+        val paused = observed.last { it.first == PlanStatus.PAUSED }.second["write"]
+        assertEquals(StepStatus.FAILED, paused?.status)
+        assertTrue(paused?.summary?.contains("incierto") == true)
+    }
+
 }
