@@ -259,7 +259,7 @@ fun ConnectorsSectionScreen(
                                     is GitHubDeviceAuthorizationResult.Authorized -> {
                                         githubCredentials.save(result)
                                         githubConnected = true
-                                        githubStatus = "GitHub App autorizada. ORION ya puede consultar repositorios e incidencias mediante operaciones de solo lectura."
+                                        githubStatus = "GitHub App autorizada. ORION puede consultar repositorios, incidencias, commits, archivos y estado de CI en modo lectura."
                                         githubUserCode = null
                                     }
                                     GitHubDeviceAuthorizationResult.AccessDenied -> {
