@@ -61,7 +61,7 @@ internal object SafeWebPageReader {
                 val title = TITLE.find(body)?.groupValues?.getOrNull(1)?.let(::plainText)
                     ?.take(180).orEmpty().ifBlank { URL(current).host }
                 val text = plainText(
-                    body.replace(Regex("(?is)<(script|style|noscript|svg|nav|footer|header)[^>]*>.*?</\\\\1>"), " ")
+                    body.replace(Regex("(?is)<(script|style|noscript|svg|nav|footer|header)[^>]*>.*?</\\1>"), " ")
                 ).take(MAX_TEXT_CHARS)
                 if (text.length < MIN_TEXT_CHARS) return null
                 val published = DATE_META.find(body)?.groupValues?.getOrNull(1)
