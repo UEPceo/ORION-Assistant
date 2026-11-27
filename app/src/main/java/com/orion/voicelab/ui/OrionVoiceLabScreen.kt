@@ -165,7 +165,21 @@ fun OrionVoiceLabScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    val reportCopiedMsg = stringResource(R.string.report_copied)
+    val reportExportedMsg = stringResource(R.string.report_exported)
+    val reportExportFailedMsg = stringResource(R.string.report_export_failed)
+    val createReportDocument = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) {
+            showReportExportResult@ run {
+                val saved = viewModel.writeReport(uri)
+                coroutineScope.launch {
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    snackbarHostState.showSnackbar(if (saved) reportExportedMsg else reportExportFailedMsg)
+                }
+            }
+        }
+    }
     val memorySavedMsg = stringResource(R.string.memory_saved_feedback)
     val identitySavedMsg = stringResource(R.string.identity_saved_feedback)
     val identityResetMsg = stringResource(R.string.identity_reset_feedback)
@@ -342,12 +356,7 @@ fun OrionVoiceLabScreen(
     }
 
     val onCopyReportClicked: () -> Unit = {
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("ORION informe", viewModel.buildReport()))
-        coroutineScope.launch {
-            snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(reportCopiedMsg)
-        }
+        createReportDocument.launch("ORION-informe-diagnostico.txt")
     }
 
     val bgColor = MaterialTheme.colorScheme.background
