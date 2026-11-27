@@ -162,3 +162,10 @@ El núcleo local no requiere claves de proveedores externos ni suscripciones. La
 The modular brain is wired into each voice turn. Its current core includes deterministic domain routing, a private persistent source-backed corpus, lexical retrieval, freshness/authority checks, explicit source-conflict metadata, bounded citation-aware prompt composition, and a learning gate that never treats model output as evidence. The corpus starts empty and is not populated with fabricated knowledge. Live web retrieval, semantic/vector search, curated domain packs, and external source ingestion remain implementation work; without retrieved evidence ORION is instructed to say that it cannot verify the answer.
 
 Architecture and current limits: [docs/ORION_BRAIN_ARCHITECTURE.md](docs/ORION_BRAIN_ARCHITECTURE.md).
+
+
+## Navegación, ajustes y voces
+
+La pantalla inicial está organizada como agenda de contactos y co-workers. La navegación principal agrupa Contactos, Teléfono, Tareas, Más y Ajustes. La pantalla de llamada incluye controles de micrófono, altavoz, interrupción y finalización. Ajustes permite configurar la identidad, memoria y voz. El catálogo incluye Sharvard y paquetes Piper es_ES opcionales DaveFX, Miro y CarlFM; los paquetes adicionales solo se descargan mediante acción manual del usuario.
+
+Detalles y límites de implementación: [docs/ORION_UI_AND_VOICE_SETTINGS.md](docs/ORION_UI_AND_VOICE_SETTINGS.md).
