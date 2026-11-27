@@ -1,6 +1,6 @@
 {
   "id": "es-cyber",
-  "version": 1,
+  "version": 2,
   "title": "Ciberseguridad defensiva y privacidad",
   "documents": [
     {
@@ -22,6 +22,16 @@
       "authority": "OFFICIAL_PRIMARY",
       "jurisdiction": "ES",
       "content": "La defensa cotidiana de cuentas empieza por contraseñas largas, únicas y no reutilizadas. Un gestor de contraseñas permite generar y conservar credenciales diferentes; activa autenticación multifactor siempre que el servicio la ofrezca, preferiblemente con métodos resistentes al phishing cuando estén disponibles. Desconfía de mensajes inesperados que generen urgencia, pidan credenciales, soliciten pagos o incluyan enlaces y adjuntos no esperados. Comprueba el dominio real del remitente y accede al servicio escribiendo su dirección o usando la aplicación oficial, no desde el enlace recibido. Nunca compartas códigos de un solo uso, claves de recuperación ni contraseñas con quien te contacte. Mantén sistema, navegador y aplicaciones actualizados; realiza copias de seguridad y protege los dispositivos con bloqueo. Si introduces una contraseña en una página sospechosa, cambia la credencial desde el sitio legítimo, revoca sesiones activas, revisa los métodos de recuperación y activa MFA. Si hay fraude o incidente, conserva evidencias y busca los canales oficiales de ayuda de INCIBE y las autoridades competentes. Los procedimientos y teléfonos de asistencia pueden cambiar; verifica los canales vigentes en la fuente oficial."
+    },
+    {
+      "id": "owasp-threat-modeling",
+      "title": "Modelado de amenazas y controles defensivos de aplicaciones",
+      "url": "https://owasp.org/www-project-top-ten/",
+      "publisher": "OWASP",
+      "domain": "CYBERSECURITY",
+      "authority": "PRIMARY_TECHNICAL",
+      "jurisdiction": null,
+      "content": "El modelado de amenazas empieza por identificar activos, límites de confianza, actores, superficies de ataque y consecuencias de un compromiso. No consiste en enumerar vulnerabilidades al azar: debe relacionar cada riesgo con un activo y un escenario de abuso plausible. En una aplicación móvil, los activos pueden incluir credenciales, tokens, datos locales, comunicaciones, copias de seguridad y acciones que el usuario autoriza. Los límites de confianza incluyen el dispositivo, el proceso de la aplicación, almacenamiento privado, sistema operativo, red y servicios externos. Aplica mínimo privilegio: solicita solo permisos necesarios y comprueba la autorización en cada operación sensible. No guardes secretos en logs ni en preferencias sin protección; evita incluir credenciales en URLs. Valida datos de entrada en el límite de confianza y trata todo contenido remoto como no confiable, incluidos documentos, páginas y respuestas de herramientas. Usa TLS para proteger datos en tránsito, pero no confundas cifrado de transporte con autorización correcta. Los errores deben ser controlados y no revelar tokens, rutas privadas ni datos personales. Diseña reintentos según idempotencia para evitar repetir escrituras o pagos. Mantén dependencias actualizadas y revisa vulnerabilidades conocidas. OWASP Top 10 sirve como mapa de riesgos frecuentes de aplicaciones web y no reemplaza un análisis específico de amenazas móviles, una auditoría ni pruebas de penetración."
     }
   ]
 }
