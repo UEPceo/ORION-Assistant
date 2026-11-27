@@ -33,8 +33,8 @@ object ConnectorCatalog {
         ConnectorDescriptor(
             id = ConnectorId.ANDROID_CALENDAR,
             displayName = "Calendario",
-            description = "Consultar eventos y disponibilidad; crear o modificar eventos con confirmación y permisos del sistema.",
-            capabilities = setOf(ConnectorCapability.SEARCH, ConnectorCapability.READ, ConnectorCapability.CREATE, ConnectorCapability.UPDATE, ConnectorCapability.DELETE),
+            description = "Preparar eventos y transferirlos a la aplicación de calendario para revisión y guardado. La lectura directa de agenda sigue pendiente.",
+            capabilities = setOf(ConnectorCapability.CREATE),
             isImplemented = false
         ),
         ConnectorDescriptor(
