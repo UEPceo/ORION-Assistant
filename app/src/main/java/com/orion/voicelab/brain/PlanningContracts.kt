@@ -28,7 +28,8 @@ object PlanValidator {
         if (plan.id.isBlank()) errors += "El plan necesita un identificador."
         if (plan.goal.isBlank()) errors += "El plan necesita un objetivo."
         if (plan.steps.isEmpty()) errors += "El plan no contiene pasos."
-        if (plan.steps.size > plan.budget.maxSteps.coerceAtLeast(1)) errors += "El plan supera el máximo de pasos."
+        if (plan.budget.maxSteps !in 1..50) errors += "El límite de pasos debe estar entre 1 y 50."
+        if (plan.steps.size > plan.budget.maxSteps) errors += "El plan supera el máximo de pasos."
         if (plan.budget.maxDurationMs !in 1..30L * 60_000L) errors += "El presupuesto temporal no es válido."
         if (plan.budget.maxRetriesPerStep !in 0..3) errors += "El número de reintentos no es válido."
         val duplicateIds = plan.steps.groupBy { it.id }.filterValues { it.size > 1 }.keys
