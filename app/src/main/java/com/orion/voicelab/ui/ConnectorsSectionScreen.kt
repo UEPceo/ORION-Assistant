@@ -195,20 +195,29 @@ fun ConnectorsSectionScreen(
                     },
                     onDisconnect = {
                         gmailBusy = true
-                        Identity.getAuthorizationClient(context)
-                            .revokeAccess(RevokeAccessRequest.builder().build())
-                            .addOnCompleteListener { revokeTask ->
-                                scope.launch {
-                                    runCatching { gmailCredentials.disconnect() }
-                                    gmailConnected = false
-                                    gmailBusy = false
-                                    gmailStatus = if (revokeTask.isSuccessful) {
-                                        "Acceso de Google revocado y credencial local eliminada."
-                                    } else {
-                                        "Credencial local eliminada; no se pudo confirmar la revocación en Google."
+                        try {
+                            Identity.getAuthorizationClient(context)
+                                .revokeAccess(RevokeAccessRequest.builder().build())
+                                .addOnCompleteListener { revokeTask ->
+                                    scope.launch {
+                                        runCatching { gmailCredentials.disconnect() }
+                                        gmailConnected = false
+                                        gmailBusy = false
+                                        gmailStatus = if (revokeTask.isSuccessful) {
+                                            "Acceso de Google revocado y credencial local eliminada."
+                                        } else {
+                                            "Credencial local eliminada; no se pudo confirmar la revocación en Google."
+                                        }
                                     }
                                 }
+                        } catch (_: Exception) {
+                            scope.launch {
+                                runCatching { gmailCredentials.disconnect() }
+                                gmailConnected = false
+                                gmailBusy = false
+                                gmailStatus = "Credencial local eliminada; Google Identity no pudo confirmar la revocación."
                             }
+                        }
                     }
                 )
             } else if (connector.id.name == "GITHUB") {
