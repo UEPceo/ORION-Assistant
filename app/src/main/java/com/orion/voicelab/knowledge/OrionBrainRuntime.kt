@@ -12,7 +12,7 @@ class OrionBrainRuntime(
 ) {
     val localCorpus = KnowledgeCorpusStore(context)
     private val retrieval = BrainRetrievalEngine(
-        sources = listOf(localCorpus) + externalSources.filterNot { it.sourceId == localCorpus.sourceId }
+        sources = listOf(localCorpus, DuckDuckGoKnowledgeSource()) + externalSources.filterNot { it.sourceId in setOf(localCorpus.sourceId, "duckduckgo-web-discovery") }
     )
     private val ingestion = KnowledgeIngestionService(localCorpus)
 
