@@ -93,6 +93,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     }
 
     private val appContext = application.applicationContext
+    private val settingsPreferences = appContext.getSharedPreferences("orion_user_settings", 0)
     private val connectorRuntime = OrionConnectorRuntime(appContext)
     private val brainRuntime = OrionBrainRuntime(appContext)
     private val connectorPermissionManager = com.orion.voicelab.connectors.ConnectorPermissionManager()
@@ -228,6 +229,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     val audioLevel: StateFlow<Float> = _audioLevel.asStateFlow()
 
     init {
+        speechSynthesizer.selectVoice(settingsPreferences.getString("selected_voice_id", "sharvard_f").orEmpty())
+        _uiState.update { it.copy(selectedVoiceId = speechSynthesizer.selectedVoice().id) }
         attachConversationCallbacks()
         observePersistenceFlows()
         initializePersistence()
@@ -1020,7 +1023,9 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     fun selectVoice(voiceId: String) {
         conversationEngine.selectVoice(voiceId)
-        _uiState.update { it.copy(selectedVoiceId = voiceId) }
+        val selected = speechSynthesizer.selectedVoice().id
+        settingsPreferences.edit().putString("selected_voice_id", selected).apply()
+        _uiState.update { it.copy(selectedVoiceId = selected) }
     }
 
     fun releaseLoadedModels() {
