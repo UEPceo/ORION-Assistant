@@ -38,6 +38,7 @@ import com.orion.voicelab.connectors.ConnectorCatalog
 import com.orion.voicelab.connectors.ConnectorDescriptor
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.AuthorizationResult
+import com.google.android.gms.auth.api.identity.RevokeAccessRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.Scope
 import com.orion.voicelab.connectors.gmail.GmailCredentialManager
@@ -188,11 +189,21 @@ fun ConnectorsSectionScreen(
                             }
                     },
                     onDisconnect = {
-                        scope.launch {
-                            gmailCredentials.disconnect()
-                            gmailConnected = false
-                            gmailStatus = "Gmail desconectado. Credencial local eliminada."
-                        }
+                        gmailBusy = true
+                        Identity.getAuthorizationClient(context)
+                            .revokeAccess(RevokeAccessRequest.builder().build())
+                            .addOnCompleteListener { revokeTask ->
+                                scope.launch {
+                                    runCatching { gmailCredentials.disconnect() }
+                                    gmailConnected = false
+                                    gmailBusy = false
+                                    gmailStatus = if (revokeTask.isSuccessful) {
+                                        "Acceso de Google revocado y credencial local eliminada."
+                                    } else {
+                                        "Credencial local eliminada; no se pudo confirmar la revocación en Google."
+                                    }
+                                }
+                            }
                     }
                 )
             } else if (connector.id.name == "GITHUB") {
