@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
 object KnowledgePackUpdateScheduler {
     private const val UNIQUE_WORK_NAME = "orion-knowledge-pack-updates"
 
-    /** Weekly, Wi-Fi-only updates; Android may defer execution for battery optimization. */
+    /** Weekly updates on unmetered networks (typically Wi-Fi); Android may defer them for battery optimization. */
     fun schedule(context: Context) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.UNMETERED)
