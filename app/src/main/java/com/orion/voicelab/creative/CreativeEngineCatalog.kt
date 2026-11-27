@@ -43,12 +43,22 @@ object CreativeEngineCatalog {
   id="comfyui-wan21-1.3b",
   displayName="Wan2.1 T2V-1.3B y perfil I2V-14B via ComfyUI",
   task="video-generation",
-  modelId="Wan-Video/Wan2.1-T2V-1.3B (I2V: Wan-Video/Wan2.1-I2V-14B)",
+  modelId="Wan-AI/Wan2.1-T2V-1.3B",
   runtime="ComfyUI",
   providerKind=MediaProviderKind.REMOTE,
   license="Apache-2.0",
   minimumDeploymentNote="Modelo abierto; referencia oficial: 8.19 GB VRAM para T2V-1.3B y generación 480p. Para trabajo práctico se recomienda GPU dedicada y memoria adicional.",
   default=true
+ )
+ val VIDEO_IMAGE_TO_VIDEO = CreativeEngineProfile(
+  id="comfyui-wan21-i2v-14b",
+  displayName="Wan2.1 I2V-14B via ComfyUI",
+  task="image-to-video",
+  modelId="Wan-AI/Wan2.1-I2V-14B-480P",
+  runtime="ComfyUI",
+  providerKind=MediaProviderKind.REMOTE,
+  license="Apache-2.0",
+  minimumDeploymentNote="Checkpoint oficial I2V-14B-480P; requiere GPU de gama alta y mucha VRAM."
  )
  val VIDEO_QUALITY = CreativeEngineProfile(
   id="comfyui-wan21-14b",
@@ -60,5 +70,5 @@ object CreativeEngineCatalog {
   license="Apache-2.0",
   minimumDeploymentNote="Perfil de mayor calidad y más exigente; requiere GPU de gama alta y mucha VRAM."
  )
- val defaults=listOf(IMAGE_PRIMARY,IMAGE_FALLBACK,VIDEO_PRIMARY,VIDEO_QUALITY)
+ val defaults=listOf(IMAGE_PRIMARY,IMAGE_FALLBACK,VIDEO_PRIMARY,VIDEO_IMAGE_TO_VIDEO,VIDEO_QUALITY)
 }
