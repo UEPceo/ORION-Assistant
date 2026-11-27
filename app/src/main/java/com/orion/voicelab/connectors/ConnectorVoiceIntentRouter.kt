@@ -24,8 +24,9 @@ object ConnectorVoiceIntentRouter {
         val isMailAction = containsAny(normalized, "busca", "buscar", "encuentra", "localiza", "muestra", "enséñame", "revisa", "consulta", "lee", "abre")
         val latestMailRequest = containsAny(normalized, "último correo", "ultimo correo", "correo más reciente", "correo mas reciente")
         if (latestMailRequest && containsAny(normalized, "lee", "leer", "abre", "muestra", "busca", "dime")) {
-            val sender = Regex("""(?:correo|email) (?:más reciente|mas reciente|último|ultimo)(?: de)? (.+)$""", RegexOption.IGNORE_CASE)
-                .find(text)?.groupValues?.get(1)?.trim()
+            val senderMatch = Regex("""(?:último|ultimo) correo de (.+)$|correo (?:más reciente|mas reciente) de (.+)$""", RegexOption.IGNORE_CASE)
+                .find(text)
+            val sender = senderMatch?.let { it.groupValues[1].ifBlank { it.groupValues[2] }.trim() }
             val query = if (sender.isNullOrBlank()) "newer_than:7d" else "newer_than:30d from:$sender"
             return RoutedAction(ConnectorAction(
                 ConnectorId.GMAIL, "read_latest_message", mapOf("query" to query.take(256))
