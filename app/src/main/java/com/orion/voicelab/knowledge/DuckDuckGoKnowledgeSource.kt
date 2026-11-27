@@ -19,8 +19,9 @@ class DuckDuckGoKnowledgeSource : KnowledgeSource {
     override suspend fun search(query: BrainQuery, limit: Int): List<KnowledgeDocument> {
         val searchTerms = WebSearchIntentPolicy.searchTerms(query.rawText) ?: return emptyList()
         if (limit <= 0) return emptyList()
+        val targetedQuery = buildSearchQuery(query, searchTerms)
         return withContext(Dispatchers.IO) {
-            val html = fetchResults(searchTerms) ?: throw java.io.IOException("Search provider returned no response")
+            val html = fetchResults(targetedQuery) ?: throw java.io.IOException("Search provider returned no response")
             parseResults(html, query, limit.coerceAtMost(MAX_RESULTS))
         }
     }
@@ -185,6 +186,22 @@ object WebSearchIntentPolicy {
     }
 }
 
+
+internal fun buildSearchQuery(query: BrainQuery, terms: String): String {
+    if (!query.requiresPrimaryEvidence) return terms.take(240)
+    val hosts = KnowledgeSourceCatalog.forDomain(query.domain)
+        .filter { it.authority == EvidenceAuthority.OFFICIAL_PRIMARY }
+        .filter { seed ->
+            query.jurisdiction.isNullOrBlank() || seed.jurisdiction.isNullOrBlank() ||
+                seed.jurisdiction.equals(query.jurisdiction, ignoreCase = true) ||
+                (query.jurisdiction == "ES-AN" && seed.id == "junta-andalucia")
+        }
+        .take(3)
+        .mapNotNull { runCatching { URL(it.url).host }.getOrNull() }
+    if (hosts.isEmpty()) return terms.take(240)
+    val restriction = hosts.joinToString(" OR ") { "site:$it" }
+    return "($terms) ($restriction)".take(240)
+}
 
 /** Conservative publisher registry. Unknown domains are never upgraded by suffix guessing. */
 internal object WebAuthorityClassifier {
