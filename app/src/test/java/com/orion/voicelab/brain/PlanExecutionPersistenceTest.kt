@@ -143,4 +143,20 @@ class PlanExecutionPersistenceTest {
         assertTrue(parsed is PlanProposalParseResult.Invalid)
     }
 
+    @Test
+    fun structuredProposalParserRejectsConnectorOperationsNotImplementedByProvider() {
+        val raw = """
+            {
+              "goal":"Read repository metadata",
+              "steps":[{
+                "id":"repo","kind":"CONNECTOR_READ","title":"Read repository","risk":"LOW",
+                "connectorId":"GITHUB","connectorOperation":"get_repository",
+                "connectorArguments":{"repository":"owner/repo"}
+              }]
+            }
+        """.trimIndent()
+        val parsed = PlanProposalParser.parse(raw, "unsupported-op")
+        assertTrue(parsed is PlanProposalParseResult.Invalid)
+    }
+
 }
