@@ -24,7 +24,7 @@
 
 ## Nueva base de conectores — estructura inicial
 
-- Nueva pestaña **Conectores** con Gmail y GitHub operativos en lectura. Google Calendar y Google Drive permanecen como conectores futuros.
+- Conectores actuales: Gmail y GitHub en modo lectura. Se han definido como siguientes prioridades Notas del móvil, Calendario Android, Google Maps y PescaIA Surfcasting; sus contratos y adaptadores aún deben implementarse.
 - Contratos comunes para proveedores, capacidades, estado de conexión, acciones y resultados; registro explícito de adaptadores.
 - Política central para impedir acciones sobre proveedores desconectados y exigir confirmación en operaciones con efectos externos o destructivos.
 - Almacenamiento inicial de credenciales cifradas con AES-256-GCM y clave no exportable protegida por Android Keystore.
@@ -146,3 +146,12 @@ El núcleo local no requiere claves de proveedores externos ni suscripciones. La
 - Los permisos de GitHub deben limitarse a Metadata, Issues, Contents y Actions en lectura, y solo a repositorios seleccionados. Gmail usa `gmail.readonly`.
 - Gmail requiere completar la verificación OAuth de Google para distribución pública. GitHub requiere configurar el Client ID de la GitHub App y habilitar Device Flow.
 - Estas integraciones dependen de conexión a Internet y de que los permisos OAuth estén concedidos; el núcleo local de voz sigue funcionando sin conexión.
+
+
+## Cerebro autónomo y conectores prioritarios
+
+- Arquitectura de conocimiento con recuperación de fuentes (RAG), evidencia trazable, frescura, contradicciones y niveles explícitos de verificación: docs/ORION_BRAIN_ARCHITECTURE.md.
+- Primer contrato ejecutable de procedencia y verificación de evidencia en knowledge/KnowledgeEvidence.kt, con pruebas unitarias.
+- Los cuatro conectores prioritarios quedan fijados en docs/PRIORITY_CONNECTORS.md: Notas del móvil, Calendario, Google Maps y PescaIA Surfcasting. Gmail y GitHub se mantienen como integraciones existentes.
+- La lectura universal de notas de otras aplicaciones no está disponible en Android sin cooperación de cada proveedor; ORION utilizará compartir/importar y creación compatible, sin prometer acceso oculto a todas las notas.
+- El modelo local Qwen2.5 1.5B no se considera suficiente por sí solo para el alcance experto previsto. El cerebro debe poder usar recuperación documental y perfiles de modelos alternativos, manteniendo un perfil local.
