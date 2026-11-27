@@ -103,8 +103,10 @@ class SherpaOnnxSpeechSynthesizer(
 
     override fun selectVoice(voiceId: String) {
         val match = availableVoices().firstOrNull { it.id == voiceId && it.isInstalled }
-        if (match != null) {
+        if (match != null && match.id != currentVoice.id) {
+            val modelChanged = match.modelDirectoryName != currentVoice.modelDirectoryName
             currentVoice = match
+            if (modelChanged) unload()
         }
     }
 
@@ -164,6 +166,7 @@ class SherpaOnnxSpeechSynthesizer(
     ): SynthesisResult {
         coroutineContext.ensureActive()
         if (destroyed.get()) error("El motor TTS ya fue cerrado")
+        if (tts == null) load()
         val synthesisEpoch = cancellationEpoch.get()
         return try {
             withContext(ttsDispatcher) {
