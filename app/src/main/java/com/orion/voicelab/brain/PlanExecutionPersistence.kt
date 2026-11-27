@@ -179,7 +179,9 @@ class PlanExecutionRepository(private val dao: PlanExecutionDao) {
     fun observeAll(): Flow<List<PlanExecutionEntity>> = dao.observeAll()
 
     suspend fun create(plan: OrionPlan, nowMs: Long = System.currentTimeMillis()) {
-        require(PlanValidator.validate(plan).valid) { PlanValidator.validate(plan).errors.joinToString(" ") }
+        val validation = PlanValidator.validate(plan)
+        require(validation.valid) { validation.errors.joinToString(" ") }
+        require(dao.getById(plan.id) == null) { "Ya existe una ejecución con ese identificador." }
         dao.upsert(PlanExecutionEntity(
             id = plan.id,
             goal = plan.goal,
