@@ -212,12 +212,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             val selfKnowledgeContext = OrionSelfKnowledgeAdvisor.compose(
                 userQuery = userText,
                 state = _uiState.value,
-                diagnosticLog = if (
-                    userText.contains("error", ignoreCase = true) ||
-                    userText.contains("fallo", ignoreCase = true) ||
-                    userText.contains("diagn", ignoreCase = true) ||
-                    userText.contains("log", ignoreCase = true)
-                ) {
+                diagnosticLog = if (OrionSelfKnowledgeAdvisor.shouldReadDiagnostics(userText)) {
                     OrionCrashDiagnostics.readRecentDiagnostics(appContext)
                 } else {
                     ""
