@@ -41,7 +41,9 @@ class BundledKnowledgePackInstaller(
                     val expected = cachedHashFile.takeIf { it.isFile }?.readText(Charsets.US_ASCII)?.trim()
                     expected != null && expected.matches(Regex("[a-f0-9]{64}")) &&
                         sha256(file.readBytes()).equals(expected, ignoreCase = true)
-                }?.readText(Charsets.UTF_8)
+                }?.readText(Charsets.UTF_8)?.takeIf { candidate ->
+                    runCatching { JSONObject(candidate).optInt("version") >= manifest.version }.getOrDefault(false)
+                }
                 val raw = cachedRaw ?: bundledRaw
                 val pack = JSONObject(raw)
                 require(pack.optString("id") == manifest.id) { "El identificador del paquete no coincide." }
