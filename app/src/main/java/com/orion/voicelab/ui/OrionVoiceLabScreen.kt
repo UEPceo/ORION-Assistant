@@ -668,7 +668,7 @@ private fun TopBrandAndTabs(
                     TabSegmentButton(
                         selected = selectedTab == OrionTab.CALL,
                         icon = Icons.Outlined.PhoneInTalk,
-                        label = stringResource(R.string.tab_call),
+                        label = "Contactos",
                         onClick = { onSelectTab(OrionTab.CALL) },
                         modifier = tabItemMod("tab_call")
                     )
@@ -1058,6 +1058,7 @@ private fun VirtualCallScreen(
                     onStartCall = onStartCall,
                     onEndCall = onEndCall,
                     onToggleMute = onToggleMute,
+                    onToggleSpeaker = onToggleSpeaker,
                     onInterrupt = onInterrupt,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                 )
