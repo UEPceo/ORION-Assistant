@@ -48,14 +48,14 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                 semanticIndex.rebuild(documents.map { it.evidence.id to chunksByDocument[it.evidence.id].orEmpty() })
             }
             // Dense vectors are generated only when the optional, verified ONNX model is installed.
-            val neuralAvailable = neuralIndex.isAvailable()
-            if (neuralAvailable) {
+            val neuralQuery = runCatching {
+                if (!neuralIndex.isAvailable()) return@runCatching null
                 documents.forEach { document ->
                     val chunks = chunksByDocument[document.evidence.id].orEmpty()
                     neuralIndex.ensureDocument(document.evidence.id, chunks, NeuralEmbeddingIndex.contentFingerprint(chunks))
                 }
-            }
-            val neuralQuery = if (neuralAvailable) neuralIndex.embedQuery(query.normalizedText) else null
+                neuralIndex.embedQuery(query.normalizedText)
+            }.getOrNull()
             val documentFrequency = queryTerms.associateWith { term ->
                 fields.count { (title, excerpt, body) -> term in title || term in excerpt || term in body }
             }
@@ -67,7 +67,8 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                     queryTerms.count { it in chunkTerms }.toDouble() / queryTerms.size
                 } ?: document.evidence.content
                 val bestChunk = if (neuralQuery != null) {
-                    chunks.getOrNull(neuralIndex.bestChunkIndex(document.evidence.id, neuralQuery)) ?: lexicalBestChunk
+                    val neuralBestIndex = runCatching { neuralIndex.bestChunkIndex(document.evidence.id, neuralQuery) }.getOrDefault(-1)
+                    chunks.getOrNull(neuralBestIndex) ?: lexicalBestChunk
                 } else lexicalBestChunk
                 val matched = queryTerms.count { term -> term in title || term in excerpt || term in body }
                 val n = documents.size.toDouble()
@@ -83,7 +84,7 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                 val coverage = matched.toDouble() / queryTerms.size
                 val lexical = ((score + phraseBoost) / (score + phraseBoost + 8.0)).coerceIn(0.0, 1.0)
                 val semantic = semanticIndex.score(document.evidence.id, query.normalizedText)
-                val neural = neuralQuery?.let { neuralIndex.score(document.evidence.id, it) } ?: 0.0
+                val neural = neuralQuery?.let { vector -> runCatching { neuralIndex.score(document.evidence.id, vector) }.getOrDefault(0.0) } ?: 0.0
                 if (matched == 0 && semantic <= 0.01 && neural <= 0.01) return@mapIndexedNotNull null
                 val combined = if (neuralQuery != null) {
                     0.25 * lexical + 0.25 * semantic + 0.50 * neural
