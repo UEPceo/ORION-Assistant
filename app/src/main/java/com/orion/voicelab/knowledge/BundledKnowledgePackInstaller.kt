@@ -33,16 +33,21 @@ class BundledKnowledgePackInstaller(
 
         for (manifest in KnowledgePackCatalog.packs) {
             try {
-                val raw = appContext.assets.open("knowledge_packs/${manifest.id}.json")
+                val cachedFile = File(appContext.filesDir, "knowledge_pack_updates/${manifest.id}.json")
+                val bundledRaw = appContext.assets.open("knowledge_packs/${manifest.id}.json")
                     .bufferedReader(Charsets.UTF_8).use { it.readText() }
+                val cachedRaw = cachedFile.takeIf { it.isFile }?.readText(Charsets.UTF_8)
+                val raw = cachedRaw ?: bundledRaw
                 val pack = JSONObject(raw)
                 require(pack.optString("id") == manifest.id) { "El identificador del paquete no coincide." }
-                require(pack.optInt("version", 0) == manifest.version) { "La versión del paquete no coincide." }
+                val packVersion = pack.optInt("version", 0)
+                require(packVersion >= manifest.version) { "La versión remota es anterior al paquete incluido." }
+                require(packVersion > 0) { "Versión de paquete inválida." }
                 val documents = pack.optJSONArray("documents")
                     ?: error("El paquete no contiene documentos.")
                 require(documents.length() > 0) { "El paquete está vacío." }
                 val currentVersion = preferences.getInt(versionKey(manifest.id), 0)
-                val documentIdsPresent = if (currentVersion >= manifest.version) {
+                val documentIdsPresent = if (currentVersion >= packVersion) {
                     (0 until documents.length()).all { index ->
                         val url = documents.getJSONObject(index).getString("url")
                         repository.contains(sha256(url).take(32))
@@ -101,7 +106,7 @@ class BundledKnowledgePackInstaller(
                     accepted++
                 }
                 require(accepted == documents.length()) { "No se han instalado todos los documentos." }
-                preferences.edit().putInt(versionKey(manifest.id), manifest.version).apply()
+                preferences.edit().putInt(versionKey(manifest.id), packVersion).apply()
                 installed += manifest.id
                 documentCount += accepted
             } catch (cancelled: CancellationException) {
