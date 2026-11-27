@@ -4,7 +4,7 @@ package com.orion.voicelab.creative
 object CreativeBrainPromptComposer {
     fun compose(userText: String, skill: CreativeSkill, activeRole: String? = null, mediaStatus: MediaCapabilityStatus? = null): String {
         if (skill == CreativeSkill.NONE) return ""
-        val roleGuidance = activeRole?.takeIf { it.isNotBlank() }?.let(CreativeSkillRouter::coWorkerGuidance).orEmpty()
+        val roleGuidance = activeRole?.takeIf { it.isNotBlank() }?.let { CreativeSkillRouter.coWorkerGuidance(it) }.orEmpty()
         val rules = when (skill) {
             CreativeSkill.DESIGN, CreativeSkill.BRANDING -> """
                 HABILIDAD: DIRECCIÓN DE ARTE Y DISEÑO.
