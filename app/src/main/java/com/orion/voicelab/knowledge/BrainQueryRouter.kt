@@ -20,13 +20,21 @@ object BrainQueryRouter {
                 KnowledgeDomain.MARINE_WEATHER
             containsAny(normalized, "ciberseguridad", "malware", "phishing", "vulnerabilidad", "ransomware", "contraseña", "contraseñas", "autenticación", "doble factor", "mfa", "owasp", "incibe", "clave de acceso", "credenciales") ->
                 KnowledgeDomain.CYBERSECURITY
+            containsAny(normalized, "matemática", "matemáticas", "álgebra", "calculo", "cálculo", "derivada", "integral", "ecuación", "ecuaciones", "geometría", "estadística", "probabilidad", "teorema") ->
+                KnowledgeDomain.MATHEMATICS
+            containsAny(normalized, "ciencia", "científico", "científica", "física", "química", "biología", "astronomía", "genética", "ecología", "hipótesis", "experimento", "investigación científica") ->
+                KnowledgeDomain.SCIENCE
+            containsAny(normalized, "ingeniería", "ingeniero", "ingeniera", "mecánica", "electrónica", "termodinámica", "sistemas de control", "metrología", "materiales", "diseño industrial") ->
+                KnowledgeDomain.ENGINEERING
             containsAny(normalized, "programar", "programación", "kotlin", "python", "java", "código", "compilar", "api", "github", "android", "coroutine", "coroutines", "activity", "jetpack compose") ->
                 KnowledgeDomain.PROGRAMMING
             containsAny(normalized, "internet", "web", "navegador", "http", "dns", "red") ->
                 KnowledgeDomain.INTERNET
-            containsAny(normalized, "empresa", "negocio", "ventas", "marketing", "cliente", "mercado") ->
+            containsAny(normalized, "comunicación", "comunicacion", "redacción", "redaccion", "escritura", "oratoria", "argumentación", "argumentacion", "presentación", "presentacion", "retórica", "retorica", "escucha activa", "storytelling", "narrativa") ->
+                KnowledgeDomain.COMMUNICATION
+            containsAny(normalized, "empresa", "negocio", "ventas", "marketing", "cliente", "mercado", "emprendimiento", "modelo de negocio", "plan de negocio", "pyme", "productividad empresarial") ->
                 KnowledgeDomain.BUSINESS
-            containsAny(normalized, "finanzas", "inversión", "impuestos", "presupuesto", "dinero") ->
+            containsAny(normalized, "finanzas", "inversión", "impuestos", "presupuesto", "dinero", "ahorro", "interés compuesto", "diversificación", "hipoteca", "acciones", "bonos", "crédito", "tae", "inflación") ->
                 KnowledgeDomain.FINANCE
             containsAny(normalized, "instagram", "tiktok", "youtube", "redes sociales", "reel", "shorts", "alcance", "retención", "engagement", "algoritmo", "publicación", "community manager") ->
                 KnowledgeDomain.SOCIAL_MEDIA
@@ -36,7 +44,7 @@ object BrainQueryRouter {
                 KnowledgeDomain.IMAGE_VIDEO
             containsAny(normalized, "agenda", "calendario", "tarea", "recordatorio", "productividad") ->
                 KnowledgeDomain.PERSONAL_PRODUCTIVITY
-            containsAny(normalized, "informática", "ordenador", "computadora", "hardware", "software", "sistema operativo") ->
+            containsAny(normalized, "informática", "ordenador", "computadora", "hardware", "software", "sistema operativo", "algoritmo", "estructura de datos", "computación", "sistemas informáticos") ->
                 KnowledgeDomain.COMPUTER_SCIENCE
             else -> KnowledgeDomain.GENERAL
         }
