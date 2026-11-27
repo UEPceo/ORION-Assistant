@@ -8,6 +8,7 @@ object BrainPromptComposer {
             BrainPresentation.UNVERIFIED -> "INFORMACIÓN NO VERIFICADA:"
             BrainPresentation.HISTORICAL -> "INFORMACIÓN HISTÓRICA; puede estar desactualizada:"
             BrainPresentation.NO_SOURCES -> "SIN FUENTES RECUPERADAS:"
+            BrainPresentation.SOURCE_FAILURE -> "NO SE PUDO CONSULTAR NINGUNA FUENTE:"
         }
         val builder = StringBuilder()
             .append(header).append('\n')
@@ -27,6 +28,9 @@ object BrainPromptComposer {
         }
         if (context.documents.isEmpty()) {
             builder.append("No inventes fuentes ni presentes conocimiento interno del modelo como dato comprobado. ")
+            if (context.sourceFailures.isNotEmpty()) {
+                builder.append("La consulta de fuentes falló; informa de la incidencia y no afirmes que no existe información. ")
+            }
                 .append("Expón la incertidumbre y solicita una fuente o consulta actualizada si es necesaria.")
         } else {
             builder.append("\nInstrucciones: separa hechos de inferencias; no añadas datos ausentes; ")
