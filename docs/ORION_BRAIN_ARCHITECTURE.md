@@ -100,6 +100,23 @@ Las respuestas distinguen:
 7. Selección de modelos local/avanzado/remoto y evaluación comparativa.
 8. Suite de evaluación de factualidad, actualidad, citas, seguridad, programación y regresiones.
 
+
+## Planificador multipaso persistente — fase de ejecución durable
+
+Se ha añadido la primera capa operativa de persistencia y recuperación:
+
+- La base Room sube de versión 4 a 5 mediante migración incremental; se crea `plan_executions` sin borrar conversaciones, recuerdos, contactos ni tareas existentes.
+- Cada plan validado se guarda antes de ejecutar, con pasos tipados, dependencias, argumentos de conectores, presupuesto, estado y resultados.
+- El coordinador publica checkpoints antes y después de cada paso. Se conservan el estado, el resumen y la referencia de salida para no repetir pasos ya completados.
+- La reanudación exige aprobación nueva para cada paso protegido que siga pendiente. Las autorizaciones no se guardan ni se reutilizan entre ejecuciones.
+- Si Android cierra el proceso durante un paso, el registro se recupera como PAUSED y el paso activo pasa a FAILED con advertencia de resultado incierto. ORION no lo repite automáticamente; el usuario debe verificar y seleccionar expresamente los pasos que desea reintentar.
+- La cancelación cooperativa conserva el checkpoint PAUSED incluso cuando la corrutina ya está cancelada.
+- La ViewModel expone historial observable y operaciones para guardar, ejecutar y borrar planes.
+
+Límites aún abiertos: la salida del LLM todavía no se convierte automáticamente en un objeto `OrionPlan` estructurado y validado; no existe aún una pantalla de revisión/aprobación/reanudación para el usuario; los pasos locales (pensar, cálculo, lectura genérica y creación de documentos) necesitan handlers reales. El adaptador de conectores sí pasa por el dispatcher y su puerta de seguridad, pero la persistencia por sí sola no convierte una operación no implementada en funcional. La fase no debe presentarse como agente autónomo completo.
+
+La base de datos de ORION es almacenamiento privado de la aplicación, pero no se declara cifrada. Los argumentos de planes deben excluir credenciales, tokens y secretos; el sistema no debe persistir material de autenticación.
+
 ## Criterios de aceptación
 
 ORION no se considerará listo por responder con fluidez. Debe demostrar en pruebas que no inventa fuentes, enlaces ni resultados de ejecución; reconoce información caducada, insuficiente o contradictoria; prioriza fuentes oficiales para normativa y seguridad; separa conocimiento público, memoria personal y contenido privado; mantiene capacidades locales cuando fallan Internet o los conectores; y puede investigar, generar código y validar resultados con herramientas autorizadas.
