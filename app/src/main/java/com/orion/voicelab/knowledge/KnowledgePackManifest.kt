@@ -5,7 +5,7 @@ data class KnowledgePackManifest(val id:String,val title:String,val version:Int,
 object KnowledgePackCatalog {
  val packs=listOf(
   KnowledgePackManifest("es-eu-law","Normativa España y Unión Europea",1,setOf(KnowledgeDomain.LAW_AND_REGULATION),"ES/EU",setOf("boe","eur-lex"),"Textos oficiales; revisar reutilización.",4,KnowledgePackState.READY_TO_INSTALL,7),
-  KnowledgePackManifest("es-safety","Seguridad y emergencias España",1,setOf(KnowledgeDomain.HEALTH_AND_SAFETY),"ES",setOf("sanidad","dgt","miteco"),"Material oficial; no sustituye servicios de emergencia.",3,KnowledgePackState.READY_TO_INSTALL,30),
+  KnowledgePackManifest("es-safety","Seguridad y emergencias España y UE",2,setOf(KnowledgeDomain.HEALTH_AND_SAFETY),"ES",setOf("eu-112"),"Material oficial; no sustituye servicios de emergencia.",3,KnowledgePackState.READY_TO_INSTALL,30),
   KnowledgePackManifest("es-cyber","Ciberseguridad defensiva",1,setOf(KnowledgeDomain.CYBERSECURITY),"ES",setOf("incibe","aepd","owasp"),"Documentación pública; comprobar licencias.",3,KnowledgePackState.READY_TO_INSTALL,30),
   KnowledgePackManifest("android-kotlin","Desarrollo Android y Kotlin",1,setOf(KnowledgeDomain.PROGRAMMING,KnowledgeDomain.COMPUTER_SCIENCE),null,setOf("android","kotlin","github-docs"),"Licencias por recurso.",2,KnowledgePackState.READY_TO_INSTALL,30),
   KnowledgePackManifest("python-web","Python e Internet",1,setOf(KnowledgeDomain.PROGRAMMING,KnowledgeDomain.INTERNET),null,setOf("python","mdn"),"Documentación oficial; respetar licencias y versiones.",2,KnowledgePackState.READY_TO_INSTALL,60),
