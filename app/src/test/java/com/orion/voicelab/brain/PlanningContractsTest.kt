@@ -1,6 +1,8 @@
 package com.orion.voicelab.brain
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.delay
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -27,4 +29,41 @@ class PlanningContractsTest {
         } }
         assertEquals(StepStatus.BLOCKED, result.steps["calc"]?.status)
     }
+    @Test fun retriesReadOnlyStepsButNotNonIdempotentWrites() {
+        val attempts = AtomicInteger(0)
+        val readPlan = OrionPlan("read", "read", listOf(PlannedStep("r", PlanStepKind.READ, "Read", "", PlanRisk.LOW)),
+            ExecutionBudget(maxRetriesPerStep = 1))
+        val readResult = runBlocking {
+            PlanExecutionCoordinator().execute(readPlan, emptySet()) { _, _ ->
+                if (attempts.incrementAndGet() == 1) StepExecution(StepStatus.FAILED, "temporary")
+                else StepExecution(StepStatus.SUCCEEDED, "ok")
+            }
+        }
+        assertEquals(2, attempts.get())
+        assertEquals(PlanStatus.COMPLETED, readResult.status)
+
+        attempts.set(0)
+        val writePlan = OrionPlan("write", "draft", listOf(PlannedStep("w", PlanStepKind.CREATE_DRAFT, "Draft", "", PlanRisk.HIGH)),
+            ExecutionBudget(maxRetriesPerStep = 2))
+        runBlocking {
+            PlanExecutionCoordinator().execute(writePlan, setOf("w")) { _, _ ->
+                attempts.incrementAndGet()
+                StepExecution(StepStatus.FAILED, "failed")
+            }
+        }
+        assertEquals(1, attempts.get())
+    }
+
+    @Test fun enforcesOverallExecutionTimeBudget() {
+        val plan = OrionPlan("slow", "slow", listOf(PlannedStep("slow", PlanStepKind.READ, "Slow", "", PlanRisk.LOW)),
+            ExecutionBudget(maxDurationMs = 30L))
+        val result = runBlocking {
+            PlanExecutionCoordinator().execute(plan, emptySet()) { _, _ ->
+                delay(500L)
+                StepExecution(StepStatus.SUCCEEDED, "too late")
+            }
+        }
+        assertEquals(StepStatus.FAILED, result.steps["slow"]?.status)
+    }
+
 }
