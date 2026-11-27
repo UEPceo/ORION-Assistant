@@ -155,3 +155,10 @@ El núcleo local no requiere claves de proveedores externos ni suscripciones. La
 - Los cuatro conectores prioritarios quedan fijados en docs/PRIORITY_CONNECTORS.md: Notas del móvil, Calendario, Google Maps y PescaIA Surfcasting. Gmail y GitHub se mantienen como integraciones existentes.
 - La lectura universal de notas de otras aplicaciones no está disponible en Android sin cooperación de cada proveedor; ORION utilizará compartir/importar y creación compatible, sin prometer acceso oculto a todas las notas.
 - El modelo local Qwen2.5 1.5B no se considera suficiente por sí solo para el alcance experto previsto. El cerebro debe poder usar recuperación documental y perfiles de modelos alternativos, manteniendo un perfil local.
+
+
+## Modular knowledge brain
+
+The modular brain is wired into each voice turn. Its current core includes deterministic domain routing, a private persistent source-backed corpus, lexical retrieval, freshness/authority checks, explicit source-conflict metadata, bounded citation-aware prompt composition, and a learning gate that never treats model output as evidence. The corpus starts empty and is not populated with fabricated knowledge. Live web retrieval, semantic/vector search, curated domain packs, and external source ingestion remain implementation work; without retrieved evidence ORION is instructed to say that it cannot verify the answer.
+
+Architecture and current limits: [docs/ORION_BRAIN_ARCHITECTURE.md](docs/ORION_BRAIN_ARCHITECTURE.md).
