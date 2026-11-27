@@ -262,8 +262,8 @@ Esta actualización incorpora las primeras implementaciones de los seis frentes 
 ### 3. Conocimiento offline
 - Catálogo de seis packs previstos: normativa España/UE, seguridad España, ciberseguridad, Android/Kotlin, Python/Internet y pesca recreativa Andalucía.
 - Cada pack declara versión, dominios, jurisdicción, fuentes, licencia y frecuencia de revisión.
-- **Estado actualizado: seis packs con contenido real incluido en APK assets, 12 documentos fuente y un instalador local versionado.** Los documentos se incorporan al corpus privado al primer uso del cerebro, sin red ni descarga. Se calcula SHA-256 del contenido, se conserva URL/editor/autoridad/jurisdicción y se valida cada documento antes de guardarlo.
-- Packs incluidos: Android/Kotlin (ciclo de vida y coroutines), Python (fundamentos y HTTP), ciberseguridad (OWASP Top 10 e higiene digital INCIBE), legislación España/UE (consulta BOE y EUR-Lex), emergencias 112 y pesca recreativa Andalucía (licencias, PescaREC y aviso sobre cambios judiciales).
+- **Estado actualizado: seis packs con contenido real incluido en APK assets, 16 documentos fuente y un instalador local versionado.** Los documentos se incorporan al corpus privado al primer uso del cerebro, sin red ni descarga. Se calcula SHA-256 del contenido, se conserva URL/editor/autoridad/jurisdicción y se valida cada documento antes de guardarlo.
+- Packs incluidos: Android/Kotlin (arquitectura Android, ciclo de vida, concurrencia estructurada), Python (fundamentos, HTTP, excepciones y pruebas), ciberseguridad (OWASP Top 10, credenciales y modelado de amenazas), legislación España/UE (consulta BOE y EUR-Lex), emergencias 112 y pesca recreativa Andalucía (licencias, PescaREC y aviso sobre cambios judiciales).
 - La instalación es idempotente y versionada; el paquete andaluz está en versión 2 para reflejar información institucional consultada el 27/11/2026. Si un paquete falla, se registra el error y no se marca como instalado.
 - El contenido es una síntesis educativa con enlaces a las fuentes, no una copia íntegra ni una base legal exhaustiva. El conocimiento normativo y de seguridad debe verificarse online antes de actuar; las fechas de revisión y las advertencias de vigencia se conservan.
 
@@ -280,18 +280,34 @@ Esta actualización incorpora las primeras implementaciones de los seis frentes 
 
 ### 6. Evaluación continua
 - Evaluador ponderado por áreas con puntuación 0–10, brechas y criterio global: todas las áreas deben llegar a 8/10.
-- Línea base conservadora calculada desde capacidades realmente implementadas: conocimiento 6/10; planificación 6,7/10; conocimiento offline 7/10; razonamiento/modelo 4/10; herramientas 4/10; multimedia 4/10; fiabilidad/seguridad 4/10 (CI de esta revisión pendiente). Mínimo global: **4/10**; media aproximada: **5,1/10**.
+- Línea base conservadora calculada desde capacidades realmente implementadas: conocimiento 7,7/10; planificación 6,7/10; conocimiento offline 8,8/10; razonamiento/modelo 4/10; herramientas 4/10; multimedia 4/10; fiabilidad/seguridad 4/10 (CI de esta revisión pendiente). Mínimo global: **4/10**; media aproximada: **5,6/10**.
 - Esta puntuación es una línea base de ingeniería basada en criterios explícitos, no una prueba independiente de inteligencia. Se recalculará cuando haya pruebas automatizadas y resultados de ejecución.
-- La meta 8/10 no está alcanzada. El mayor déficit está en contenido offline real, ejecución multipaso conectada, motores avanzados y multimedia operativa.
+- La meta 8/10 no está alcanzada. El mayor déficit está en razonamiento/modelos avanzados, ejecución multipaso conectada, herramientas completas y multimedia operativa.
 
 ### Criterio de aceptación para declarar 8/10
 Cada área debe disponer de criterios reproducibles, pruebas unitarias e integración, evidencia de ejecución y cobertura suficiente. Ninguna capacidad marcada como catálogo, contrato, configuración pendiente o no implementada puede sumar como operativa. La puntuación mínima entre áreas gobierna el resultado global; una media alta no puede ocultar un área débil.
 
 
 ### Incorporación de conocimiento offline real — 27/11/2026
-- Assets: `app/src/main/assets/knowledge_packs/*.json` con seis packs y once documentos en castellano.
+- Assets: `app/src/main/assets/knowledge_packs/*.json` con seis packs y dieciséis documentos en castellano.
 - Instalador: `BundledKnowledgePackInstaller`; integra en `OrionBrainRuntime.retrieve()` antes de la primera recuperación. No realiza peticiones de red.
 - Persistencia: corpus privado existente; versión por pack en preferencias privadas. Reintento automático si un pack falla antes de marcar su versión como instalada.
 - Integridad: SHA-256 al ingerir y comprobación del hash al leer el corpus. Las fuentes y jurisdicciones se conservan para filtrar y ordenar resultados.
 - Tests: contenido y atribución de los seis assets, instalación real con Robolectric, repetición idempotente, búsqueda posterior y estado dinámico de instalación.
-- Limitación: no se incluye un índice vectorial; el ranking sigue siendo léxico ponderado. El paquete legal no sustituye la consulta de vigencia. El contenido inicial es deliberadamente compacto para no aumentar mucho el tamaño de APK.
+- Índice semántico: `KnowledgeSemanticIndex` mantiene vectores dispersos por fragmento en un archivo privado independiente. Combina términos normalizados, trigramas de caracteres y un mapa explícito de conceptos/sinónimos en español; la recuperación combina puntuación léxica BM25-like y similitud coseno. No requiere red ni un modelo adicional.
+- Profundidad documental: `KnowledgeDocumentChunker` crea pasajes de hasta 1.200 caracteres con solapamiento de 160 caracteres y preferencia por límites de frase/párrafo. La respuesta recupera el pasaje más relevante y conserva la procedencia del documento.
+- Actualización automática: `KnowledgePackUpdateScheduler` registra trabajo periódico semanal con WorkManager, solo red no medida (Wi-Fi) y batería no baja. Android puede aplazar la ejecución por ahorro energético; también existe una solicitud manual inmediata.
+- Canal remoto: manifiesto versionado en GitHub Raw, seis paquetes allowlist por ID y ruta, descargas HTTPS limitadas por tamaño/tiempo, validación de SHA-256, versión monotónica y escritura atómica en caché. El instalador vuelve a verificar el hash antes de ingerir. Los fallos generan reintentos y no sustituyen la versión válida instalada.
+- Límite importante: el índice actual es semántico disperso basado en conceptos y n-gramas, no embeddings neuronales. Resuelve sinónimos y variaciones léxicas conocidas, pero no alcanza la comprensión de un encoder multilingüe. Se mantiene la búsqueda léxica como respaldo y la próxima mejora será un modelo de embeddings ONNX cuantizado descargable opcional.
+- Seguridad del canal: TLS y SHA-256 detectan transporte corrupto o archivos que no coinciden con el manifiesto, pero el manifiesto y los paquetes residen en el mismo repositorio; no es una firma criptográfica independiente del editor. Para un canal de alta garantía queda pendiente firmar el manifiesto con una clave privada fuera del repositorio y verificar con clave pública fijada en la app.
+- El paquete legal no sustituye la consulta de vigencia. El contenido inicial sigue siendo una síntesis educativa, no una base normativa exhaustiva.
+
+
+### Índice semántico, profundidad documental y actualizaciones — 27/11/2026
+- `KnowledgeSemanticIndex`: persistencia local de vectores dispersos por fragmento; similitud coseno, trigramas, conceptos y alias en español; reconstrucción si faltan vectores; eliminación sincronizada con el corpus.
+- `KnowledgeCorpusStore`: ranking híbrido con peso léxico 55 % y semántico 45 %, más autoridad y fecha como desempates. Permite recuperar documentos aunque no compartan palabras exactas cuando existe un concepto compartido.
+- `KnowledgeDocumentChunker`: pasajes solapados para no perder contexto en los límites. Los fragmentos conservan la cita del documento de origen.
+- `KnowledgePackUpdateWorker`: consulta el manifiesto remoto, comprueba el host/ruta permitidos, tamaño, versión y hash; descarga a caché mediante `AtomicFile`; el instalador valida el sidecar SHA-256 antes de ingerir.
+- `KnowledgePackUpdateScheduler`: trabajo semanal en red no medida y batería suficiente, con backoff exponencial. El SO puede retrasarlo; no es una actualización en tiempo real.
+- Canal de publicación: `app/src/main/assets/knowledge_packs/updates/manifest.json` y paquetes versionados. Para publicar una actualización hay que subir el JSON de paquete y actualizar versión, URL y SHA-256 del manifiesto.
+- Limitación reconocida: el índice no usa aún embeddings neuronales. Los hashes no sustituyen una firma de editor independiente. Los tests de integración y el CI deben confirmar la implementación antes de considerarla validada.
