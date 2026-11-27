@@ -59,5 +59,6 @@ class KnowledgeIngestionServiceTest {
         override suspend fun search(query: BrainQuery, limit: Int) = emptyList<KnowledgeDocument>()
         override suspend fun upsert(document: KnowledgeDocument) { saved = document }
         override suspend fun remove(documentId: String) { saved = null }
+        override suspend fun contains(documentId: String) = saved?.evidence?.id == documentId
     }
 }
