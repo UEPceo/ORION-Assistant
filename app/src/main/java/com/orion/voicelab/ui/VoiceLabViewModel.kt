@@ -1639,6 +1639,11 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         }
 
         pendingConnectorInputAction?.let { pending ->
+            val normalized = userText.trim().lowercase()
+            if (normalized in setOf("cancelar", "cancela", "olvídalo", "olvidalo", "no")) {
+                pendingConnectorInputAction = null
+                return "De acuerdo, consulta del conector cancelada."
+            }
             val repository = Regex("""[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}""").find(userText)?.value
             if (repository != null) {
                 pendingConnectorInputAction = null
@@ -1646,6 +1651,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 val completed = pending.copy(arguments = pending.arguments + ("repository" to repository))
                 return connectorResultText(connectorRuntime.dispatcher.dispatch(completed, true))
             }
+            pendingConnectorInputAction = null
         }
 
         val hasPendingCall = synchronized(pendingCallLock) { pendingRequestSnapshot != null }
