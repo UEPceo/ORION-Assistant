@@ -395,6 +395,21 @@ object ModelManager {
 
     fun ttsDirectory(filesDir: File): File = File(filesDir, "models/$TTS_DIR_NAME")
 
+    fun ttsVoiceDirectory(filesDir: File, directoryName: String): File = File(filesDir, "models/$directoryName")
+
+    fun ttsVoiceModelFile(filesDir: File, directoryName: String, modelFileName: String): File =
+        File(ttsVoiceDirectory(filesDir, directoryName), modelFileName)
+
+    fun isTtsVoiceInstalled(filesDir: File, directoryName: String, modelFileName: String): Boolean {
+        val directory = ttsVoiceDirectory(filesDir, directoryName)
+        val model = File(directory, modelFileName)
+        val tokens = File(directory, "tokens.txt")
+        val espeak = File(directory, "espeak-ng-data")
+        return model.isFile && model.length() >= TTS_MIN_ONNX_BYTES &&
+            tokens.isFile && tokens.length() > 100L && espeak.isDirectory &&
+            (espeak.listFiles()?.isNotEmpty() == true)
+    }
+
     fun ttsModelFile(filesDir: File): File = File(ttsDirectory(filesDir), TTS_MODEL_FILE)
 
     fun ttsTokensFile(filesDir: File): File = File(ttsDirectory(filesDir), "tokens.txt")
@@ -545,10 +560,65 @@ object ModelManager {
         }
     }
 
-    internal fun extractTtsArchive(archive: File, filesDir: File) {
-        val targetDir = ttsDirectory(filesDir)
-        val tempDir = File(filesDir, "models/$TTS_DIR_NAME.tmp")
-        val backupDir = File(filesDir, "models/$TTS_DIR_NAME.bak")
+    fun downloadAndInstallTtsVoice(
+        filesDir: File,
+        directoryName: String,
+        archiveName: String,
+        modelFileName: String,
+        url: String,
+        shouldCancel: () -> Boolean = { Thread.currentThread().isInterrupted },
+        onProgress: (percent: Int, downloadedMb: Long, totalMb: Long) -> Unit,
+        onExtracting: () -> Unit
+    ) {
+        require(directoryName.matches(Regex("[a-zA-Z0-9._-]{3,100}")))
+        require(archiveName.matches(Regex("[a-zA-Z0-9._-]{3,140}")))
+        require(modelFileName.matches(Regex("[a-zA-Z0-9._-]{3,140}")))
+        require(url.startsWith("https://"))
+        synchronized(modelLock("tts-voice-$directoryName")) {
+            if (isTtsVoiceInstalled(filesDir, directoryName, modelFileName)) return
+            val partArchive = File(downloadsDirectory(filesDir), "$archiveName.part")
+            try {
+                ResumableHttpDownloader.download(
+                    spec = DownloadSpec(
+                        url = url,
+                        destinationPartFile = partArchive,
+                        minRequiredFreeBytes = TTS_REQUIRED_FREE_BYTES,
+                        connectTimeoutMs = 20_000,
+                        readTimeoutMs = 60_000,
+                        shouldCancel = shouldCancel
+                    ),
+                    onProgress = onProgress
+                )
+                if (shouldCancel() || Thread.currentThread().isInterrupted) {
+                    throw CancellationException("Descarga de voz cancelada")
+                }
+                onExtracting()
+                extractTtsArchive(partArchive, filesDir, directoryName, modelFileName)
+                partArchive.delete()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (error.message?.contains("tar", true) == true ||
+                    error.message?.contains("bzip2", true) == true ||
+                    error.message?.contains("Corrupt", true) == true ||
+                    error.message?.contains("Falta", true) == true
+                ) partArchive.delete()
+                throw error
+            }
+        }
+    }
+
+    internal fun extractTtsArchive(
+        archive: File,
+        filesDir: File,
+        targetDirectoryName: String = TTS_DIR_NAME,
+        targetModelFileName: String = TTS_MODEL_FILE
+    ) {
+        require(targetDirectoryName.matches(Regex("[a-zA-Z0-9._-]{3,100}")))
+        require(targetModelFileName.matches(Regex("[a-zA-Z0-9._-]{3,140}")))
+        val targetDir = ttsVoiceDirectory(filesDir, targetDirectoryName)
+        val tempDir = File(filesDir, "models/$targetDirectoryName.tmp")
+        val backupDir = File(filesDir, "models/$targetDirectoryName.bak")
 
         recoverBackupIfNeeded(targetDir, backupDir)
         tempDir.deleteRecursively()
@@ -564,8 +634,8 @@ object ModelManager {
                         val relativePath = sanitizeArchiveEntryPath(entry) ?: continue
 
                         val isAllowedTopFile = relativePath in setOf(
-                            TTS_MODEL_FILE,
-                            "$TTS_MODEL_FILE.json",
+                            targetModelFileName,
+                            "$targetModelFileName.json",
                             "tokens.txt",
                             "MODEL_CARD"
                         )
@@ -590,8 +660,8 @@ object ModelManager {
                 }
             }
 
-            check(File(tempDir, TTS_MODEL_FILE).length() >= TTS_MIN_ONNX_BYTES) {
-                "Falta $TTS_MODEL_FILE válido"
+            check(File(tempDir, targetModelFileName).length() >= TTS_MIN_ONNX_BYTES) {
+                "Falta $targetModelFileName válido"
             }
             check(File(tempDir, "tokens.txt").length() > 100L) {
                 "Falta tokens.txt de TTS"
