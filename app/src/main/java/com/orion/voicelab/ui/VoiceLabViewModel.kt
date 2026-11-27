@@ -8,6 +8,9 @@ import androidx.lifecycle.viewModelScope
 import com.orion.voicelab.asr.MoonshineSpeechRecognitionEngine
 import com.orion.voicelab.audio.AudioRoutingController
 import com.orion.voicelab.conversation.ConversationEngine
+import com.orion.voicelab.connectors.ConnectorResult
+import com.orion.voicelab.connectors.ConnectorVoiceIntentRouter
+import com.orion.voicelab.connectors.OrionConnectorRuntime
 import com.orion.voicelab.data.AsrStats
 import com.orion.voicelab.data.AssistantIdentity
 import com.orion.voicelab.data.AudioHardwareStatus
@@ -87,6 +90,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     }
 
     private val appContext = application.applicationContext
+    private val connectorRuntime = OrionConnectorRuntime(appContext)
     private val database = OrionDatabase.getInstance(appContext)
     private val conversationRepository = ConversationRepository(database.conversationDao())
     private val memoryRepository = MemoryRepository(database.memoryDao())
@@ -1625,6 +1629,17 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             callPendingWith.queryType == com.orion.voicelab.data.HistoryQueryType.PENDING_WITH
         ) {
             handleVoiceCallCommand(userText)?.let { return it }
+        }
+        ConnectorVoiceIntentRouter.route(userText)?.let { routed ->
+            val result = connectorRuntime.dispatcher.dispatch(
+                action = routed.action,
+                userRequestedExactAction = routed.userRequestedExactAction
+            )
+            return when (result) {
+                is ConnectorResult.Success -> result.summary
+                is ConnectorResult.NeedsUserInput -> result.prompt
+                is ConnectorResult.Failure -> result.safeMessage
+            }
         }
         handleVoiceTaskCommand(userText)?.let { return it }
         return handleVoiceCallCommand(userText)
