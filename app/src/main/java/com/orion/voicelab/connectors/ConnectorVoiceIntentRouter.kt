@@ -21,7 +21,10 @@ object ConnectorVoiceIntentRouter {
             ))
         }
 
-        if (containsAny(normalized, "gmail", "mi correo", "mis correos", "correo electrónico", "emails")) {
+        val isMailAction = containsAny(normalized, "busca", "buscar", "encuentra", "localiza", "muestra", "enséñame", "revisa", "consulta", "lee", "abre")
+        if (containsAny(normalized, "gmail", "mi correo", "mis correos", "correo electrónico", "emails") ||
+            (normalized.contains("correo") && isMailAction)
+        ) {
             val rawQuery = text.substringAfter(':', "").trim().takeIf { it.isNotBlank() }
                 ?: stripLeadingIntent(text, listOf(
                     "busca", "buscar", "encuentra", "localiza", "muestra", "enséñame",
