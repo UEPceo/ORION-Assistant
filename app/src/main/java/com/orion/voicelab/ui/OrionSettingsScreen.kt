@@ -92,10 +92,14 @@ fun OrionSettingsScreen(
                 }
             }
             if (state.voiceDownloadingId != null) {
-                LinearProgressIndicator(
-                    progress = { state.voiceDownloadProgressPercent / 100f },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                if (state.voiceDownloadProgressPercent > 0) {
+                    LinearProgressIndicator(
+                        progress = { state.voiceDownloadProgressPercent / 100f },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
                 Text(state.voiceDownloadStatus ?: "Descargando voz…", style = MaterialTheme.typography.bodySmall)
             } else if (!state.voiceDownloadStatus.isNullOrBlank()) {
                 Text(state.voiceDownloadStatus.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
