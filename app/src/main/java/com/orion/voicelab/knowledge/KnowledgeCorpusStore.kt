@@ -50,11 +50,11 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
             // Dense vectors are generated only when the optional, verified ONNX model is installed.
             val neuralQuery = runCatching {
                 if (!neuralIndex.isAvailable()) return@runCatching null
-                documents.forEach { document ->
+                val allIndexed = documents.all { document ->
                     val chunks = chunksByDocument[document.evidence.id].orEmpty()
                     neuralIndex.ensureDocument(document.evidence.id, chunks, NeuralEmbeddingIndex.contentFingerprint(chunks))
                 }
-                neuralIndex.embedQuery(query.normalizedText)
+                if (allIndexed) neuralIndex.embedQuery(query.normalizedText) else null
             }.getOrNull()
             val documentFrequency = queryTerms.associateWith { term ->
                 fields.count { (title, excerpt, body) -> term in title || term in excerpt || term in body }
