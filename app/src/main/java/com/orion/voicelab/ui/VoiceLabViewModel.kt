@@ -230,7 +230,10 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     init {
         speechSynthesizer.selectVoice(settingsPreferences.getString("selected_voice_id", "sharvard_f").orEmpty())
-        _uiState.update { it.copy(selectedVoiceId = speechSynthesizer.selectedVoice().id) }
+        _uiState.update { it.copy(
+            selectedVoiceId = speechSynthesizer.selectedVoice().id,
+            isSpeakerEnabled = settingsPreferences.getBoolean("speaker_enabled", false)
+        ) }
         attachConversationCallbacks()
         observePersistenceFlows()
         initializePersistence()
@@ -1014,6 +1017,13 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val nextMuted = !conversationEngine.isMuted()
         conversationEngine.setMuted(nextMuted)
         _uiState.update { it.copy(isMuted = nextMuted) }
+    }
+
+    fun toggleSpeaker() {
+        val nextEnabled = !_uiState.value.isSpeakerEnabled
+        audioRoutingController.setSpeakerEnabled(nextEnabled)
+        settingsPreferences.edit().putBoolean("speaker_enabled", nextEnabled).apply()
+        _uiState.update { it.copy(isSpeakerEnabled = nextEnabled) }
     }
 
     fun interruptCall() {
