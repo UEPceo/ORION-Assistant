@@ -190,7 +190,10 @@ object WebSearchIntentPolicy {
 internal object WebAuthorityClassifier {
     private val officialHosts = setOf(
         "boe.es", "aemet.es", "miteco.gob.es", "mapa.gob.es", "sanidad.gob.es",
-        "administracion.gob.es", "europa.eu", "who.int", "un.org"
+        "administracion.gob.es", "juntadeandalucia.es", "gva.es", "xunta.gal",
+        "euskadi.eus", "gencat.cat", "navarra.es", "aragon.es", "cantabria.es",
+        "asturias.es", "juntadeextremadura.es", "comunidad.madrid", "regiondemurcia.es",
+        "canarias.es", "larioja.org", "europa.eu", "who.int", "un.org"
     )
     private val technicalHosts = setOf(
         "developer.android.com", "kotlinlang.org", "docs.python.org",
