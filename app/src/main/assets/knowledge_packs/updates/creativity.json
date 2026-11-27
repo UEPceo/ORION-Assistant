@@ -1,0 +1,27 @@
+{
+  "id": "creativity",
+  "version": 1,
+  "title": "Creatividad y diseño",
+  "documents": [
+    {
+      "id": "Proceso creativo e iteración",
+      "title": "https://helpx.adobe.com/creative-cloud/how-to/creative-process.html",
+      "url": "Adobe",
+      "publisher": "PRIMARY_TECHNICAL",
+      "domain": "CREATIVE_DESIGN",
+      "authority": "La creatividad aplicada combina exploración y selección. Se define problema, público y restricciones; después se generan alternativas, se agrupan patrones y se prototipan conceptos. La evaluación utiliza criterios explícitos como claridad, utilidad, originalidad, accesibilidad y viabilidad. Cada iteración debe responder a una hipótesis u observación. En diseño visual, jerarquía, contraste, alineación, repetición, espacio y tipografía guían la atención. Las referencias sirven para estudiar principios, no para copiar obras protegidas.",
+      "jurisdiction": null,
+      "reviewedAtMs": 1795737600000
+    },
+    {
+      "id": "Derechos de autor y licencias",
+      "title": "https://creativecommons.org/share-your-work/cclicenses/",
+      "url": "Creative Commons",
+      "publisher": "PRIMARY_TECHNICAL",
+      "domain": "CREATIVE_DESIGN",
+      "authority": "Una obra puede estar protegida por derechos de autor desde su creación. Las licencias Creative Commons establecen condiciones distintas: atribución, uso no comercial, prohibición de obras derivadas o compartir bajo la misma licencia. Antes de reutilizar imágenes, música, textos o vídeos hay que comprobar titular, licencia exacta y derechos de terceros como marcas, imagen o privacidad. Creative Commons explica sus licencias, pero no concede derechos sobre obras ajenas ni sustituye asesoramiento jurídico.",
+      "jurisdiction": null,
+      "reviewedAtMs": 1795737600000
+    }
+  ]
+}
