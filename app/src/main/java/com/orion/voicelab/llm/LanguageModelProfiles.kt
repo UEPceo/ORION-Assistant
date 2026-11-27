@@ -11,4 +11,16 @@ object LanguageModelProfileCatalog {
         LanguageModelProfile("remote-consented", "Modelo remoto elegido por el usuario", ModelExecutionMode.USER_CONFIGURED_REMOTE, 32768, null, "Depende del proveedor", setOf(ModelCapability.GENERAL_CHAT, ModelCapability.MULTI_STEP_REASONING, ModelCapability.CODE, ModelCapability.LONG_CONTEXT), false, "No se activa por defecto; requiere endpoint, credenciales y consentimiento por operación.")
     )
     fun available(mode: ModelExecutionMode): List<LanguageModelProfile> = profiles.filter { it.mode == mode && it.operational }
+
+    fun select(
+        mode: ModelExecutionMode,
+        required: Set<ModelCapability>,
+        availableRamMb: Int? = null
+    ): LanguageModelProfile? = available(mode)
+        .filter { profile ->
+            profile.capabilities.containsAll(required) &&
+                (availableRamMb == null || profile.approximateRamMb == null ||
+                    profile.approximateRamMb <= availableRamMb)
+        }
+        .maxByOrNull { it.capabilities.size }
 }
