@@ -106,7 +106,7 @@ object OrionSelfDiagnosticRegistry {
             RegexOption.IGNORE_CASE
         ).findAll(log).lastOrNull()
         val latestFatal = Regex(
-            """\[(FATAL|PROCESS_EXIT)\].*""",
+            """] (FATAL|PROCESS_EXIT):.*""",
             RegexOption.IGNORE_CASE
         ).findAll(log).lastOrNull()?.value
         val stackFrame = Regex("""at ([A-Za-z0-9_$.]+)\(([^)]*\.kt):(\d+)\)""")
