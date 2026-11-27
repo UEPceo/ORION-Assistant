@@ -11,7 +11,7 @@ Setup required outside the repository:
 3. Configure its public Client ID in the local build as `ORION_GITHUB_CLIENT_ID` (Gradle property or environment variable). The Client ID is not a secret; never add a client secret to the APK or repository.
 4. Build and install the app.
 
-The current first-pass scope is `read:user` only. Public repository metadata can be queried without expanding OAuth permissions. Private repositories require a separate permission review and a new authorization grant; do not request broader scopes until that feature is implemented and explicitly enabled.
+Configure fine-grained GitHub App repository permissions and select only the repositories ORION should access during installation. The Device Flow requests `offline_access` only to receive expiring user access and refresh tokens; GitHub App permissions, not OAuth scopes, determine repository access. Start with the minimum permissions required and add write permissions only when the corresponding confirmed actions are implemented.
 
 The authenticator requests a short-lived device code, displays a user code/verification URL to the app layer, polls using GitHub's server-provided interval, handles pending/slow-down/denial/expiry, and returns an access token only after approval. Device codes must remain in memory. The credential manager writes the token through the Android Keystore-backed credential store.
 
