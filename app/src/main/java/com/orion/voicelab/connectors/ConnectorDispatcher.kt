@@ -40,8 +40,9 @@ class ConnectorDispatcher(
             )
             ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION -> {
                 if (!userConfirmed) {
-                    ConnectorResult.NeedsUserInput(
-                        "Confirma esta operación externa antes de continuar: ${action.operation}."
+                    ConnectorResult.ConfirmationRequired(
+                        action = action,
+                        prompt = "Voy a ejecutar ${action.operation} en ${action.connectorId}. ¿Confirmas esta acción?"
                     )
                 } else {
                     executeSafely(connector, action)
