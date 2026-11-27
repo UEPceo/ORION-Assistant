@@ -181,14 +181,26 @@ fun OrionSettingsScreen(
                             val encoder = OnnxMultilingualEmbeddingEncoder(context)
                             val startedAt = SystemClock.elapsedRealtime()
                             try {
-                                val vector = encoder.encode("Prueba multilingüe de recuperación semántica para ORION.")
-                                    ?: error("El encoder no ha devuelto ningún vector.")
-                                val norm = kotlin.math.sqrt(vector.sumOf { it.toDouble() * it.toDouble() })
-                                require(vector.isNotEmpty() && vector.all { it.isFinite() } && kotlin.math.abs(norm - 1.0) < 0.02) {
-                                    "El embedding no supera la validación numérica."
+                                val samples = listOf(
+                                    "Prueba multilingüe de recuperación semántica para ORION.",
+                                    "Local semantic retrieval test for the ORION assistant.",
+                                    "Teste de pesquisa semântica local para o assistente ORION."
+                                )
+                                val vectors = mutableListOf<FloatArray>()
+                                for (sample in samples) {
+                                    val vector = encoder.encode(sample)
+                                        ?: error("El encoder no ha devuelto un vector para todos los idiomas.")
+                                    val norm = kotlin.math.sqrt(vector.sumOf { it.toDouble() * it.toDouble() })
+                                    require(vector.isNotEmpty() && vector.all { it.isFinite() } && kotlin.math.abs(norm - 1.0) < 0.02) {
+                                        "Un embedding no supera la validación numérica."
+                                    }
+                                    vectors += vector
+                                }
+                                require(vectors.map { it.size }.distinct().size == 1) {
+                                    "La dimensión de salida cambia entre idiomas."
                                 }
                                 val elapsed = SystemClock.elapsedRealtime() - startedAt
-                                embeddingStatus = "Prueba superada: ${vector.size} dimensiones, vector normalizado, ${elapsed} ms."
+                                embeddingStatus = "Prueba superada: español, inglés y portugués; ${vectors.first().size} dimensiones; vectores normalizados; ${elapsed} ms."
                             } catch (error: Exception) {
                                 embeddingError = error.message ?: "Falló la prueba de inferencia ONNX."
                                 embeddingStatus = "El encoder está instalado, pero no ha superado la prueba."
