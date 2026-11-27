@@ -19,6 +19,7 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
     override val sourceId: String = "orion-local-corpus"
     private val corpusFile = AtomicFile(File(context.applicationContext.filesDir, "orion-knowledge-corpus.json"))
     private val lock = Any()
+    private val semanticIndex = KnowledgeSemanticIndex(context)
 
     override suspend fun search(query: BrainQuery, limit: Int): List<KnowledgeDocument> =
         withContext(Dispatchers.IO) {
@@ -31,18 +32,30 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                         it.evidence.jurisdiction.equals(query.jurisdiction, ignoreCase = true))
             }
             if (documents.isEmpty()) return@withContext emptyList()
+            val chunksByDocument = documents.associate { document ->
+                document.evidence.id to KnowledgeDocumentChunker.split(document.evidence.content)
+                    .map { it.text }.ifEmpty { listOf(document.evidence.content) }
+            }
             val fields = documents.map { document ->
                 Triple(
                     tokens(document.evidence.title),
                     tokens(document.excerpt),
-                    tokens(document.evidence.content)
+                    chunksByDocument[document.evidence.id].orEmpty().map(::tokens).flatten()
                 )
+            }
+            if (documents.any { semanticIndex.score(it.evidence.id, query.normalizedText) == 0.0 }) {
+                semanticIndex.rebuild(documents.map { it.evidence.id to chunksByDocument[it.evidence.id].orEmpty() })
             }
             val documentFrequency = queryTerms.associateWith { term ->
                 fields.count { (title, excerpt, body) -> term in title || term in excerpt || term in body }
             }
             documents.mapIndexedNotNull { index, document ->
                 val (title, excerpt, body) = fields[index]
+                val chunks = chunksByDocument[document.evidence.id].orEmpty()
+                val bestChunk = chunks.maxByOrNull { chunk ->
+                    val chunkTerms = tokens(chunk)
+                    queryTerms.count { it in chunkTerms }.toDouble() / queryTerms.size
+                } ?: document.evidence.content
                 val matched = queryTerms.count { term -> term in title || term in excerpt || term in body }
                 if (matched == 0) return@mapIndexedNotNull null
                 val n = documents.size.toDouble()
@@ -56,7 +69,12 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                 }
                 val phraseBoost = if (document.evidence.title.contains(query.normalizedText, ignoreCase = true)) 1.5 else 0.0
                 val coverage = matched.toDouble() / queryTerms.size
-                document.copy(relevance = (score + phraseBoost) * (0.5 + 0.5 * coverage))
+                val lexical = ((score + phraseBoost) / (score + phraseBoost + 8.0)).coerceIn(0.0, 1.0)
+                val semantic = semanticIndex.score(document.evidence.id, query.normalizedText)
+                document.copy(
+                    excerpt = bestChunk.take(1_600),
+                    relevance = (0.55 * lexical + 0.45 * semantic) * (0.65 + 0.35 * coverage)
+                )
             }.sortedWith(
                 compareByDescending<KnowledgeDocument> { it.relevance }
                     .thenByDescending { authorityWeight(it.evidence.authority) }
@@ -73,6 +91,11 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                 val all = readAll().associateBy { it.evidence.id }.toMutableMap()
                 all[document.evidence.id] = document
                 writeAll(all.values.toList())
+                semanticIndex.upsert(
+                    document.evidence.id,
+                    KnowledgeDocumentChunker.split(document.evidence.content).map { it.text }
+                        .ifEmpty { listOf(document.evidence.content) }
+                )
             }
         }
     }
@@ -85,6 +108,7 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
         withContext(Dispatchers.IO) {
             synchronized(lock) {
                 writeAll(readAll().filterNot { it.evidence.id == documentId })
+                semanticIndex.remove(documentId)
             }
         }
     }
