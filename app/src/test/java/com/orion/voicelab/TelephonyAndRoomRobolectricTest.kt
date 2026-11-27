@@ -125,7 +125,7 @@ class TelephonyAndRoomRobolectricTest {
         }
 
         val migratedDb = Room.databaseBuilder(app, OrionDatabase::class.java, dbName)
-            .addMigrations(OrionDatabase.MIGRATION_1_2, OrionDatabase.MIGRATION_2_3, OrionDatabase.MIGRATION_3_4)
+            .addMigrations(OrionDatabase.MIGRATION_1_2, OrionDatabase.MIGRATION_2_3, OrionDatabase.MIGRATION_3_4, OrionDatabase.MIGRATION_4_5)
             .allowMainThreadQueries()
             .build()
         try {
@@ -173,7 +173,7 @@ class TelephonyAndRoomRobolectricTest {
         }
 
         val migratedDb = Room.databaseBuilder(app, OrionDatabase::class.java, dbName)
-            .addMigrations(OrionDatabase.MIGRATION_1_2, OrionDatabase.MIGRATION_2_3, OrionDatabase.MIGRATION_3_4)
+            .addMigrations(OrionDatabase.MIGRATION_1_2, OrionDatabase.MIGRATION_2_3, OrionDatabase.MIGRATION_3_4, OrionDatabase.MIGRATION_4_5)
             .allowMainThreadQueries()
             .build()
         try {
