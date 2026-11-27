@@ -87,7 +87,7 @@ class NeuralEmbeddingIndex(context: Context) {
             val vectors = JSONArray()
             stored.vectors.forEach { vector ->
                 val values = JSONArray()
-                vector.forEach(values::put)
+                vector.forEach { value -> values.put(value.toDouble()) }
                 vectors.put(values)
             }
             documents.put(JSONObject().put("id", id).put("hash", stored.contentHash).put("vectors", vectors))
@@ -119,7 +119,7 @@ class NeuralEmbeddingIndex(context: Context) {
         private const val SCHEMA = 1
         fun contentFingerprint(chunks: List<String>): String {
             val digest = MessageDigest.getInstance("SHA-256")
-            chunks.forEach { digest.update(it.toByteArray(Charsets.UTF_8)); digest.update(0) }
+            chunks.forEach { digest.update(it.toByteArray(Charsets.UTF_8)); digest.update(0.toByte()) }
             return digest.digest().joinToString("") { "%02x".format(it) }
         }
     }
