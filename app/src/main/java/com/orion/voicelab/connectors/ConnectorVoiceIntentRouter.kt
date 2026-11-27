@@ -14,11 +14,15 @@ object ConnectorVoiceIntentRouter {
         if (normalized.isBlank()) return null
 
         if (containsAny(normalized, "gmail", "mi correo", "mis correos", "correo electrónico", "emails")) {
-            val query = text.substringAfter(':', "").trim().takeIf { it.isNotBlank() }
+            val rawQuery = text.substringAfter(':', "").trim().takeIf { it.isNotBlank() }
                 ?: stripLeadingIntent(text, listOf(
                     "busca", "buscar", "encuentra", "localiza", "muestra", "enséñame",
                     "revisa", "consulta", "lee", "últimos correos", "ultimos correos"
                 ))
+            val query = rawQuery.replace(
+                Regex("""^(?:en\s+)?(?:gmail|mi correo|mis correos|correo electrónico)\s*""", RegexOption.IGNORE_CASE),
+                ""
+            ).trim()
             val gmailQuery = when {
                 query.isBlank() -> "in:anywhere"
                 query.lowercase().contains("último") || query.lowercase().contains("ultimo") ||
