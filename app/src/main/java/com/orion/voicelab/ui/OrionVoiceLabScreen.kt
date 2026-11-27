@@ -697,7 +697,8 @@ private fun TopBrandAndTabs(
                             selectedTab == OrionTab.CONVERSATIONS ||
                             selectedTab == OrionTab.MEMORY ||
                             selectedTab == OrionTab.CONNECTORS ||
-                            selectedTab == OrionTab.LAB,
+                            selectedTab == OrionTab.LAB ||
+                            selectedTab == OrionTab.PHONE_TOOLS,
                         icon = Icons.Outlined.Menu,
                         label = "Más",
                         onClick = { onSelectTab(OrionTab.MORE) },
