@@ -17,7 +17,7 @@ class ConnectorVoiceIntentRouterTest {
     @Test
     fun missingGmailQueryAsksForClarification() {
         val routed = ConnectorVoiceIntentRouter.route("Busca en Gmail")
-        assertEquals("", routed?.action?.arguments?.get("query"))
+        assertEquals("in:anywhere", routed?.action?.arguments?.get("query"))
     }
 
     @Test
@@ -32,6 +32,20 @@ class ConnectorVoiceIntentRouterTest {
         val routed = ConnectorVoiceIntentRouter.route("Lista las incidencias de UEPceo/ORION-Assistant")
         assertEquals("UEPceo/ORION-Assistant", routed?.action?.arguments?.get("repository"))
         assertEquals("list_issues", routed?.action?.operation)
+    }
+
+    @Test
+    fun followUpCommitRequestUsesPreviousRepositoryContext() {
+        val routed = ConnectorVoiceIntentRouter.route("¿Y los commits recientes?", "UEPceo/ORION-Assistant")
+        assertEquals("list_commits", routed?.action?.operation)
+        assertEquals("UEPceo/ORION-Assistant", routed?.action?.arguments?.get("repository"))
+    }
+
+    @Test
+    fun ciStatusRequestUsesPreviousRepositoryContext() {
+        val routed = ConnectorVoiceIntentRouter.route("¿Cómo va el CI?", "UEPceo/ORION-Assistant")
+        assertEquals("list_workflow_runs", routed?.action?.operation)
+        assertEquals("UEPceo/ORION-Assistant", routed?.action?.arguments?.get("repository"))
     }
 
     @Test
