@@ -25,6 +25,10 @@ data class GitHubIssueSummary(
     val updatedAt: String
 )
 
+data class GitHubCommitSummary(val sha: String, val message: String, val author: String, val committedAt: String, val htmlUrl: String)
+data class GitHubWorkflowRunSummary(val name: String, val status: String, val conclusion: String, val branch: String, val htmlUrl: String, val updatedAt: String)
+data class GitHubFileSummary(val name: String, val path: String, val type: String, val htmlUrl: String)
+
 /**
  * Minimal read-only GitHub REST adapter for an authorized GitHub App user token.
  * Write endpoints are deliberately not implemented here.
@@ -82,7 +86,88 @@ class GitHubApiClient(
             }
         }
 
+    suspend fun listCommits(repository: String, page: Int = 1): Result<List<GitHubCommitSummary>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                require(REPOSITORY_PATTERN.matches(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
+                val json = requestJson("/repos/$repository/commits?per_page=20&page=\${page.coerceIn(1, MAX_PAGE)}")
+                buildList {
+                    for (i in 0 until json.length()) {
+                        val item = json.optJSONObject(i) ?: continue
+                        val commit = item.optJSONObject("commit") ?: continue
+                        val author = commit.optJSONObject("author")
+                        add(GitHubCommitSummary(
+                            sha = item.optString("sha").take(12),
+                            message = commit.optString("message").lineSequence().firstOrNull().orEmpty().take(MAX_TITLE_LENGTH),
+                            author = author?.optString("name").orEmpty().take(100),
+                            committedAt = author?.optString("date").orEmpty(),
+                            htmlUrl = item.optString("html_url")
+                        ))
+                    }
+                }
+            }
+        }
+
+    suspend fun listWorkflowRuns(repository: String, page: Int = 1): Result<List<GitHubWorkflowRunSummary>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                require(REPOSITORY_PATTERN.matches(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
+                val root = requestObject("/repos/$repository/actions/runs?per_page=20&page=\${page.coerceIn(1, MAX_PAGE)}")
+                val runs = root.optJSONArray("workflow_runs") ?: JSONArray()
+                buildList {
+                    for (i in 0 until runs.length()) {
+                        val item = runs.optJSONObject(i) ?: continue
+                        add(GitHubWorkflowRunSummary(
+                            name = item.optString("name").take(120),
+                            status = item.optString("status"),
+                            conclusion = item.optString("conclusion"),
+                            branch = item.optString("head_branch").take(120),
+                            htmlUrl = item.optString("html_url"),
+                            updatedAt = item.optString("updated_at")
+                        ))
+                    }
+                }
+            }
+        }
+
+    suspend fun listFiles(repository: String, path: String = "", branch: String? = null): Result<List<GitHubFileSummary>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                require(REPOSITORY_PATTERN.matches(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
+                require(path.length <= 300 && !path.split('/').any { it == ".." }) { "Ruta de repositorio no válida." }
+                val safePath = path.trim('/').split('/').filter { it.isNotBlank() }
+                    .joinToString("/") { java.net.URLEncoder.encode(it, Charsets.UTF_8.name()).replace("+", "%20") }
+                val safeBranch = branch?.takeIf { it.isNotBlank() }?.let {
+                    "&ref=" + java.net.URLEncoder.encode(it.take(120), Charsets.UTF_8.name())
+                }.orEmpty()
+                val endpoint = "/repos/$repository/contents\${if (safePath.isBlank()) "" else "/$safePath"}?$safeBranch"
+                val json = requestAny(endpoint)
+                val entries = if (json is JSONArray) json else JSONArray().put(json)
+                buildList {
+                    for (i in 0 until entries.length()) {
+                        val item = entries.optJSONObject(i) ?: continue
+                        add(GitHubFileSummary(
+                            name = item.optString("name").take(200),
+                            path = item.optString("path").take(500),
+                            type = item.optString("type"),
+                            htmlUrl = item.optString("html_url")
+                        ))
+                    }
+                }
+            }
+        }
+
     private suspend fun requestJson(path: String): JSONArray {
+        val value = requestAny(path)
+        return value as? JSONArray ?: throw IllegalStateException("Respuesta inesperada de GitHub.")
+    }
+
+    private suspend fun requestObject(path: String): JSONObject {
+        val value = requestAny(path)
+        return value as? JSONObject ?: throw IllegalStateException("Respuesta inesperada de GitHub.")
+    }
+
+    private suspend fun requestAny(path: String): Any {
         val token = credentials.getValidAccessToken(authenticator) ?: throw ReauthorizationRequiredException()
         val connection = (URL("$API_BASE$path").openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
@@ -97,9 +182,9 @@ class GitHubApiClient(
             val status = connection.responseCode
             if (status == 401) throw ReauthorizationRequiredException()
             if (status !in 200..299) throw GitHubApiException(status)
-            val body = connection.inputStream.use { it.readBytes() }
-            if (body.size > MAX_RESPONSE_BYTES) throw IllegalStateException("Respuesta de GitHub demasiado grande.")
-            return JSONArray(String(body, Charsets.UTF_8))
+            val body = connection.inputStream.use { it.readBounded(MAX_RESPONSE_BYTES) }
+            val text = String(body, Charsets.UTF_8)
+            if (text.trimStart().startsWith("[")) JSONArray(text) else JSONObject(text)
         } finally {
             connection.disconnect()
         }
