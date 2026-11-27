@@ -1,0 +1,27 @@
+{
+  "id": "general-knowledge",
+  "version": 1,
+  "title": "Conocimiento general",
+  "documents": [
+    {
+      "id": "Alfabetización informacional",
+      "title": "https://www.unesco.org/en/education/information-literacy",
+      "url": "UNESCO",
+      "publisher": "OFFICIAL_PRIMARY",
+      "domain": "GENERAL",
+      "authority": "La alfabetización informacional consiste en reconocer cuándo se necesita información, formular preguntas, localizar fuentes, evaluar calidad, utilizarla éticamente y comunicar conclusiones. Evalúa autoría, institución, fecha, propósito, evidencia, metodología y corroboración independiente. Una página institucional puede ser primaria para sus decisiones, pero no necesariamente imparcial al evaluar su desempeño. Popularidad, diseño profesional o repetición no demuestran veracidad.",
+      "jurisdiction": null,
+      "reviewedAtMs": 1795737600000
+    },
+    {
+      "id": "La Tierra y sistemas globales",
+      "title": "https://science.nasa.gov/earth/",
+      "url": "NASA Earth Science",
+      "publisher": "OFFICIAL_PRIMARY",
+      "domain": "GENERAL",
+      "authority": "El conocimiento del planeta conecta geografía, física, química, biología e historia humana sin confundir escalas. Latitud y longitud localizan puntos; las proyecciones cartográficas introducen distorsiones según su finalidad. Clima, ecosistemas, agua, suelo y actividad humana interactúan. Los datos satelitales necesitan calibración, validación y contexto. Al explicar un fenómeno se separan hechos observados, modelos, inferencias y decisiones de valor; para cifras locales o actuales deben consultarse organismos y conjuntos de datos fechados.",
+      "jurisdiction": null,
+      "reviewedAtMs": 1795737600000
+    }
+  ]
+}
