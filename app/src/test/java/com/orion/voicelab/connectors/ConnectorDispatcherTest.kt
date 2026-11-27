@@ -27,11 +27,16 @@ class ConnectorDispatcherTest {
         val action = ConnectorAction(
             connectorId = ConnectorId.GITHUB,
             operation = "create_issue",
+            arguments = mapOf("repository" to "UEPceo/ORION-Assistant", "title" to "Bug", "access_token" to "never-show"),
             risk = ConnectorRisk.EXTERNAL_SIDE_EFFECT
         )
 
         val pending = dispatcher.dispatch(action, userRequestedExactAction = true)
         assertTrue(pending is ConnectorResult.ConfirmationRequired)
+        val prompt = (pending as ConnectorResult.ConfirmationRequired).prompt
+        assertTrue(prompt.contains("UEPceo/ORION-Assistant"))
+        assertTrue(prompt.contains("Bug"))
+        assertTrue(!prompt.contains("never-show"))
         assertEquals(0, connector.executions)
 
         val confirmed = dispatcher.dispatch(
