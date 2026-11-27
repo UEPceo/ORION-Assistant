@@ -224,10 +224,19 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 }
             )
             baseContext.copy(
-                systemPrompt = baseContext.systemPrompt + "\n\n" +
-                    BrainPromptComposer.compose(brainContext) +
-                    if (creativeContext.isBlank()) "" else "\n\n$creativeContext" +
-                    if (selfKnowledgeContext.isBlank()) "" else "\n\n$selfKnowledgeContext"
+                systemPrompt = buildString {
+                    append(baseContext.systemPrompt)
+                    append("\\n\\n")
+                    append(BrainPromptComposer.compose(brainContext))
+                    if (creativeContext.isNotBlank()) {
+                        append("\\n\\n")
+                        append(creativeContext)
+                    }
+                    if (selfKnowledgeContext.isNotBlank()) {
+                        append("\\n\\n")
+                        append(selfKnowledgeContext)
+                    }
+                }
             )
         },
         directTurnResponder = { userText ->
