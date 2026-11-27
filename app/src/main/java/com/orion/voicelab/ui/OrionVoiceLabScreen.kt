@@ -74,7 +74,6 @@ import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.PhoneInTalk
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Science
-import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -2075,7 +2074,7 @@ private fun ToolsActionRow(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
         ) {
             Icon(
-                imageVector = Icons.Outlined.Speed,
+                imageVector = Icons.Filled.GraphicEq,
                 contentDescription = stringResource(R.string.cd_measure_icon),
                 modifier = Modifier.size(16.dp)
             )
