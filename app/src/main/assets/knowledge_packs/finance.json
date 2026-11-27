@@ -1,0 +1,27 @@
+{
+  "id": "finance",
+  "version": 1,
+  "title": "Finanzas",
+  "documents": [
+    {
+      "id": "Riesgo y protección del inversor",
+      "title": "https://www.cnmv.es/portal/inversor/Decalogo.aspx",
+      "url": "CNMV",
+      "publisher": "OFFICIAL_PRIMARY",
+      "domain": "FINANCE",
+      "authority": "Las decisiones de inversión parten de objetivos, horizonte temporal, liquidez y capacidad de asumir pérdidas. Rentabilidades pasadas no garantizan resultados futuros. Diversificar puede reducir riesgos específicos, pero no elimina el riesgo de mercado. Antes de contratar hay que entender costes, comisiones, liquidez, complejidad, fiscalidad y escenarios adversos. Comprueba que la entidad está autorizada y desconfía de promesas de rentabilidad segura. Esta ficha es educativa, no asesoramiento financiero personalizado.",
+      "jurisdiction": null,
+      "reviewedAtMs": 1795737600000
+    },
+    {
+      "id": "Presupuesto, ahorro y crédito",
+      "title": "https://www.bde.es/wbe/es/areas-actuacion/educacion-financiera/",
+      "url": "Banco de España",
+      "publisher": "OFFICIAL_PRIMARY",
+      "domain": "FINANCE",
+      "authority": "Un presupuesto registra ingresos, gastos, deudas y ahorro. El saldo disponible se calcula después de obligaciones previsibles, no a partir del límite de crédito. El interés simple se calcula sobre el capital inicial; el compuesto incorpora intereses acumulados. En un préstamo deben compararse TAE, tipo nominal, comisiones, plazo, garantías y coste total, no solo la cuota. La inflación reduce el poder adquisitivo. Tipos, condiciones y fiscalidad deben verificarse en la fecha de la operación.",
+      "jurisdiction": null,
+      "reviewedAtMs": 1795737600000
+    }
+  ]
+}
