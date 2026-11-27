@@ -328,3 +328,15 @@ El catálogo pasa de seis a quince paquetes locales. Se añaden nueve áreas: in
 - Creatividad: se separan técnicas de diseño y licencias. Una licencia no implica que cualquier obra pueda reutilizarse; se comprueban titular y condiciones concretas.
 
 La expansión añade 18 documentos y nueve paquetes; no incrementa por sí sola la capacidad de razonamiento del modelo. La evaluación debe medir recuperación por dominio, exactitud de atribución, frescura y comportamiento ante preguntas sin evidencia.
+
+
+### Encoder neuronal multilingüe ONNX opcional — 27/11/2026
+
+- Se incorpora `OnnxMultilingualEmbeddingEncoder`, ejecutado en el dispositivo mediante ONNX Runtime Android y ONNX Runtime Extensions. El encoder acepta texto y devuelve embeddings densos normalizados; la dimensión se obtiene de la salida real y no se fija en el código.
+- Modelo elegido: `onnx-community/distiluse-base-multilingual-v2-merged-onnx`, derivado de `sentence-transformers/distiluse-base-multilingual-cased-v2`. La ficha del modelo base indica 50 idiomas y arquitectura Sentence-Transformers con pooling y capa densa; el artefacto ONNX integrado declara licencia MIT. El archivo seleccionado ocupa aproximadamente 136 MB.
+- La descarga es explícita desde Ajustes, nunca silenciosa ni incluida en el APK. Se fija la revisión `469261b`, se limita el tamaño, se permiten únicamente los hosts HTTPS esperados de Hugging Face, se soportan rangos HTTP para reanudar, se conserva el parcial ante interrupciones y se exige SHA-256 `827d1a23e47f8c68a5788e58a06e137edf52aa568a6e4c852f4ce79f21b8a205` antes de activar el modelo.
+- `NeuralEmbeddingIndex` persiste vectores densos por documento y fragmento en almacenamiento privado, con huella SHA-256 del contenido para detectar cambios y reconstruir solo lo necesario.
+- `KnowledgeCorpusStore` mantiene el ranking léxico + semántico disperso actual cuando el modelo no está instalado. Si está disponible, combina 25 % léxico, 25 % semántico disperso y 50 % neuronal, y selecciona el pasaje más próximo. Los errores de carga o inferencia neuronal no deben interrumpir la recuperación: el buscador anterior queda como fallback.
+- Dependencias fijadas: ONNX Runtime Android 1.22.0 y ONNX Runtime Extensions Android 0.13.0. Se conservan las clases JNI en R8 para evitar fallos en release.
+- Limitaciones pendientes: la descarga de 136 MB requiere espacio y conectividad; la primera indexación densa puede consumir CPU, RAM y batería. El encoder usa CPU por defecto; no se ha habilitado NNAPI ni aceleración específica. La calidad y latencia reales deben medirse en el dispositivo Samsung objetivo. La puntuación de capacidad no se incrementa hasta superar una prueba real de inferencia y evaluación de recuperación.
+- El archivo ONNX se obtiene de una revisión fijada y su hash se compara con el valor registrado en la aplicación. La ficha de modelo y sus afirmaciones de rendimiento son información del publicador, no una evaluación independiente de ORION.
