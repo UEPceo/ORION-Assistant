@@ -229,7 +229,9 @@ class PlanExecutionRepository(private val dao: PlanExecutionDao) {
         val running = dao.getRunning()
         running.forEach { entity ->
             val results = PlanExecutionJsonCodec.decodeResults(entity.resultsJson).toMutableMap()
-            entity.activeStepId?.let { activeId ->
+            val uncertainStepIds = results.filterValues { it.status == StepStatus.RUNNING }.keys +
+                listOfNotNull(entity.activeStepId)
+            uncertainStepIds.distinct().forEach { activeId ->
                 results[activeId] = StepExecution(
                     StepStatus.FAILED,
                     "ORION se cerró durante este paso. El resultado de la operación puede ser incierto; verifica el servicio antes de reintentar."
@@ -262,6 +264,7 @@ class PersistentPlanExecutionService(
         runner: PlanStepRunner,
         retryStepIds: Set<String> = emptySet()
     ): PlanExecutionReport {
+        repository.recoverInterruptedExecutions()
         val saved = repository.load(planId)
             ?: return PlanExecutionReport(planId, PlanStatus.FAILED, emptyMap(), "No existe la ejecución guardada.")
         val validation = PlanValidator.validate(saved.plan)
