@@ -110,4 +110,13 @@ class BrainCoreTest {
         assertEquals(KnowledgeVerdict.NEEDS_CORROBORATION, result.verdict)
     }
 
+    @Test
+    fun offlinePackTopicsRouteToTheirStoredDomains() {
+        assertEquals(KnowledgeDomain.PROGRAMMING, BrainQueryRouter.route("Kotlin coroutines y Android Activity").domain)
+        assertEquals(KnowledgeDomain.CYBERSECURITY, BrainQueryRouter.route("Cómo proteger contraseñas con doble factor").domain)
+        assertEquals(KnowledgeDomain.FISHING, BrainQueryRouter.route("Cómo funciona PescaREC para pesca recreativa").domain)
+        assertEquals(KnowledgeDomain.LAW_AND_REGULATION, BrainQueryRouter.route("Qué establece el Decreto 205/2023").domain)
+        assertEquals(KnowledgeDomain.HEALTH_AND_SAFETY, BrainQueryRouter.route("Qué hacer ante una emergencia 112").domain)
+    }
+
 }
