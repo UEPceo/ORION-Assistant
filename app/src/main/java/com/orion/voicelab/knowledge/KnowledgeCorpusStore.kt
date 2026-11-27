@@ -137,9 +137,10 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
         }
         var output: java.io.FileOutputStream? = null
         try {
-            output = corpusFile.startWrite()
-            output.write(array.toString().toByteArray(Charsets.UTF_8))
-            corpusFile.finishWrite(output)
+            val stream = corpusFile.startWrite()
+            output = stream
+            stream.write(array.toString().toByteArray(Charsets.UTF_8))
+            corpusFile.finishWrite(stream)
         } catch (error: Exception) {
             output?.let { corpusFile.failWrite(it) }
             throw IllegalStateException("No se pudo guardar el corpus local de conocimiento.", error)
