@@ -15,9 +15,9 @@ class KnowledgeCorpusRankingTest {
         val store = KnowledgeCorpusStore(context)
         val now = System.currentTimeMillis()
         val unknown = KnowledgeEvidence("unknown", "Lubina y pesca", "https://blog.example.org/lubina", "blog.example.org",
-            KnowledgeDomain.SURFCASTING, EvidenceAuthority.UNKNOWN, now, content = "Consejos para lubina.")
+            KnowledgeDomain.SURFCASTING, EvidenceAuthority.UNKNOWN, now, jurisdiction = "ES-AN", content = "Consejos para lubina.")
         val official = KnowledgeEvidence("official", "Lubina y pesca", "https://www.juntadeandalucia.es/lubina", "juntadeandalucia.es",
-            KnowledgeDomain.SURFCASTING, EvidenceAuthority.OFFICIAL_PRIMARY, now, content = "Información sobre lubina.")
+            KnowledgeDomain.SURFCASTING, EvidenceAuthority.OFFICIAL_PRIMARY, now, jurisdiction = "ES-AN", content = "Información sobre lubina.")
         store.upsert(KnowledgeDocument(unknown, "Lubina pesca"))
         store.upsert(KnowledgeDocument(official, "Lubina pesca"))
         val results = store.search(BrainQueryRouter.route("lubina", "ES-AN"), 5)
