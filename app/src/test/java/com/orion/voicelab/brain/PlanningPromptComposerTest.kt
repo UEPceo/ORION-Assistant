@@ -1,0 +1,14 @@
+package com.orion.voicelab.brain
+import org.junit.Assert.*
+import org.junit.Test
+class PlanningPromptComposerTest {
+ @Test fun recognizesMultiStepIntentAndAddsExecutionSafeguards() {
+  val prompt=PlanningPromptComposer.compose("Investiga y compara tres opciones y prepara un informe")
+  assertTrue(prompt.contains("MODO DE PLANIFICACIÓN"))
+  assertTrue(prompt.contains("éxito verificable"))
+  assertTrue(prompt.contains("confirmación específica"))
+ }
+ @Test fun ordinaryQuestionDoesNotForcePlanningMode() {
+  assertEquals("",PlanningPromptComposer.compose("Qué es Kotlin"))
+ }
+}
