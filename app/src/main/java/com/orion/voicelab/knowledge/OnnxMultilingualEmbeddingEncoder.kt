@@ -32,15 +32,13 @@ class OnnxMultilingualEmbeddingEncoder(context: Context) : Closeable {
                     val output = result.get(outputName).orElseThrow {
                         IllegalStateException("El modelo ONNX no devolvió su embedding.")
                     } as? OnnxTensor ?: error("La salida ONNX no es un tensor.")
-                    output.use {
-                        val buffer: FloatBuffer = it.floatBuffer
-                        val vector = FloatArray(buffer.remaining())
-                        buffer.get(vector)
-                        require(vector.isNotEmpty() && vector.all(Float::isFinite)) {
-                            "El encoder devolvió un vector vacío o no finito."
-                        }
-                        normalize(vector)
+                    val buffer: FloatBuffer = output.floatBuffer
+                    val vector = FloatArray(buffer.remaining())
+                    buffer.get(vector)
+                    require(vector.isNotEmpty() && vector.all { value -> value.isFinite() }) {
+                        "El encoder devolvió un vector vacío o no finito."
                     }
+                    normalize(vector)
                 }
             }
         }
