@@ -200,15 +200,17 @@ class PlanExecutionRepository(private val dao: PlanExecutionDao) {
 
     suspend fun load(id: String): PersistedPlanExecution? {
         val entity = dao.getById(id) ?: return null
-        return PersistedPlanExecution(
-            plan = PlanExecutionJsonCodec.decodePlan(entity.planJson),
-            results = PlanExecutionJsonCodec.decodeResults(entity.resultsJson),
-            status = PlanStatus.valueOf(entity.status),
-            activeStepId = entity.activeStepId,
-            createdAtMs = entity.createdAtMs,
-            updatedAtMs = entity.updatedAtMs,
-            lastError = entity.lastError
-        )
+        return runCatching {
+            PersistedPlanExecution(
+                plan = PlanExecutionJsonCodec.decodePlan(entity.planJson),
+                results = PlanExecutionJsonCodec.decodeResults(entity.resultsJson),
+                status = PlanStatus.valueOf(entity.status),
+                activeStepId = entity.activeStepId,
+                createdAtMs = entity.createdAtMs,
+                updatedAtMs = entity.updatedAtMs,
+                lastError = entity.lastError
+            )
+        }.getOrNull()
     }
 
     suspend fun saveProgress(
@@ -232,7 +234,19 @@ class PlanExecutionRepository(private val dao: PlanExecutionDao) {
     /** A process death during a step is an uncertain outcome, never an automatic retry. */
     suspend fun recoverInterruptedExecutions(nowMs: Long = System.currentTimeMillis()): Int {
         val running = dao.getRunning()
-        running.forEach { entity ->
+        running.forEach { recoverEntity(it, nowMs) }
+        return running.size
+    }
+
+    suspend fun recoverInterruptedExecution(id: String, nowMs: Long = System.currentTimeMillis()): Boolean {
+        val entity = dao.getById(id) ?: return false
+        if (entity.status != PlanStatus.RUNNING.name) return false
+        recoverEntity(entity, nowMs)
+        return true
+    }
+
+    private suspend fun recoverEntity(entity: PlanExecutionEntity, nowMs: Long) {
+        try {
             val results = PlanExecutionJsonCodec.decodeResults(entity.resultsJson).toMutableMap()
             val uncertainStepIds = results.filterValues { it.status == StepStatus.RUNNING }.keys +
                 listOfNotNull(entity.activeStepId)
@@ -250,31 +264,16 @@ class PlanExecutionRepository(private val dao: PlanExecutionDao) {
                 updatedAtMs = nowMs,
                 lastError = "Ejecución interrumpida por cierre del proceso; requiere revisión."
             )
-        }
-        return running.size
-    }
-
-    suspend fun recoverInterruptedExecution(id: String, nowMs: Long = System.currentTimeMillis()): Boolean {
-        val entity = dao.getById(id) ?: return false
-        if (entity.status != PlanStatus.RUNNING.name) return false
-        val results = PlanExecutionJsonCodec.decodeResults(entity.resultsJson).toMutableMap()
-        val uncertainStepIds = results.filterValues { it.status == StepStatus.RUNNING }.keys +
-            listOfNotNull(entity.activeStepId)
-        uncertainStepIds.distinct().forEach { activeId ->
-            results[activeId] = StepExecution(
-                StepStatus.FAILED,
-                "ORION se cerró durante este paso. El resultado de la operación puede ser incierto; verifica el servicio antes de reintentar."
+        } catch (_: Exception) {
+            dao.updateProgress(
+                id = entity.id,
+                resultsJson = "[]",
+                status = PlanStatus.FAILED.name,
+                activeStepId = null,
+                updatedAtMs = nowMs,
+                lastError = "El estado guardado está dañado y no se puede recuperar de forma segura."
             )
         }
-        dao.updateProgress(
-            id = entity.id,
-            resultsJson = PlanExecutionJsonCodec.encodeResults(results),
-            status = PlanStatus.PAUSED.name,
-            activeStepId = null,
-            updatedAtMs = nowMs,
-            lastError = "Ejecución interrumpida por cierre del proceso; requiere revisión."
-        )
-        return true
     }
 
     suspend fun delete(id: String) = dao.deleteById(id)
