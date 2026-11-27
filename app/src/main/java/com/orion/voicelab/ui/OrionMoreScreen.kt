@@ -42,7 +42,7 @@ fun OrionMoreScreen(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Más herramientas", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text("Historial, memoria, conexiones y diagnóstico.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Historial, memoria, contactos del dispositivo, llamadas y conexiones.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         MoreDestinationCard("Conversaciones", "Consulta y recupera tus conversaciones anteriores.", Icons.Outlined.Forum, onOpenConversations, "tab_conversations")
         MoreDestinationCard("Memoria", "Gestiona los recuerdos y la identidad de ORION.", Icons.Outlined.Memory, onOpenMemory, "tab_memory")
