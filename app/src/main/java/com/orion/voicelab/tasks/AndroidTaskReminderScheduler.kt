@@ -228,11 +228,15 @@ class AndroidTaskReminderScheduler(
         val manager = alarmManager ?: return
         val pendingIntent = buildAlarmPendingIntent(appContext, taskId)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && canScheduleExactAlarms(appContext)) {
-            manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
-        } else {
-            // Android may defer this alarm; keep reminders functional without special access.
-            manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
+            try {
+                manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
+                return
+            } catch (_: SecurityException) {
+                // Permission can change between the capability check and the scheduling call.
+            }
         }
+        // Android may defer this alarm; keep reminders functional without special access.
+        manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
     }
 
     private fun cancelAlarmOnly(taskId: Long) {
