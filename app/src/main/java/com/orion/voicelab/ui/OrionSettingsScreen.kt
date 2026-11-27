@@ -18,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -41,6 +42,7 @@ import com.orion.voicelab.data.VoiceLabUiState
 fun OrionSettingsScreen(
     state: VoiceLabUiState,
     onSelectVoice: (String) -> Unit,
+    onDownloadVoice: (String) -> Unit,
     onSaveIdentity: (AssistantIdentity) -> Unit,
     onSetMemoryEnabled: (Boolean) -> Unit,
     onOpenDiagnostics: () -> Unit
@@ -78,16 +80,31 @@ fun OrionSettingsScreen(
                             Text(voice.displayName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text(voice.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        if (selected) {
-                            Text("En uso", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-                        } else {
-                            TextButton(onClick = { onSelectVoice(voice.id) }) { Text("Elegir") }
+                        when {
+                            selected -> Text("En uso", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                            voice.isInstalled -> TextButton(onClick = { onSelectVoice(voice.id) }) { Text("Elegir") }
+                            voice.downloadUrl != null -> TextButton(
+                                enabled = state.voiceDownloadingId == null,
+                                onClick = { onDownloadVoice(voice.id) }
+                            ) { Text(if (state.voiceDownloadingId == voice.id) "Descargando…" else "Descargar") }
                         }
                     }
                 }
             }
+            if (state.voiceDownloadingId != null) {
+                LinearProgressIndicator(
+                    progress = { state.voiceDownloadProgressPercent / 100f },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(state.voiceDownloadStatus ?: "Descargando voz…", style = MaterialTheme.typography.bodySmall)
+            } else if (!state.voiceDownloadStatus.isNullOrBlank()) {
+                Text(state.voiceDownloadStatus.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+            state.voiceDownloadError?.let { error ->
+                Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
             Text(
-                "Catálogo de voces: las voces adicionales se ofrecerán como paquetes independientes. Su descarga será siempre manual y mostrará tamaño, progreso y espacio necesario antes de instalar.",
+                "Las voces adicionales se descargan únicamente cuando pulsas «Descargar». Se instalan en el almacenamiento privado de ORION y no sustituyen la voz actual hasta que la elijas.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
