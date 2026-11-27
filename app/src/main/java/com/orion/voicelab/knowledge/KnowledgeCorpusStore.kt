@@ -22,27 +22,45 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
     override suspend fun search(query: BrainQuery, limit: Int): List<KnowledgeDocument> =
         withContext(Dispatchers.IO) {
             if (limit <= 0) return@withContext emptyList()
-            val terms = tokens(query.normalizedText)
-            readAll().asSequence()
-                .filter { it.evidence.domain == query.domain }
-                .filter {
-                    query.jurisdiction.isNullOrBlank() ||
-                        it.evidence.jurisdiction.equals(query.jurisdiction, ignoreCase = true)
+            val queryTerms = tokens(query.normalizedText)
+            if (queryTerms.isEmpty()) return@withContext emptyList()
+            val documents = readAll().filter {
+                it.evidence.domain == query.domain &&
+                    (query.jurisdiction.isNullOrBlank() ||
+                        it.evidence.jurisdiction.equals(query.jurisdiction, ignoreCase = true))
+            }
+            if (documents.isEmpty()) return@withContext emptyList()
+            val fields = documents.map { document ->
+                Triple(
+                    tokens(document.evidence.title),
+                    tokens(document.excerpt),
+                    tokens(document.evidence.content)
+                )
+            }
+            val documentFrequency = queryTerms.associateWith { term ->
+                fields.count { (title, excerpt, body) -> term in title || term in excerpt || term in body }
+            }
+            documents.mapIndexedNotNull { index, document ->
+                val (title, excerpt, body) = fields[index]
+                val matched = queryTerms.count { term -> term in title || term in excerpt || term in body }
+                if (matched == 0) return@mapIndexedNotNull null
+                val n = documents.size.toDouble()
+                val score = queryTerms.sumOf { term ->
+                    val df = documentFrequency[term]!!.toDouble()
+                    val idf = kotlin.math.ln(1.0 + (n - df + 0.5) / (df + 0.5))
+                    val titleTf = title.count { it == term }
+                    val excerptTf = excerpt.count { it == term }
+                    val bodyTf = body.count { it == term }
+                    idf * (3.0 * titleTf + 2.0 * excerptTf + bodyTf)
                 }
-                .map { document ->
-                    val sourceTerms = tokens(
-                        "${document.evidence.title} ${document.evidence.content} ${document.excerpt}"
-                    )
-                    val overlap = terms.intersect(sourceTerms).size
-                    val relevance = if (terms.isEmpty()) 0.0 else {
-                        overlap.toDouble() / terms.size.toDouble()
-                    }
-                    document.copy(relevance = relevance)
-                }
-                .filter { it.relevance > 0.0 }
-                .sortedByDescending { it.relevance }
-                .take(limit)
-                .toList()
+                val phraseBoost = if (document.evidence.title.contains(query.normalizedText, ignoreCase = true)) 1.5 else 0.0
+                val coverage = matched.toDouble() / queryTerms.size
+                document.copy(relevance = (score + phraseBoost) * (0.5 + 0.5 * coverage))
+            }.sortedWith(
+                compareByDescending<KnowledgeDocument> { it.relevance }
+                    .thenByDescending { it.evidence.authority.ordinal }
+                    .thenByDescending { it.evidence.publishedAtMs ?: 0L }
+            ).take(limit)
         }
 
     override suspend fun upsert(document: KnowledgeDocument) {
