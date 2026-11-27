@@ -26,8 +26,8 @@ object ConnectorCatalog {
         ConnectorDescriptor(
             id = ConnectorId.ANDROID_NOTES,
             displayName = "Notas del móvil",
-            description = "Importar notas compartidas, consultar la biblioteca local de ORION y crear notas en aplicaciones compatibles.",
-            capabilities = setOf(ConnectorCapability.READ, ConnectorCapability.CREATE, ConnectorCapability.UPDATE),
+            description = "Enviar notas a Google Keep mediante Android Sharesheet. La importación entrante y la biblioteca local indexable siguen pendientes.",
+            capabilities = setOf(ConnectorCapability.CREATE),
             isImplemented = false
         ),
         ConnectorDescriptor(
