@@ -121,6 +121,22 @@ object OrionCrashDiagnostics {
         else -> "UNKNOWN"
     }
 
+    /** Records a recoverable runtime error with a stable event identifier and full technical cause. */
+    fun recordOperationalError(
+        context: Context,
+        eventId: String,
+        component: String,
+        message: String,
+        error: Throwable? = null
+    ) {
+        record(
+            context.applicationContext,
+            "ERROR",
+            "eventId=$eventId component=$component cause=$message",
+            error
+        )
+    }
+
     fun recordMemoryPressure(context: Context, level: Int) {
         record(context.applicationContext, "MEMORY", "onTrimMemory level=$level")
     }
