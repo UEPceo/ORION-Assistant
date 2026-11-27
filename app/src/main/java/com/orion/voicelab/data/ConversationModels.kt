@@ -47,7 +47,11 @@ data class VoiceProfile(
     val id: String,
     val displayName: String,
     val speakerId: Int,
-    val description: String
+    val description: String,
+    val modelDirectoryName: String = "",
+    val modelFileName: String = "",
+    val downloadUrl: String? = null,
+    val isInstalled: Boolean = true
 )
 
 enum class LocalModelKind {
