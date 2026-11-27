@@ -60,7 +60,8 @@ class BrainRetrievalEngine(
             domain = query.domain,
             nowMs = now(),
             maxAgeMs = if (query.requiresFreshEvidence) minOf(maxAge, 24 * 60 * 60 * 1000L) else maxAge,
-            conflictDetected = conflictDetected
+            conflictDetected = conflictDetected,
+            requiresPublishedDate = query.requiresFreshEvidence
         )
         val safeToPresentAsVerified = verification.verdict == KnowledgeVerdict.SUPPORTED &&
             (!query.requiresPrimaryEvidence || verification.hasPrimaryEvidence)
@@ -74,7 +75,7 @@ class BrainRetrievalEngine(
                 candidates.isEmpty() && sourceFailures.isNotEmpty() -> BrainPresentation.SOURCE_FAILURE
                 candidates.isEmpty() -> BrainPresentation.NO_SOURCES
                 safeToPresentAsVerified -> BrainPresentation.EVIDENCE_SUPPORTED
-                verification.verdict == KnowledgeVerdict.STALE -> BrainPresentation.HISTORICAL
+                verification.verdict == KnowledgeVerdict.STALE || verification.verdict == KnowledgeVerdict.AGE_UNCONFIRMED -> BrainPresentation.HISTORICAL
                 else -> BrainPresentation.UNVERIFIED
             }
         )
