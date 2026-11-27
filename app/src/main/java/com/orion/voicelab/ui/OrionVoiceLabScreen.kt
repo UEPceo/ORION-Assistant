@@ -596,6 +596,7 @@ fun OrionVoiceLabScreen(
                             OrionSettingsScreen(
                                 state = state,
                                 onSelectVoice = viewModel::selectVoice,
+                                onDownloadVoice = viewModel::downloadVoicePack,
                                 onSaveIdentity = viewModel::saveAssistantIdentity,
                                 onSetMemoryEnabled = viewModel::setMemoryEnabled,
                                 onOpenDiagnostics = { selectedTab = OrionTab.LAB }
