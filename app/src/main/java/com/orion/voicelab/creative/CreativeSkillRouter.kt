@@ -14,7 +14,7 @@ object CreativeSkillRouter {
             any(value, "genera una imagen", "crea una imagen", "dibuja", "ilustra", "renderiza") -> CreativeSkill.IMAGE_GENERATION
             any(value, "analiza las métricas", "rendimiento de publicaciones", "estadísticas de redes", "estadisticas de redes") -> CreativeSkill.CONTENT_ANALYTICS
             any(value, "storyboard", "guion visual", "secuencia de planos") -> CreativeSkill.STORYBOARD
-            any(value, "instagram", "tiktok", "youtube", "redes sociales", "reel", "shorts", "publicación", "publicacion", "algoritmo") -> CreativeSkill.SOCIAL_STRATEGY
+            any(value, "instagram", "tiktok", "youtube", "redes sociales", "reel", "shorts", "publicación", "publicacion", "publicaciones", "contenido", "calendario editorial", "algoritmo") -> CreativeSkill.SOCIAL_STRATEGY
             any(value, "branding", "identidad visual", "marca", "logotipo", "logo") -> CreativeSkill.BRANDING
             any(value, "diseña", "diseño", "composición", "composicion", "cartel", "banner", "miniatura", "thumbnail", "creatividad") -> CreativeSkill.DESIGN
             any(value, "copy", "texto publicitario", "titular", "eslogan", "caption", "descripción") -> CreativeSkill.COPYWRITING
