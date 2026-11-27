@@ -19,6 +19,29 @@ class BrainCoreTest {
     }
 
     @Test
+    fun currentSocialAlgorithmClaimsRequireOfficialPrimaryEvidence() {
+        val sources = listOf("a", "b").map { publisher ->
+            KnowledgeEvidence(
+                id = publisher,
+                title = "Social ranking overview",
+                canonicalUrl = "https://$publisher.example.org/ranking",
+                publisherId = publisher,
+                domain = KnowledgeDomain.SOCIAL_MEDIA,
+                authority = EvidenceAuthority.REPUTABLE_SECONDARY,
+                retrievedAtMs = 1_000L,
+                content = "Ranking overview"
+            )
+        }
+        val result = KnowledgeVerifier.assess(
+            evidence = sources,
+            domain = KnowledgeDomain.SOCIAL_MEDIA,
+            nowMs = 2_000L,
+            maxAgeMs = 10_000L
+        )
+        assertEquals(KnowledgeVerdict.PRIMARY_SOURCE_REQUIRED, result.verdict)
+    }
+
+    @Test
     fun modelOutputCannotBecomeTrainingEvidence() {
         val evidence = KnowledgeEvidence(
             id = "model-1",
