@@ -517,54 +517,61 @@ class ConversationEngine internal constructor(
                     }
                 }
 
-                val directReply = directTurnResponder?.invoke(userText)?.trim()?.takeIf { it.isNotEmpty() }
-                val llmResult = if (directReply != null) {
-                    callbacks?.onStreamingText(directReply)
-                    sentenceChannel.trySend(directReply)
-                    sentenceChannel.close()
-                    ttsConsumer.await()
-                    com.orion.voicelab.llm.LlmGenerationResult(
-                        text = directReply,
-                        firstTokenMs = 0L,
-                        totalMs = 0L,
-                        tokensGenerated = 0,
-                        cancelled = false
-                    )
-                } else {
-                    val resolvedContext = turnContextResolver?.invoke(userText, session.historySnapshot())
-                    val result = languageModel.generateReply(
-                        systemPrompt = resolvedContext?.systemPrompt ?: session.systemPrompt,
-                        history = resolvedContext?.recentHistory ?: session.historySnapshot()
-                    ) { token ->
-                        if (!callActive.get() ||
-                            callSessionEpoch.get() != sessionEpoch ||
-                            turnGeneration.get() != myGeneration
-                        ) {
-                            return@generateReply
+                val llmResult = try {
+                    val directReply = directTurnResponder?.invoke(userText)?.trim()?.takeIf { it.isNotEmpty() }
+                    if (directReply != null) {
+                        callbacks?.onStreamingText(directReply)
+                        sentenceChannel.trySend(directReply)
+                        sentenceChannel.close()
+                        ttsConsumer.await()
+                        com.orion.voicelab.llm.LlmGenerationResult(
+                            text = directReply,
+                            firstTokenMs = 0L,
+                            totalMs = 0L,
+                            tokensGenerated = 0,
+                            cancelled = false
+                        )
+                    } else {
+                        val resolvedContext = turnContextResolver?.invoke(userText, session.historySnapshot())
+                        val result = languageModel.generateReply(
+                            systemPrompt = resolvedContext?.systemPrompt ?: session.systemPrompt,
+                            history = resolvedContext?.recentHistory ?: session.historySnapshot()
+                        ) { token ->
+                            if (!callActive.get() ||
+                                callSessionEpoch.get() != sessionEpoch ||
+                                turnGeneration.get() != myGeneration
+                            ) {
+                                return@generateReply
+                            }
+                            streamedDisplay.append(token)
+                            callbacks?.onStreamingText(streamedDisplay.toString())
+                            val readySentences = chunker.appendToken(token)
+                            for (s in readySentences) {
+                                sentenceChannel.trySend(s)
+                            }
                         }
-                        streamedDisplay.append(token)
-                        callbacks?.onStreamingText(streamedDisplay.toString())
-                        val readySentences = chunker.appendToken(token)
-                        for (s in readySentences) {
-                            sentenceChannel.trySend(s)
-                        }
-                    }
 
-                    if (!result.cancelled &&
-                        callActive.get() &&
-                        callSessionEpoch.get() == sessionEpoch &&
-                        turnGeneration.get() == myGeneration
-                    ) {
-                        val trailing = chunker.flush()
-                        if (trailing != null) {
-                            sentenceChannel.trySend(trailing)
-                        } else if (streamedDisplay.isEmpty() && result.text.isNotBlank()) {
-                            sentenceChannel.trySend(result.text)
+                        if (!result.cancelled &&
+                            callActive.get() &&
+                            callSessionEpoch.get() == sessionEpoch &&
+                            turnGeneration.get() == myGeneration
+                        ) {
+                            val trailing = chunker.flush()
+                            if (trailing != null) {
+                                sentenceChannel.trySend(trailing)
+                            } else if (streamedDisplay.isEmpty() && result.text.isNotBlank()) {
+                                sentenceChannel.trySend(result.text)
+                            }
                         }
+                        sentenceChannel.close()
+                        ttsConsumer.await()
+                        result
                     }
+                } finally {
                     sentenceChannel.close()
-                    ttsConsumer.await()
-                    result
+                    if (!ttsConsumer.isCompleted) {
+                        ttsConsumer.cancel()
+                    }
                 }
 
                 if (!callActive.get() ||
