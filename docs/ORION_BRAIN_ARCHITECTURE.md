@@ -1,6 +1,6 @@
 # ORION — Arquitectura del cerebro autónomo y conocimiento verificable
 
-Estado: núcleo modular local implementado e integrado en el contexto de cada turno; fuentes externas y proveedores multimedia requieren configuración e integración.
+Estado: núcleo local y recuperación web explícita implementados en código; validación CI pendiente. El corpus local no incluye todavía packs de conocimiento y los proveedores multimedia siguen sin configuración.
 
 ## Objetivo
 
@@ -32,7 +32,7 @@ ORION no puede garantizar verdad absoluta ni prometer que nunca cometerá errore
 - Si no hay evidencia suficiente, ORION dice «no lo he podido verificar» y no completa huecos inventando.
 - Cada dato dinámico (tiempo, mareas, tráfico, disponibilidad, calendario, CI) lleva fecha/hora de consulta y zona geográfica cuando corresponda.
 
-Se han incorporado contratos de evidencia, enrutador determinista por dominio, repositorio local privado persistente, motor de recuperación, composición de contexto con procedencia y política de aprendizaje. Los veredictos incluyen SUPPORTED, NEEDS_CORROBORATION, PRIMARY_SOURCE_REQUIRED, STALE, CONFLICTING, NO_EVIDENCE e INVALID_TIMESTAMP. El núcleo ya se invoca desde el contexto de cada turno de voz. El corpus local comienza vacío: no se simula que existan fuentes descargadas ni se presenta el conocimiento del modelo como evidencia. El corpus se guarda en almacenamiento privado de la app mediante escritura atómica y la recuperación actual es léxica y local; todavía no es búsqueda semántica/vectorial ni recuperación web. El contexto RAG se limita a 1.800 caracteres para proteger la ventana de 2.048 tokens del modelo local.
+Se han incorporado contratos de evidencia, enrutador determinista por dominio, repositorio local privado persistente, motor de recuperación, composición de contexto con procedencia y política de aprendizaje. Los veredictos incluyen SUPPORTED, NEEDS_CORROBORATION, PRIMARY_SOURCE_REQUIRED, STALE, AGE_UNCONFIRMED, CONFLICTING, NO_EVIDENCE e INVALID_TIMESTAMP. El núcleo ya se invoca desde el contexto de cada turno de voz. El corpus local comienza vacío: no se simula que existan fuentes descargadas ni se presenta el conocimiento del modelo como evidencia. El corpus se guarda en almacenamiento privado mediante escritura atómica y la recuperación local es léxica, no semántica/vectorial. La búsqueda web solo se activa ante una petición explícita. El contexto RAG se limita a 1.800 caracteres para proteger la ventana reducida del modelo local.
 
 ## Fuentes por ámbito
 
@@ -117,13 +117,15 @@ Los contratos MediaUnderstandingProvider, ImageGenerationProvider y VideoGenerat
 
 Se ha conectado un adaptador de búsqueda web de solo lectura basado en la página HTML de DuckDuckGo. Solo se activa cuando el usuario pide expresamente buscar o investigar en Internet; las conversaciones normales y el modo offline no generan tráfico web. La consulta tiene timeout, límite de respuesta y máximo de cinco resultados.
 
-Alcance actual: recupera título, URL y fragmento del buscador. No descarga todavía el contenido completo de las páginas de destino ni ejecuta acciones sobre ellas. Los resultados se clasifican como autoridad UNKNOWN y se presentan como pistas para localizar fuentes, nunca como evidencia confirmatoria. El verificador exige dos editores con autoridad reconocida para corroboración general, o evidencia primaria cuando el dominio lo requiere. Los fragmentos desconocidos no pueden elevar una respuesta a verificada.
+Alcance actual: busca resultados, recupera título, URL y fragmento, e intenta leer hasta tres páginas completas por consulta. El lector solo admite HTTPS, rechaza credenciales, puertos no estándar, destinos locales/privados/reservados, limita redirecciones, tiempo de conexión, tamaño de respuesta y texto extraído. Las redirecciones se validan de nuevo y la autoridad se asigna al host final, mediante una lista conservadora de dominios oficiales y documentación técnica conocida. Los dominios no reconocidos permanecen UNKNOWN.
 
-Limitaciones: el HTML del buscador puede cambiar, bloquear peticiones o devolver resultados incompletos; el adaptador debe informar de ausencia/fallo sin inventar resultados. El siguiente paso es una capa de lectura de páginas con lista de dominios permitidos, control de redirecciones, límites de tamaño, extracción de texto, fecha/editor y clasificación de autoridad antes de incorporarlas al corpus. No se guardan automáticamente los fragmentos web en la memoria personal ni en el corpus local.
+La lectura HTML es heurística, no un navegador completo: no ejecuta JavaScript, no resuelve paywalls, contenido dinámico, PDFs ni páginas que requieran sesión. La resolución DNS se valida antes de la conexión, pero la implementación aún no fija la IP validada en el socket; queda pendiente endurecimiento frente a DNS rebinding antes de considerarla una frontera de seguridad de nivel producción. El buscador puede cambiar HTML, bloquear peticiones o devolver resultados incompletos.
+
+Los fragmentos no leídos siguen siendo pistas UNKNOWN. En consultas sensibles a actualidad, ORION exige fecha de publicación/actualización extraída: consultar hoy una página antigua no convierte su contenido en actual. La clasificación de dominios es una lista inicial pequeña, no una evaluación universal de reputación. No se guarda automáticamente nada en el corpus ni en la memoria personal.
 
 ## Fuentes externas y aprendizaje
 
-OrionBrainRuntime acepta KnowledgeSource externos inyectables además del corpus local. El runtime registra el corpus local y el adaptador de descubrimiento web explícito descrito arriba; todavía no existe lectura completa y validada de páginas web. El aprendizaje persiste documentos con procedencia y hash, pero no modifica automáticamente los pesos del modelo. Los proveedores de búsqueda, indexación y actualización deben registrarse y someterse a los mismos controles de autoridad, frescura, contradicción y seguridad.
+OrionBrainRuntime acepta KnowledgeSource externos inyectables además del corpus local. El runtime registra el corpus local y el adaptador de búsqueda web explícita con lectura HTML acotada descrito arriba. El aprendizaje persiste documentos con procedencia y hash, pero no modifica automáticamente los pesos del modelo. Los proveedores de búsqueda, indexación y actualización deben registrarse y someterse a los mismos controles de autoridad, frescura, contradicción y seguridad.
 
 Detalle creativo/multimedia y pendientes: [ORION_CREATIVE_MULTIMODAL_ARCHITECTURE.md](ORION_CREATIVE_MULTIMODAL_ARCHITECTURE.md).
 
@@ -180,3 +182,60 @@ El programador de tareas utiliza `setExactAndAllowWhileIdle` en Android 12 o sup
 Cuando Android notifica un cambio en el acceso a alarmas exactas, el receptor vuelve a conciliar los recordatorios pendientes para aplicar el modo disponible. La precisión exacta depende del permiso especial y de las restricciones del sistema; no se promete puntualidad exacta cuando el permiso está denegado ni se utiliza `USE_EXACT_ALARM`, cuyo uso está sujeto a políticas restrictivas de distribución.
 
 La pantalla Ajustes > Recordatorios y alarmas muestra el estado real del acceso especial y ofrece un botón para abrir los ajustes del sistema únicamente cuando el acceso falta. Al volver de Ajustes, la pantalla vuelve a consultar el permiso y actualiza el estado. En Android anterior a 12 informa que no se requiere ese acceso adicional.
+
+
+## Auditoría de capacidad del cerebro — 27/11/2026
+
+La arquitectura está bien separada en recuperación, verificación, memoria, diagnóstico, creatividad y conectores, pero no equivale todavía a un asistente general ultra completo. El cuello de botella no es solo la cantidad de conocimiento: es el modelo local pequeño, la ausencia de un corpus curado inicial, la recuperación léxica y la falta de un planificador multi-herramienta integrado.
+
+| Capacidad | Estado real | Brecha principal |
+|---|---|---|
+| Conversación por voz offline | Implementación local | Calidad de razonamiento limitada por Qwen2.5 1.5B y ventana corta |
+| Conocimiento general offline | Conocimiento paramétrico del modelo | Sin enciclopedia/documentación local indexada |
+| RAG local | Implementado, corpus inicialmente vacío | Búsqueda léxica; falta índice semántico/híbrido y packs versionados |
+| Búsqueda web | Búsqueda explícita + lectura HTML acotada | Sin navegador completo, JS, PDF, múltiples buscadores ni cobertura amplia de fuentes |
+| Verificación | Política conservadora implementada | Clasificador de autoridad pequeño; conflictos y fechas aún parciales |
+| Aprendizaje | Ingesta curada disponible | Sin flujo UI completo de revisión, versionado y actualización programada |
+| Autodiagnóstico | Registro local y heurísticas | No captura todos los errores ni analiza automáticamente todo el código |
+| Tareas y recordatorios | Operaciones deterministas | Falta planificación de varios pasos y seguimiento de resultados |
+| Conectores | Integraciones acotadas | Faltan acciones completas de escritura y más proveedores |
+| Programación | Conector GitHub y capacidades del modelo | Falta entorno de ejecución/sandbox y ciclo integrado de pruebas/revisión |
+| Diseño y estrategia creativa | Router y prompts | No hay motores multimedia conectados |
+| Comprensión/generación de imagen y vídeo | Contratos y consentimiento | Sin proveedores operativos en el runtime |
+| Memoria personal | Local y separada del corpus | Falta mejor extracción, consolidación y control de caducidad |
+
+### Qué conocimiento debe incorporar
+
+1. Packs generales offline: ciencia, matemáticas, historia, geografía, lengua, cultura, economía, informática, primeros auxilios básicos y seguridad. Cada pack debe llevar licencia, versión, fecha, fuente y tamaño; no descargar un corpus masivo sin control.
+2. Packs técnicos: Kotlin/Android/Gradle, Python, Git/GitHub, Linux, redes, bases de datos, APIs, ciberseguridad defensiva y documentación de herramientas que ORION pueda usar.
+3. Fuentes España/UE: BOE, EUR-Lex, AEPD, INCIBE, AEMET, Protección Civil, DGT y organismos autonómicos/municipales cuando la consulta lo requiera. Para PescaIA, normativa pesquera por comunidad, provincia, zona y fecha.
+4. Conocimiento práctico: guías de usuario, manuales de fabricantes, documentación de dispositivos, protocolos y procedimientos. Separar instrucciones verificadas de experiencias comunitarias.
+5. Conocimiento personal: preferencias, proyectos, decisiones y rutinas del usuario en un almacén independiente y editable; nunca mezclarlo con el corpus público.
+
+### Qué debe poder hacer además de saber
+
+- Investigar una pregunta: descomponerla, buscar, abrir fuentes, comparar fechas, extraer afirmaciones y entregar una respuesta citada.
+- Planificar trabajos de varios pasos con dependencias, presupuesto, tiempo máximo, estado, cancelación y recuperación ante fallos.
+- Usar herramientas tipadas: archivos, correo, calendario, navegador, repositorios, terminal aislada y aplicaciones Android; cada acción con alcance mínimo y confirmación según riesgo.
+- Programar de extremo a extremo en un sandbox: inspeccionar proyecto, proponer diff, editar, compilar, ejecutar tests, analizar logs y preparar commit/PR. Nunca afirmar éxito sin resultados.
+- Analizar archivos y datos: PDF, DOCX, hojas de cálculo, imágenes, audio y vídeo, con extracción local cuando sea viable.
+- Comparar alternativas, calcular, crear informes, documentos, presentaciones y hojas de cálculo.
+- Supervisar tareas autorizadas: recordatorios, seguimiento de CI, alertas y trabajos programados, con límites y registro auditable.
+- Aprender de fuentes y correcciones aprobadas, detectar información caducada y avisar cuando una fuente cambie.
+- Mantener perfiles de ejecución: offline ligero, local avanzado en equipo compatible y remoto opcional con consentimiento por operación.
+
+### Orden recomendado de cierre
+
+P0 — Calidad del conocimiento: cerrar pruebas del recuperador web, ampliar fuentes oficiales españolas y europeas, añadir fecha de modificación, extracción robusta, citas visibles y pruebas contra prompt injection, redirecciones y DNS rebinding.
+
+P1 — Planificador y uso de herramientas: crear un plan tipado, máximo de pasos, permisos por acción, confirmación por operación, cancelación, idempotencia, registro de ejecución y verificación de resultados.
+
+P2 — Corpus offline: incorporar packs pequeños y útiles con licencia, hash, versión, índice léxico + semántico y actualización incremental. Priorizar documentación Android/Kotlin, informática general, España/UE y dominios del usuario.
+
+P3 — Capacidad cognitiva: permitir modelos alternativos más capaces. Qwen2.5 1.5B debe seguir como perfil ligero offline, no como único motor para razonamiento complejo. Añadir evaluación comparativa y escalado opcional a un modelo local avanzado o remoto consentido.
+
+P4 — Herramientas y multimedia: sandbox de programación, lectura de documentos, navegador real, proveedores de imagen/vídeo y conectores ampliados. Cada proveedor debe exponer disponibilidad real y requisitos antes de ofrecer la función.
+
+P5 — Evaluación continua: banco de pruebas con preguntas conocidas, fuentes fechadas, tareas multi-herramienta, errores simulados, privacidad, seguridad y regresiones. No declarar el cerebro terminado hasta superar criterios medibles.
+
+**Conclusión de auditoría:** ORION ya tiene una base arquitectónica prometedora, pero su conocimiento offline es escaso y su autonomía multi-paso aún no está resuelta. Para alcanzar el objetivo ultra completo necesita más conocimiento curado, un modelo de razonamiento mejorable por perfiles y, sobre todo, un planificador con herramientas reales y validación de resultados.
