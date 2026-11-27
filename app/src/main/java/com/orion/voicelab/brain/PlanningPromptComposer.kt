@@ -18,6 +18,6 @@ object PlanningPromptComposer {
 - No inventes disponibilidad: si no existe ejecutor, entrega el plan y declara que no se ha ejecutado.
 - Pide confirmación específica antes de enviar, publicar, llamar, comprar, borrar o modificar servicios externos.
 - Si falla un paso, bloquea sus dependientes y explica cómo reanudar.
-Solicitud: ${userText.take(1200)}"""
+Herramientas registradas y límites reales: $available\nSolicitud: ${userText.take(1200)}"""
  }
 }
