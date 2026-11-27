@@ -58,8 +58,8 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                 document.copy(relevance = (score + phraseBoost) * (0.5 + 0.5 * coverage))
             }.sortedWith(
                 compareByDescending<KnowledgeDocument> { it.relevance }
-                    .thenByDescending { it.evidence.authority.ordinal }
-                    .thenByDescending { it.evidence.publishedAtMs ?: 0L }
+                    .thenByDescending { authorityWeight(it.evidence.authority) }
+                    .thenByDescending { it.evidence.publishedAtMs ?: it.evidence.retrievedAtMs }
             ).take(limit)
         }
 
@@ -163,6 +163,16 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
             output?.let { corpusFile.failWrite(it) }
             throw IllegalStateException("No se pudo guardar el corpus local de conocimiento.", error)
         }
+    }
+
+    private fun authorityWeight(authority: EvidenceAuthority): Int = when (authority) {
+        EvidenceAuthority.OFFICIAL_PRIMARY -> 7
+        EvidenceAuthority.PRIMARY_TECHNICAL -> 6
+        EvidenceAuthority.PEER_REVIEWED -> 5
+        EvidenceAuthority.REPUTABLE_SECONDARY -> 4
+        EvidenceAuthority.COMMUNITY -> 2
+        EvidenceAuthority.USER_SUPPLIED -> 1
+        EvidenceAuthority.UNKNOWN -> 0
     }
 
     private fun tokens(value: String): Set<String> {
