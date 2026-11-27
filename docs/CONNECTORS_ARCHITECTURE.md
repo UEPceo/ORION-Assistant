@@ -52,4 +52,4 @@ Permitir que ORION trabaje con servicios externos sin acoplar la lógica de voz,
 
 ## Estado de esta entrega
 
-Se han añadido los contratos comunes, el registro en memoria, la política central de confirmación, el catálogo inicial y este documento. No se han añadido SDKs, permisos OAuth ni llamadas de red a proveedores. La siguiente fase será integrar el almacenamiento cifrado y el flujo OAuth, comenzando por Gmail y GitHub.
+Se han añadido los contratos comunes, el registro, la política central de autorización, el catálogo, el almacenamiento cifrado Android Keystore y la pantalla de conectores. GitHub incorpora OAuth App Device Flow con scope inicial `read:user`; Gmail incorpora Google Identity con `gmail.readonly`, token temporal cifrado y revocación al desconectar. Los adaptadores de Gmail API y GitHub REST API aún no están implementados. Google exige configurar proyecto, Gmail API, consentimiento, cliente Android y SHA-1; GitHub requiere una OAuth App con Device Flow habilitado y Client ID público.
