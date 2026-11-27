@@ -13,8 +13,8 @@ import com.orion.voicelab.memory.MemoryTextSimilarity
 object CallIntentRouter {
 
     private val cancelPatterns = listOf(
-        Regex("""^(?:no|cancela|cancelar|anula|anular|aborta|abortar|para|deten|olvida|olvidalo|mejor no|dejalo)(?:\b.*)?$"""),
-        Regex("""\b(?:no\s+llames|cancela\s+la\s+llamada|cancelar\s+llamada|mejor\s+no\s+llames|olvida\s+la\s+llamada)\b""")
+        Regex("""^(?:no|cancela|cancelar|cancelalo|cancelala|anula|anular|aborta|abortar|para|deten|olvida|olvidalo|olvidala|mejor no|dejalo|dejala|espera no)(?:\b.*)?$"""),
+        Regex("""\b(?:no\s+llames|cancela\s+la\s+llamada|cancelar\s+llamada|mejor\s+no\s+llames|olvida\s+la\s+llamada|no\s+espera)\b""")
     )
 
     private val confirmPhrases = setOf(
@@ -32,7 +32,7 @@ object CallIntentRouter {
     )
 
     private val pendingWithRegex = Regex(
-        """(?:que\s+tenia|que\s+tengo|algo)\s+pendiente(?:\s+(?:de\s+)?hablar)?\s+con\s+(.+)"""
+        """(?:que\s+tenia|que\s+tengo|algo)\s+(?:pendiente(?:\s+(?:de|para)\s+hablar)?|que\s+hablar)\s+con\s+(.+)"""
     )
 
     private val callbacksRegex = Regex(
@@ -48,7 +48,7 @@ object CallIntentRouter {
     )
 
     private val directCallRegex = Regex(
-        """^(?:por favor\s+)?(?:orion\s+)?(?:quiero\s+llamar|necesito\s+llamar|puedes\s+llamar|llama(?:me)?|marca(?:me)?|haz\s+una\s+llamada)\s+(?:a|al)\s+(.+)$"""
+        """^(?:por favor\s+)?(?:oye\s+)?(?:orion\s+)?(?:quiero\s+llamar|necesito\s+llamar|puedes\s+llamar|quiero\s+hacer\s+una\s+llamada|haz\s+una\s+llamada|realiza\s+una\s+llamada|llama(?:me)?|marca(?:me)?)\s+(?:a|al)\s+(.+)$"""
     )
 
     fun route(
@@ -81,20 +81,24 @@ object CallIntentRouter {
                     return CallIntentAction.SelectCandidateByIndex(idx)
                 }
             }
-            if (norm.split(' ').size <= 5 && !norm.contains("llama") && !norm.contains("busca")) {
+            if (norm.split(' ').size <= 5 &&
+                !norm.contains("llama") &&
+                !norm.contains("busca") &&
+                norm !in confirmPhrases
+            ) {
                 return CallIntentAction.SelectCandidateByName(raw)
             }
         }
 
         // 4. Consultas locales sobre historial de llamadas y seguimiento
         whenCalledRegex.find(norm)?.let { match ->
-            val target = extractTargetSegment(raw, match.groupValues[1])
+            val target = stripPoliteSuffix(extractTargetSegment(raw, match.groupValues[1]))
             if (target.isNotEmpty()) {
                 return CallIntentAction.QueryCallHistory(HistoryQueryType.WHEN_CALLED, target)
             }
         }
         pendingWithRegex.find(norm)?.let { match ->
-            val target = extractTargetSegment(raw, match.groupValues[1])
+            val target = stripPoliteSuffix(extractTargetSegment(raw, match.groupValues[1]))
             if (target.isNotEmpty()) {
                 return CallIntentAction.QueryCallHistory(HistoryQueryType.PENDING_WITH, target)
             }
@@ -113,7 +117,11 @@ object CallIntentRouter {
             val targetRaw = match.groupValues.getOrNull(1).orEmpty().trim()
             val scheduleTail = match.groupValues.getOrNull(2).orEmpty().trim()
             val (targetName, reason) = splitTargetAndReason(targetRaw)
-            val scheduledNote = scheduleTail.ifBlank {
+            val restoredSchedule = scheduleTail
+                .replace("manana", "mañana")
+                .replace("despues", "después")
+                .replace("mas tarde", "más tarde")
+            val scheduledNote = restoredSchedule.ifBlank {
                 if (norm.contains("manana")) "Para mañana" else "Preparada"
             }
             return CallIntentAction.InitiateCall(
@@ -126,7 +134,7 @@ object CallIntentRouter {
 
         // 7. Buscar número de teléfono
         lookupRegex.find(norm)?.let { match ->
-            val target = match.groupValues[1].trim()
+            val target = stripPoliteSuffix(match.groupValues[1])
             if (target.isNotEmpty()) {
                 return CallIntentAction.LookupContactNumber(target)
             }
@@ -169,24 +177,29 @@ object CallIntentRouter {
     }
 
     private fun splitTargetAndReason(rawTail: String): Pair<String, String> {
-        val clean = rawTail.trim().trimEnd('.', ',', ';', '?', '!')
+        val clean = stripPoliteSuffix(rawTail)
         if (clean.isEmpty()) return "" to ""
         val separators = listOf(" para ", " sobre ", " por ")
         for (sep in separators) {
             val idx = clean.indexOf(sep)
             if (idx > 0) {
-                val target = clean.substring(0, idx).trim()
-                val reason = clean.substring(idx + sep.length).trim()
+                val target = stripPoliteSuffix(clean.substring(0, idx))
+                val reason = stripPoliteSuffix(clean.substring(idx + sep.length))
                 return target to reason
             }
         }
         return clean to ""
     }
 
+    private fun stripPoliteSuffix(raw: String): String = raw
+        .trim()
+        .trimEnd('.', ',', ';', '?', '!')
+        .replace(Regex("""(?:\s*,?\s*(?:por favor|porfa|gracias|orion))+$""", RegexOption.IGNORE_CASE), "")
+        .trim()
+
     private fun extractTargetSegment(original: String, normalizedMatch: String): String {
         val clean = normalizedMatch.trim().trimEnd('?', '!', '.', ',')
         if (clean.isEmpty()) return ""
-        // Recupera mayúsculas o acentos aproximados si están al final del texto original
         val origTokens = original.trim().trimEnd('?', '!', '.', ',').split(Regex("\\s+"))
         val normTokens = clean.split(Regex("\\s+"))
         return if (origTokens.size >= normTokens.size) {

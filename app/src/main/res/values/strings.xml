@@ -2,13 +2,14 @@
 <resources>
     <string name="app_name">ORION Voice Lab</string>
     <string name="brand_title">ORION</string>
-    <string name="brand_subtitle">VOICE LAB 0.6.0 · ASISTENTE Y TELEFONÍA LOCAL</string>
+    <string name="brand_subtitle">VOICE LAB 0.7.0 · ASISTENTE PERSONAL Y TAREAS</string>
     <string name="tab_call">Agenda</string>
     <string name="tab_phone">Teléfono</string>
+    <string name="tab_tasks">Tareas</string>
     <string name="tab_conversations">Chats</string>
     <string name="tab_memory">Memoria</string>
     <string name="tab_lab">Lab</string>
-    <string name="section_diagnostics">DIAGNÓSTICO LOCAL · 0.6.0</string>
+    <string name="section_diagnostics">DIAGNÓSTICO LOCAL · 0.7.0</string>
 
     <!-- Voice Lab 0.3 preserved strings -->
     <string name="status_model_ready">Moonshine Base ES instalado. Reconocimiento local disponible sin Internet.</string>
@@ -133,8 +134,38 @@
     <string name="phone_notes_outcome_label">Resultado de la llamada</string>
     <string name="phone_notes_body_label">Notas adicionales</string>
     <string name="phone_notes_followup_toggle">Pendiente de seguimiento o devolución</string>
+    <string name="phone_followup_task_action">Recordar</string>
     <string name="phone_no_telephony_hw">Este dispositivo no anuncia hardware de telefonía celular; puedes usar el marcador o probar la lógica local.</string>
     <string name="phone_audio_limit_notice">Android restringe la captura/inyección de audio en llamadas celulares normales; ORION libera su micrófono al iniciar la llamada.</string>
+
+    <!-- Voice Lab 0.7 Tasks & Reminders strings -->
+    <string name="tasks_title">Tareas y recordatorios</string>
+    <string name="tasks_subtitle">Gestión local 100 % offline en este dispositivo</string>
+    <string name="tasks_search_hint">Buscar tareas, notas o contactos…</string>
+    <string name="tasks_new_button">Nueva tarea</string>
+    <string name="tasks_clean_button">Limpiar</string>
+    <string name="tasks_empty_hint">No hay tareas en esta vista.\n\nPulsa «Nueva tarea» o pídele a ORION en voz alta: «Recuérdame comprar comida mañana» o «Apunta que tengo que llamar a mi madre el domingo».</string>
+    <string name="tasks_notification_perm_rationale">Permite notificaciones para recibir los avisos locales de tus recordatorios aunque la app esté cerrada.</string>
+    <string name="tasks_allow_notifications">Permitir avisos</string>
+    <string name="tasks_postpone_tomorrow">Mañana</string>
+    <string name="tasks_clarify_time_title">Aclarar hora del recordatorio</string>
+    <string name="tasks_clarify_title_header">Falta el título de la tarea</string>
+    <string name="tasks_dialog_new_title">Nueva tarea o recordatorio</string>
+    <string name="tasks_dialog_edit_title">Editar tarea</string>
+    <string name="tasks_field_title">Título de la tarea</string>
+    <string name="tasks_field_description">Descripción (opcional)</string>
+    <string name="tasks_field_priority">Prioridad</string>
+    <string name="tasks_field_date">Fecha</string>
+    <string name="tasks_field_time">Hora</string>
+    <string name="tasks_field_reminder_toggle">Activar recordatorio con notificación local</string>
+    <string name="tasks_field_category">Categoría (opcional)</string>
+    <string name="tasks_field_contact_name">Persona o contacto asociado (opcional)</string>
+    <string name="tasks_field_contact_phone">Teléfono asociado (opcional)</string>
+    <string name="tasks_field_notes">Notas adicionales</string>
+    <string name="tasks_clean_dialog_title">Limpiar tareas locales</string>
+    <string name="tasks_clean_dialog_body">Elige si deseas borrar solo las tareas completadas y canceladas o eliminar todas las tareas y recordatorios guardados.</string>
+    <string name="tasks_clean_finished">Borrar finalizadas</string>
+    <string name="tasks_clean_all">Borrar todas</string>
 
     <!-- Accessibility -->
     <string name="cd_voice_status">Indicador de estado de voz</string>
@@ -158,4 +189,11 @@
     <string name="cd_favorite_contact">Alternar contacto favorito</string>
     <string name="cd_pick_contact">Elegir contacto desde la agenda del sistema</string>
     <string name="cd_delete_call_record">Eliminar registro de llamada</string>
+    <string name="cd_search_tasks">Buscar tareas</string>
+    <string name="cd_complete_task">Marcar tarea como completada</string>
+    <string name="cd_reopen_task">Reabrir tarea como pendiente</string>
+    <string name="cd_dismiss_reminder">Desactivar recordatorio</string>
+    <string name="cd_edit_task">Editar tarea</string>
+    <string name="cd_cancel_task">Cancelar tarea</string>
+    <string name="cd_delete_task">Eliminar tarea</string>
 </resources>

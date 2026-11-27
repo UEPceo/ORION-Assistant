@@ -37,6 +37,8 @@ class PhoneCallManager(private val context: Context) {
     @Volatile
     private var legacyListener: PhoneStateListener? = null
 
+    fun isObservingCallState(): Boolean = modernCallback != null || legacyListener != null
+
     fun isTelephonySupported(): Boolean =
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
 
@@ -99,10 +101,11 @@ class PhoneCallManager(private val context: Context) {
             return
         }
         if (!hasPhoneStatePermission()) {
+            stopObservingCallState()
             onStateChanged(SystemTelephonyState.IDLE)
             return
         }
-        stopObservingCallState()
+        if (isObservingCallState()) return
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val callback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
@@ -116,8 +119,10 @@ class PhoneCallManager(private val context: Context) {
                 registerLegacyPhoneStateListener(tm, onStateChanged)
             }
         } catch (_: SecurityException) {
+            stopObservingCallState()
             onStateChanged(SystemTelephonyState.UNAVAILABLE)
         } catch (_: Exception) {
+            stopObservingCallState()
             onStateChanged(SystemTelephonyState.UNAVAILABLE)
         }
     }
@@ -138,15 +143,16 @@ class PhoneCallManager(private val context: Context) {
     }
 
     fun stopObservingCallState() {
-        val tm = telephonyManager ?: return
+        val tm = telephonyManager
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (tm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 modernCallback?.let { tm.unregisterTelephonyCallback(it) }
-                modernCallback = null
-            } else {
+            } else if (tm != null) {
                 unregisterLegacyListener(tm)
             }
         } catch (_: Exception) {
+            // Ignore cleanup errors on shutdown/revoked permission
+        } finally {
             modernCallback = null
             legacyListener = null
         }

@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Dialpad
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.StarBorder
@@ -79,6 +80,7 @@ import com.orion.voicelab.data.PhoneCallRecord
 import com.orion.voicelab.data.PhoneCallStatus
 import com.orion.voicelab.data.PhoneContactEntry
 import com.orion.voicelab.data.SystemTelephonyState
+import com.orion.voicelab.data.TaskPriority
 import com.orion.voicelab.data.VoiceLabUiState
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -316,7 +318,17 @@ fun PhoneSectionScreen(
     onCancelPendingCall: () -> Unit,
     onRedialRecord: (PhoneCallRecord) -> Unit,
     onUpdateRecordNotes: (id: Long, reason: String, userNotes: String, outcome: String, followUpPending: Boolean) -> Unit,
-    onDeleteRecord: (Long) -> Unit
+    onDeleteRecord: (Long) -> Unit,
+    onCreateFollowUpTask: (
+        callRecord: PhoneCallRecord,
+        title: String,
+        dueDateEpochDay: Long?,
+        dueTimeMinutes: Int?,
+        reminderAtMs: Long?,
+        priority: TaskPriority,
+        notes: String
+    ) -> Unit = { _, _, _, _, _, _, _ -> },
+    onRequestNotificationsPermission: () -> Unit = {}
 ) {
     var showManualForm by rememberSaveable { mutableStateOf(false) }
     var manualName by rememberSaveable { mutableStateOf("") }
@@ -324,14 +336,19 @@ fun PhoneSectionScreen(
     var manualReason by rememberSaveable { mutableStateOf("") }
     var manualSchedule by rememberSaveable { mutableStateOf("") }
     var editingRecord by remember { mutableStateOf<PhoneCallRecord?>(null) }
+    var followUpTaskRecord by remember { mutableStateOf<PhoneCallRecord?>(null) }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .widthIn(max = 640.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.TopCenter
     ) {
+        LazyColumn(
+            modifier = Modifier
+                .widthIn(max = 640.dp)
+                .fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
         item(key = "phone_header") {
             PhoneStatusBannerCard(
                 state = state,
@@ -628,21 +645,47 @@ fun PhoneSectionScreen(
                     record = record,
                     onRedial = { onRedialRecord(record) },
                     onEditNotes = { editingRecord = record },
+                    onCreateFollowUp = { followUpTaskRecord = record },
                     onDelete = { onDeleteRecord(record.id) }
                 )
             }
         }
     }
 
-    editingRecord?.let { target ->
-        EditCallNotesDialog(
-            record = target,
-            onDismiss = { editingRecord = null },
-            onSave = { reason, userNotes, outcome, followUpPending ->
-                onUpdateRecordNotes(target.id, reason, userNotes, outcome, followUpPending)
-                editingRecord = null
-            }
-        )
+        editingRecord?.let { target ->
+            EditCallNotesDialog(
+                record = target,
+                onDismiss = { editingRecord = null },
+                onSave = { reason, userNotes, outcome, followUpPending ->
+                    onUpdateRecordNotes(target.id, reason, userNotes, outcome, followUpPending)
+                    editingRecord = null
+                }
+            )
+        }
+
+        followUpTaskRecord?.let { target ->
+            TaskEditorDialog(
+                existingTask = null,
+                favoriteContacts = state.favoritePhoneContacts,
+                hasNotificationsPermission = state.hasNotificationsPermission,
+                onRequestNotificationsPermission = onRequestNotificationsPermission,
+                onDismiss = { followUpTaskRecord = null },
+                onSave = { title, _, day, mins, remMs, _, priority, _, notes, _, _, _, _ ->
+                    onCreateFollowUpTask(target, title, day, mins, remMs, priority, notes)
+                    followUpTaskRecord = null
+                },
+                prefillTitle = if (target.reason.isNotBlank()) {
+                    "Seguimiento con ${target.contactName}: ${target.reason}"
+                } else {
+                    "Seguimiento de llamada con ${target.contactName}"
+                },
+                prefillCategory = "Llamadas",
+                prefillPriority = TaskPriority.HIGH,
+                prefillContactName = target.contactName,
+                prefillContactPhone = target.phoneNumber,
+                prefillCallRecordId = target.id
+            )
+        }
     }
 }
 
@@ -942,11 +985,13 @@ private fun PhoneContactResultRow(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PhoneCallRecordCard(
     record: PhoneCallRecord,
     onRedial: () -> Unit,
     onEditNotes: () -> Unit,
+    onCreateFollowUp: () -> Unit,
     onDelete: () -> Unit
 ) {
     val badgeColor = when (record.status) {
@@ -1046,15 +1091,14 @@ private fun PhoneCallRecordCard(
                 )
             }
 
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 FilledTonalButton(
                     onClick = onRedial,
                     modifier = Modifier
-                        .weight(1f)
                         .heightIn(min = 48.dp)
                         .minimumInteractiveComponentSize(),
                     shape = MaterialTheme.shapes.small
@@ -1086,6 +1130,23 @@ private fun PhoneCallRecordCard(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(text = stringResource(R.string.phone_notes_edit))
+                }
+
+                OutlinedButton(
+                    onClick = onCreateFollowUp,
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .minimumInteractiveComponentSize()
+                        .testTag("phone_followup_task_${record.id}"),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.NotificationsActive,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = stringResource(R.string.phone_followup_task_action))
                 }
 
                 IconButton(

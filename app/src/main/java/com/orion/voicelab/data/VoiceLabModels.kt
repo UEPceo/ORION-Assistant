@@ -113,7 +113,14 @@ data class VoiceLabUiState(
     val phoneCallRecords: List<PhoneCallRecord> = emptyList(),
     val pendingCallRequest: PendingCallRequest? = null,
     val systemTelephonyState: SystemTelephonyState = SystemTelephonyState.IDLE,
-    val phoneStatusMessage: String = ""
+    val phoneStatusMessage: String = "",
+    // Voice Lab 0.7 Personal Assistant & Tasks
+    val tasks: List<TaskItem> = emptyList(),
+    val selectedTaskFilter: TaskFilter = TaskFilter.TODAY,
+    val taskSearchQuery: String = "",
+    val hasNotificationsPermission: Boolean = true,
+    val pendingTaskPrompt: PendingTaskPrompt? = null,
+    val taskStatusMessage: String = ""
 ) {
     val isModelReady: Boolean
         get() = modelState is ModelInstallState.Installed

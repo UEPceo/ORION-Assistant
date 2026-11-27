@@ -143,25 +143,18 @@ class PhoneRepository(
             ContactsContract.CommonDataKinds.Phone.STARRED
         )
         val cleanQuery = query.trim()
-        val selection = if (cleanQuery.isNotEmpty() && cleanQuery.length >= 2) {
-            "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY} LIKE ? OR ${ContactsContract.CommonDataKinds.Phone.NUMBER} LIKE ?"
-        } else {
-            null
-        }
-        val selectionArgs = if (selection != null) {
-            arrayOf("%$cleanQuery%", "%$cleanQuery%")
-        } else {
-            null
-        }
+        val normQuery = MemoryTextSimilarity.normalize(cleanQuery)
+        val queryDigits = cleanQuery.filter { it.isDigit() }
 
-        val results = mutableListOf<PhoneContactEntry>()
+        val scannedEntries = mutableListOf<PhoneContactEntry>()
         val seenKeys = hashSetOf<String>()
+        val targetScanCap = if (cleanQuery.isEmpty()) limit else MAX_NATIVE_SCAN_ROWS
         try {
             resolver.query(
                 ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                 projection,
-                selection,
-                selectionArgs,
+                null,
+                null,
                 "${ContactsContract.CommonDataKinds.Phone.STARRED} DESC, ${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY} ASC"
             )?.use { cursor ->
                 val idIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
@@ -172,7 +165,7 @@ class PhoneRepository(
                 val starredIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.STARRED)
 
                 var scanned = 0
-                while (cursor.moveToNext() && scanned < MAX_NATIVE_SCAN_ROWS && results.size < limit) {
+                while (cursor.moveToNext() && scanned < MAX_NATIVE_SCAN_ROWS) {
                     scanned++
                     val rawName = if (nameIdx >= 0) cursor.getString(nameIdx).orEmpty().trim() else ""
                     val rawNumber = if (numIdx >= 0) cursor.getString(numIdx).orEmpty().trim() else ""
@@ -189,7 +182,7 @@ class PhoneRepository(
                     val key = "native:$contactId:$normalized"
                     val systemStarred = starredIdx >= 0 && cursor.getInt(starredIdx) == 1
 
-                    results.add(
+                    scannedEntries.add(
                         PhoneContactEntry(
                             contactKey = key,
                             displayName = rawName,
@@ -200,14 +193,31 @@ class PhoneRepository(
                             source = PhoneContactSource.NATIVE_AGENDA
                         )
                     )
+                    if (cleanQuery.isEmpty() && scannedEntries.size >= targetScanCap) break
                 }
             }
         } catch (_: SecurityException) {
             return emptyList()
         } catch (_: Exception) {
-            return results
+            // Retorna coincidencias parciales recogidas hasta el momento
         }
-        return results
+
+        if (cleanQuery.isEmpty()) return scannedEntries.take(limit)
+
+        val directHits = scannedEntries.filter { entry ->
+            val normName = MemoryTextSimilarity.normalize(entry.displayName)
+            val nameMatch = normQuery.isNotEmpty() && normName.contains(normQuery)
+            val digitsMatch = queryDigits.length >= 2 && entry.normalizedNumber.contains(queryDigits)
+            nameMatch || digitsMatch
+        }
+        val fuzzyHits = if (normQuery.length >= 2) {
+            PhoneContactMatcher.findMatches(cleanQuery, scannedEntries, maxCandidates = limit)
+        } else {
+            emptyList()
+        }
+        return (directHits + fuzzyHits)
+            .distinctBy { it.contactKey }
+            .take(limit)
     }
 
     /**

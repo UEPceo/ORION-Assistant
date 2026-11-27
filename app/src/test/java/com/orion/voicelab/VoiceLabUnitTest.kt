@@ -2491,6 +2491,137 @@ class VoiceLabUnitTest {
         engine.shutdown()
     }
 
+    @Test
+    fun `conversation engine flushes trailing unpunctuated llm clause to tts`() = runBlocking {
+        val fakeInput = FakeVoiceInputController()
+        val fakeVad = FakeVad()
+        val fakeAsr = FakeSpeechRecognizer()
+        val fakePlayback = FakeAudioOutputSink()
+        val nowMs = AtomicLong(1_000L)
+
+        val unpunctuatedLlm = object : LocalLanguageModel {
+            override val modelDisplayName: String = "TestLLM"
+            override val modelLicense: String = "Apache 2.0"
+            private var loaded = false
+            override fun isModelInstalled(): Boolean = true
+            override fun isLoaded(): Boolean = loaded
+            override fun modelSizeMb(): Long = 100L
+            override suspend fun load(): Long {
+                loaded = true
+                return 5L
+            }
+            override suspend fun generateReply(
+                systemPrompt: String,
+                history: List<ChatMessage>,
+                onToken: (String) -> Unit
+            ): LlmGenerationResult {
+                val reply = "Primera frase. Cola final sin punto"
+                reply.split(' ').forEachIndexed { index, word ->
+                    val token = if (index == 0) word else " $word"
+                    onToken(token)
+                }
+                return LlmGenerationResult(reply, 10L, 40L, 6, false)
+            }
+            override fun cancelGeneration() {}
+            override fun unload() { loaded = false }
+        }
+
+        val spokenChunks = CopyOnWriteArrayList<String>()
+        val recordingTts = object : LocalSpeechSynthesizer {
+            override val engineDisplayName: String = "RecTts"
+            override val engineLicense: String = "MIT"
+            private var loaded = false
+            override fun availableVoices(): List<VoiceProfile> = emptyList()
+            override fun selectedVoice(): VoiceProfile = VoiceProfile("f", "F", 0, "F")
+            override fun selectVoice(voiceId: String) {}
+            override fun isModelInstalled(): Boolean = true
+            override fun isLoaded(): Boolean = loaded
+            override fun modelSizeMb(): Long = 24L
+            override suspend fun load(): Long {
+                loaded = true
+                return 5L
+            }
+            override suspend fun synthesize(
+                text: String,
+                onChunk: (samples: FloatArray, sampleRate: Int) -> Boolean
+            ): SynthesisResult {
+                spokenChunks.add(text)
+                onChunk(FloatArray(2205) { 0.1f }, 22050)
+                return SynthesisResult(synthMs = 10L, audioDurationMs = 100L)
+            }
+            override fun cancel() {}
+            override fun unload() { loaded = false }
+        }
+
+        val engine = ConversationEngine(
+            speechRecognizer = fakeAsr,
+            languageModel = unpunctuatedLlm,
+            speechSynthesizer = recordingTts,
+            playbackEngine = fakePlayback,
+            vadFactory = { fakeVad },
+            clockMs = { nowMs.addAndGet(20L) },
+            inputFactory = { fakeInput }
+        )
+
+        val listeningLatch = CountDownLatch(1)
+        val assistantCommitted = CompletableDeferred<String>()
+        engine.attachCallbacks(object : ConversationEngine.Callbacks {
+            override fun onStateChanged(state: ConversationState, statusText: String) {
+                if (state == ConversationState.LISTENING) listeningLatch.countDown()
+            }
+            override fun onSpeechDetectedChanged(detected: Boolean) {}
+            override fun onAudioLevel(level: Float) {}
+            override fun onTurnsUpdated(turns: List<ConversationTurn>) {}
+            override fun onAssistantTurnCommitted(turn: ConversationTurn) {
+                assistantCommitted.complete(turn.text)
+            }
+            override fun onStreamingText(text: String) {}
+            override fun onTelemetryUpdated(telemetry: CallTelemetry) {}
+            override fun onModelsInRamChanged(loaded: Boolean) {}
+            override fun onCallEnded() {}
+        })
+
+        engine.startCall()
+        assertTrue(listeningLatch.await(3, TimeUnit.SECONDS))
+        fakeVad.enqueueSegment(FloatArray(8_000) { 0.2f })
+        fakeInput.emitFrame(FloatArray(512) { 0.2f }, 0.3f)
+
+        assertEquals("Primera frase. Cola final sin punto", assistantCommitted.await())
+        val joinedTts = spokenChunks.joinToString(" ")
+        assertTrue("Expected first sentence in TTS output, got: $spokenChunks", joinedTts.contains("Primera frase"))
+        assertTrue("Expected trailing unpunctuated clause to flush to TTS, got: $spokenChunks", joinedTts.contains("Cola final sin punto"))
+        engine.shutdown()
+    }
+
+    @Test
+    fun `call intent router 0_6_1 handles polite suffixes, cancel variants, and disambiguation confirm safety`() {
+        val politeCall = CallIntentRouter.route("Oye Orion, quiero llamar a María por favor", null) as CallIntentAction.InitiateCall
+        assertEquals("maria", politeCall.rawTargetQuery)
+
+        val makeCall = CallIntentRouter.route("Quiero hacer una llamada a Carlos gracias", null) as CallIntentAction.InitiateCall
+        assertEquals("carlos", makeCall.rawTargetQuery)
+
+        val pendingWith = CallIntentRouter.route("¿Qué tengo que hablar con Pedro por favor?", null) as CallIntentAction.QueryCallHistory
+        assertEquals(HistoryQueryType.PENDING_WITH, pendingWith.queryType)
+        assertEquals("Pedro", pendingWith.contactQuery)
+
+        val disambigPending = PendingCallRequest(
+            requestId = "req_d1",
+            contactName = "Juan",
+            phoneNumber = "",
+            candidates = listOf(
+                PhoneContactEntry("1", "Juan García", "600111111", "600111111"),
+                PhoneContactEntry("2", "Juan López", "600222222", "600222222")
+            ),
+            awaitingConfirmation = false
+        )
+        // Saying "Sí" or "Vale" before choosing between ambiguous candidates must NOT pick a name or confirm
+        assertEquals(CallIntentAction.None, CallIntentRouter.route("Sí", disambigPending))
+        assertEquals(CallIntentAction.None, CallIntentRouter.route("Vale", disambigPending))
+        assertEquals(CallIntentAction.CancelPendingCall, CallIntentRouter.route("Cancélalo", disambigPending))
+        assertEquals(CallIntentAction.CancelPendingCall, CallIntentRouter.route("Olvídala", disambigPending))
+    }
+
     private class InMemoryPhoneDao : PhoneDao {
         private var nextCallId = 1L
         private val favorites = MutableStateFlow<List<FavoritePhoneContactEntity>>(emptyList())

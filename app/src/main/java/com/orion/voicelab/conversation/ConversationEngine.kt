@@ -553,7 +553,7 @@ class ConversationEngine internal constructor(
                     if (!result.cancelled &&
                         callActive.get() &&
                         callSessionEpoch.get() == sessionEpoch &&
-                        turnGeneration.get() != myGeneration
+                        turnGeneration.get() == myGeneration
                     ) {
                         val trailing = chunker.flush()
                         if (trailing != null) {

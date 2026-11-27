@@ -118,6 +118,36 @@ data class PhoneCallRecordEntity(
     val followUpPending: Boolean = false
 )
 
+@Entity(
+    tableName = "tasks",
+    indices = [
+        Index(value = ["status"]),
+        Index(value = ["dueDateEpochDay"]),
+        Index(value = ["reminderAtMs"]),
+        Index(value = ["linkedCallRecordId"])
+    ]
+)
+data class TaskEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val title: String,
+    val description: String = "",
+    val createdAtMs: Long,
+    val updatedAtMs: Long,
+    val dueDateEpochDay: Long? = null,
+    val dueTimeMinutes: Int? = null,
+    val reminderAtMs: Long? = null,
+    val reminderActive: Boolean = false,
+    val priority: String = "NORMAL",
+    val status: String = "PENDING",
+    val category: String = "",
+    val notes: String = "",
+    val contactName: String? = null,
+    val contactKey: String? = null,
+    val contactPhone: String? = null,
+    val linkedCallRecordId: Long? = null,
+    val completedAtMs: Long? = null
+)
+
 data class ConversationRowTuple(
     val id: Long,
     val title: String,
@@ -283,6 +313,102 @@ interface PhoneDao {
     suspend fun deleteCallRecordById(id: Long)
 }
 
+@Dao
+interface TaskDao {
+    @Query("SELECT * FROM tasks ORDER BY updatedAtMs DESC, id DESC")
+    fun observeAllTasks(): Flow<List<TaskEntity>>
+
+    @Query("SELECT * FROM tasks ORDER BY updatedAtMs DESC, id DESC")
+    suspend fun getAllTasks(): List<TaskEntity>
+
+    @Query("SELECT * FROM tasks WHERE id = :id LIMIT 1")
+    suspend fun getTaskById(id: Long): TaskEntity?
+
+    @Query("SELECT * FROM tasks WHERE status = 'PENDING' AND reminderActive = 1 AND reminderAtMs IS NOT NULL")
+    suspend fun getActiveReminderTasks(): List<TaskEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTask(entity: TaskEntity): Long
+
+    @Query(
+        """
+        UPDATE tasks SET
+            title = :title,
+            description = :description,
+            updatedAtMs = :updatedAtMs,
+            dueDateEpochDay = :dueDateEpochDay,
+            dueTimeMinutes = :dueTimeMinutes,
+            reminderAtMs = :reminderAtMs,
+            reminderActive = :reminderActive,
+            priority = :priority,
+            category = :category,
+            notes = :notes,
+            contactName = :contactName,
+            contactKey = :contactKey,
+            contactPhone = :contactPhone,
+            linkedCallRecordId = :linkedCallRecordId
+        WHERE id = :id
+        """
+    )
+    suspend fun updateTaskDetails(
+        id: Long,
+        title: String,
+        description: String,
+        updatedAtMs: Long,
+        dueDateEpochDay: Long?,
+        dueTimeMinutes: Int?,
+        reminderAtMs: Long?,
+        reminderActive: Boolean,
+        priority: String,
+        category: String,
+        notes: String,
+        contactName: String?,
+        contactKey: String?,
+        contactPhone: String?,
+        linkedCallRecordId: Long?
+    )
+
+    @Query(
+        "UPDATE tasks SET status = :status, updatedAtMs = :updatedAtMs, completedAtMs = :completedAtMs, reminderActive = :reminderActive WHERE id = :id"
+    )
+    suspend fun updateTaskStatus(
+        id: Long,
+        status: String,
+        updatedAtMs: Long,
+        completedAtMs: Long?,
+        reminderActive: Boolean
+    )
+
+    @Query(
+        "UPDATE tasks SET dueDateEpochDay = :dueDateEpochDay, dueTimeMinutes = :dueTimeMinutes, reminderAtMs = :reminderAtMs, reminderActive = :reminderActive, status = 'PENDING', updatedAtMs = :updatedAtMs, completedAtMs = NULL WHERE id = :id"
+    )
+    suspend fun rescheduleTask(
+        id: Long,
+        dueDateEpochDay: Long?,
+        dueTimeMinutes: Int?,
+        reminderAtMs: Long?,
+        reminderActive: Boolean,
+        updatedAtMs: Long
+    )
+
+    @Query("UPDATE tasks SET reminderAtMs = :reminderAtMs, reminderActive = :reminderActive, updatedAtMs = :updatedAtMs WHERE id = :id")
+    suspend fun updateReminderOnly(
+        id: Long,
+        reminderAtMs: Long?,
+        reminderActive: Boolean,
+        updatedAtMs: Long
+    )
+
+    @Query("DELETE FROM tasks WHERE id = :id")
+    suspend fun deleteTaskById(id: Long)
+
+    @Query("DELETE FROM tasks WHERE status != 'PENDING'")
+    suspend fun deleteFinishedTasks()
+
+    @Query("DELETE FROM tasks")
+    suspend fun deleteAllTasks()
+}
+
 @Database(
     entities = [
         ConversationEntity::class,
@@ -291,9 +417,10 @@ interface PhoneDao {
         AssistantIdentityEntity::class,
         CoworkerContactEntity::class,
         FavoritePhoneContactEntity::class,
-        PhoneCallRecordEntity::class
+        PhoneCallRecordEntity::class,
+        TaskEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class OrionDatabase : RoomDatabase() {
@@ -302,11 +429,12 @@ abstract class OrionDatabase : RoomDatabase() {
     abstract fun identityDao(): IdentityDao
     abstract fun contactDao(): ContactDao
     abstract fun phoneDao(): PhoneDao
+    abstract fun taskDao(): TaskDao
 
     companion object {
         private const val DB_NAME = "orion_offline_memory.db"
 
-        private val MIGRATION_1_2 = object : Migration(1, 2) {
+        internal val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
@@ -324,7 +452,7 @@ abstract class OrionDatabase : RoomDatabase() {
             }
         }
 
-        private val MIGRATION_2_3 = object : Migration(2, 3) {
+        internal val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
@@ -362,6 +490,39 @@ abstract class OrionDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS tasks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        title TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        createdAtMs INTEGER NOT NULL,
+                        updatedAtMs INTEGER NOT NULL,
+                        dueDateEpochDay INTEGER,
+                        dueTimeMinutes INTEGER,
+                        reminderAtMs INTEGER,
+                        reminderActive INTEGER NOT NULL,
+                        priority TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        category TEXT NOT NULL,
+                        notes TEXT NOT NULL,
+                        contactName TEXT,
+                        contactKey TEXT,
+                        contactPhone TEXT,
+                        linkedCallRecordId INTEGER,
+                        completedAtMs INTEGER
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_status ON tasks(status)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_dueDateEpochDay ON tasks(dueDateEpochDay)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_reminderAtMs ON tasks(reminderAtMs)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_linkedCallRecordId ON tasks(linkedCallRecordId)")
+            }
+        }
+
         @Volatile
         private var instance: OrionDatabase? = null
 
@@ -372,7 +533,7 @@ abstract class OrionDatabase : RoomDatabase() {
                     OrionDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }

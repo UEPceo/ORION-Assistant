@@ -1,6 +1,39 @@
-# ORION Voice Lab 0.6.0 (Android / Jetpack Compose)
+# ORION 0.7.0 — Personal Assistant & Task Management (Android / Jetpack Compose)
 
-Asistente conversacional de voz **100 % offline y de coste cero (0 €)** en español para Android (`arm64-v8a`), construido con **Kotlin**, **Jetpack Compose (Material 3)**, **Room + KSP**, **sherpa-onnx** (`1.13.8`) y **llama.cpp** (`io.github.ljcamargo:llamacpp-kotlin:0.4.0`).
+Asistente personal y conversacional de voz **100 % offline y de coste cero (0 €)** en español para Android (`arm64-v8a`), construido con **Kotlin**, **Jetpack Compose (Material 3)**, **Room + KSP**, **sherpa-onnx** (`1.13.8`) y **llama.cpp** (`io.github.ljcamargo:llamacpp-kotlin:0.4.0`).
+
+## Novedades de la Fase 0.7.0 (Asistente personal, tareas y recordatorios locales)
+
+1. **Sistema persistente de tareas en Room (`TaskEntity` + `TaskDao` + `TaskRepository`, migración `v3 → v4`)**:
+   - Cada tarea almacena ID único, título, descripción opcional, fechas de creación y actualización, fecha límite y hora opcionales, marca de recordatorio activo, prioridad (`Baja`, `Normal`, `Alta`, `Urgente`), estado (`Pendiente`, `Completada`, `Cancelada`), categoría opcional, notas, contacto asociado y vínculo opcional con un registro de llamada (`linkedCallRecordId`).
+   - Operaciones completas: crear, consultar, editar, completar, reabrir, cancelar, posponer, aplazar recordatorio y eliminar (individual, finalizadas o borrado total).
+2. **Intérprete determinista en español (`TaskIntentRouter` + `SpanishDateTimeParser`)**:
+   - Extrae y valida intenciones sin depender de generación libre del LLM: crear recordatorios (*«Recuérdame comprar comida mañana»*, *«Apunta que tengo que llamar a mi madre el domingo»*, *«Añade una tarea urgente para esta tarde»*), consultar vistas (*«¿Qué tengo pendiente?»*, *«¿Qué tareas tengo para hoy?»*, *«¿Qué tengo atrasado?»*), completar (*«Marca como terminado lo del banco»*), posponer (*«Pospón esa tarea hasta el lunes»*) y cancelar (*«Cancela el recordatorio de comprar comida»*).
+   - Detecta ambigüedad temporal (*«a las 8»* sin mañana/tarde, expresiones vagas como *«en un rato»*), títulos faltantes y múltiples coincidencias solicitando aclaración por voz o botón en pantalla.
+   - Protege `MemoryCandidateExtractor` para que las órdenes de tareas no contaminen la memoria personal, e inyecta tareas activas en `ContextPromptBuilder` incluso si la memoria personal está desactivada.
+3. **Recordatorios locales reales (`AndroidTaskReminderScheduler` + `TaskReminderReceiver`)**:
+   - Notificaciones locales de Android (canal `orion_task_reminders`) con permiso en tiempo de ejecución `POST_NOTIFICATIONS` en Android 13+.
+   - Programación compatible con ahorro de batería/Doze mediante `AlarmManager.setAndAllowWhileIdle` (sin solicitar permisos restringidos `USE_EXACT_ALARM`/`SCHEDULE_EXACT_ALARM`) y prevención de alarmas duplicadas por tarea.
+   - Acciones directas desde la notificación (**Completar**, **Posponer 1 h**, **Descartar**) y reprogramación automática tras cierre, reinicio del dispositivo (`BOOT_COMPLETED`), actualización de paquete (`MY_PACKAGE_REPLACED`) y cambios de hora/zona horaria.
+4. **Seguimiento integrado con Telefonía (`Teléfono` ↔ `Tareas`)**:
+   - Crear tareas vinculadas a llamadas por voz (*«Recuérdame llamar a Juan mañana»*, *«Tengo que devolver una llamada a María»*, *«Cuando termine la llamada, recuérdame enviarle el presupuesto»*) o mediante el botón **Recordar** en cada registro del historial telefónico, y lanzar llamadas confirmadas directamente desde una tarea asociada.
+5. **Nueva pestaña `Tareas`**:
+   - Vistas filtrables (*Hoy*, *Próximas*, *Pendientes*, *Atrasadas*, *Completadas*, *Recordatorios*), buscador local, tarjetas con acciones rápidas (+1 h, Mañana, Llamar, Editar, Cancelar, Eliminar) y editor completo.
+
+## Estabilización e Integración QA previa — Fase 0.6.1
+
+1. **Síntesis TTS íntegra en `ConversationEngine`**:
+   - Corregida la guarda invertida (`turnGeneration.get() == myGeneration`) que impedía ejecutar `SpeechSentenceChunker.flush()` en el tramo final sin puntuación de las respuestas locales.
+2. **Seguridad y concurrencia en confirmaciones telefónicas (`VoiceLabViewModel` + `OrionVoiceLabScreen`)**:
+   - Exclusión mutua (`pendingCallLock`) y consumo atómico de `PendingCallRequest` para impedir llamadas duplicadas o involuntarias si coinciden confirmación por voz y pulsación en pantalla.
+   - Cancelación inmediata de confirmaciones diferidas ante colgado (`endCall`), interrupción (*barge-in* o botón), cambio a segundo plano (`onAppBackgrounded`) o botón **Cancelar**, sincronizando el disparo real tras completar el TTS de confirmación.
+   - `PendingCallConfirmationCard` fijada fuera del `LazyColumn` en la pantalla de llamada para que los controles de autorización nunca queden ocultos por el auto-scroll.
+   - Limpieza de observadores `TelephonyCallback` y refresco al revocar permisos en Ajustes (`ON_RESUME`).
+3. **Resolución de contactos e intenciones (`PhoneRepository` + `CallIntentRouter`)**:
+   - Búsqueda en `ContactsContract` normalizada sin tildes ni formato numérico para localizar correctamente nombres acentuados (*«María»* ↔ *«Maria»*) y teléfonos con prefijo o espacios.
+   - Limpieza de fórmulas de cortesía (*«por favor»*, *«orion»*) y preservación de tildes/eñes en notas programadas (*«Para mañana»*).
+4. **Cobertura de pruebas automatizadas**:
+   - Pruebas Robolectric + Room SQLite reales para migraciones `v1 → v2 → v3` y `v2 → v3`, `PhoneCallManager` (`ACTION_CALL` / `ACTION_DIAL` / permisos), `PhoneRepository` con `ContentResolver` + `ACTION_PICK`, más pruebas de regresión de `ConversationEngine`, `CallIntentRouter` y seguridad frente a llamadas involuntarias.
 
 ## Novedades de la Fase 0.6 (Integración telefónica real)
 

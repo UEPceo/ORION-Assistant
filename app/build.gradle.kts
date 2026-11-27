@@ -12,8 +12,8 @@ android {
         applicationId = "com.aistudio.orionvoicelab.kxrqmw"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.6.0"
+        versionCode = 10
+        versionName = "0.7.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -87,6 +87,12 @@ android {
             useLegacyPackaging = true
         }
     }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -109,4 +115,6 @@ dependencies {
     implementation(libs.llamacpp.kotlin)
 
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
 }

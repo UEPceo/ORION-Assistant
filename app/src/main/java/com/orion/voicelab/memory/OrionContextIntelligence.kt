@@ -8,7 +8,10 @@ import com.orion.voicelab.data.MemoryCategory
 import com.orion.voicelab.data.MemoryItem
 import com.orion.voicelab.data.MemorySuggestion
 import com.orion.voicelab.data.PhoneCallRecord
+import com.orion.voicelab.data.TaskItem
+import com.orion.voicelab.data.TaskStatus
 import com.orion.voicelab.data.TurnContext
+import com.orion.voicelab.tasks.SpanishDateTimeParser
 import java.text.Normalizer
 import java.util.Locale
 
@@ -252,6 +255,7 @@ object ContextPromptBuilder {
         currentQuery: String,
         activeCoworker: ContactProfile? = null,
         recentPhoneCalls: List<PhoneCallRecord> = emptyList(),
+        activeTasks: List<TaskItem> = emptyList(),
         maxHistoryMessages: Int = DEFAULT_MAX_HISTORY_MESSAGES,
         maxHistoryChars: Int = DEFAULT_MAX_HISTORY_CHARS
     ): TurnContext {
@@ -266,13 +270,15 @@ object ContextPromptBuilder {
         }
 
         val relevantCalls = selectRelevantCalls(currentQuery, recentPhoneCalls)
+        val relevantTasks = selectRelevantTasks(currentQuery, activeTasks)
 
         val systemPrompt = buildSystemPrompt(
             identity = identity,
             selectedMemories = selectedMemories,
             conversationSummary = conversationSummary,
             activeCoworker = activeCoworker,
-            phoneCallHighlights = relevantCalls
+            phoneCallHighlights = relevantCalls,
+            activeTaskHighlights = relevantTasks
         )
 
         val trimmedHistory = trimHistoryToBudget(
@@ -293,7 +299,8 @@ object ContextPromptBuilder {
         selectedMemories: List<MemoryItem> = emptyList(),
         conversationSummary: String = "",
         activeCoworker: ContactProfile? = null,
-        phoneCallHighlights: List<PhoneCallRecord> = emptyList()
+        phoneCallHighlights: List<PhoneCallRecord> = emptyList(),
+        activeTaskHighlights: List<TaskItem> = emptyList()
     ): String = buildString {
         if (activeCoworker != null && !activeCoworker.isPrimary) {
             append("Tu nombre es ${activeCoworker.name}. ")
@@ -327,11 +334,52 @@ object ContextPromptBuilder {
             }
         }
 
+        if (activeTaskHighlights.isNotEmpty()) {
+            val nowMs = System.currentTimeMillis()
+            append("\n\nTareas y recordatorios pendientes del usuario:")
+            var usedChars = 0
+            for (task in activeTaskHighlights) {
+                val overdueTag = if (task.isOverdue(nowMs)) " [Atrasada]" else ""
+                val whenStr = SpanishDateTimeParser.formatDateTimeSummary(
+                    task.dueDateEpochDay,
+                    task.dueTimeMinutes,
+                    task.reminderAtMs,
+                    nowMs
+                )
+                val contactTag = task.contactName?.takeIf { it.isNotBlank() }?.let { " · Contacto: $it" }.orEmpty()
+                val line = "\n- ${task.title} (${task.priority.label}, $whenStr)$overdueTag$contactTag"
+                if (usedChars > 0 && usedChars + line.length > 320) break
+                append(line)
+                usedChars += line.length
+            }
+        }
+
         if (conversationSummary.isNotBlank()) {
             append("\n\nResumen previo de esta conversación:")
             append('\n')
             append(conversationSummary.trim().take(480))
         }
+    }
+
+    private fun selectRelevantTasks(
+        query: String,
+        tasks: List<TaskItem>
+    ): List<TaskItem> {
+        val pending = tasks.filter { it.status == TaskStatus.PENDING }
+        if (pending.isEmpty()) return emptyList()
+        val nowMs = System.currentTimeMillis()
+        val queryTokens = MemoryTextSimilarity.tokenizeSignificant(query)
+        return pending.sortedWith(
+            compareByDescending<TaskItem> { task ->
+                val textTokens = MemoryTextSimilarity.tokenizeSignificant(
+                    "${task.title} ${task.category} ${task.contactName.orEmpty()}"
+                )
+                queryTokens.intersect(textTokens).size
+            }
+                .thenByDescending { if (it.isOverdue(nowMs)) 1 else 0 }
+                .thenByDescending { it.priority.sortRank }
+                .thenBy { it.dueDateEpochDay ?: Long.MAX_VALUE }
+        ).take(4)
     }
 
     private fun selectRelevantCalls(

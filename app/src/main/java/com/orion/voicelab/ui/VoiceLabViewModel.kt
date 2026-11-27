@@ -24,11 +24,19 @@ import com.orion.voicelab.data.MemoryCategory
 import com.orion.voicelab.data.MemoryItem
 import com.orion.voicelab.data.ModelInstallState
 import com.orion.voicelab.data.PendingCallRequest
+import com.orion.voicelab.data.PendingTaskOperation
+import com.orion.voicelab.data.PendingTaskPrompt
 import com.orion.voicelab.data.PhoneCallRecord
 import com.orion.voicelab.data.PhoneCallStatus
 import com.orion.voicelab.data.PhoneContactEntry
 import com.orion.voicelab.data.PhoneContactSource
 import com.orion.voicelab.data.SystemTelephonyState
+import com.orion.voicelab.data.TaskFilter
+import com.orion.voicelab.data.TaskIntentAction
+import com.orion.voicelab.data.TaskItem
+import com.orion.voicelab.data.TaskPriority
+import com.orion.voicelab.data.TaskQueryScope
+import com.orion.voicelab.data.TaskStatus
 import com.orion.voicelab.data.TranscriptEntry
 import com.orion.voicelab.data.TurnLatencyMetrics
 import com.orion.voicelab.data.VoiceLabUiState
@@ -48,8 +56,13 @@ import com.orion.voicelab.phone.CallIntentRouter
 import com.orion.voicelab.phone.PhoneCallManager
 import com.orion.voicelab.phone.PhoneContactMatcher
 import com.orion.voicelab.phone.PhoneRepository
+import com.orion.voicelab.tasks.AndroidTaskReminderScheduler
+import com.orion.voicelab.tasks.SpanishDateTimeParser
+import com.orion.voicelab.tasks.TaskIntentRouter
+import com.orion.voicelab.tasks.TaskRepository
 import com.orion.voicelab.tts.SherpaOnnxSpeechSynthesizer
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -61,6 +74,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -84,6 +98,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private val contactRepository = ContactRepository(database.contactDao())
     private val phoneRepository = PhoneRepository(database.phoneDao(), appContext.contentResolver)
     private val phoneCallManager = PhoneCallManager(appContext)
+    private val taskReminderScheduler = AndroidTaskReminderScheduler(appContext)
+    private val taskRepository = TaskRepository(database.taskDao(), taskReminderScheduler)
     private val persistenceMutex = Mutex()
     private val asrDownloadMutex = Mutex()
     private val ttsDownloadMutex = Mutex()
@@ -112,6 +128,15 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     @Volatile
     private var pendingRequestSnapshot: PendingCallRequest? = null
+
+    @Volatile
+    private var latestTasks: List<TaskItem> = emptyList()
+
+    @Volatile
+    private var pendingTaskPromptSnapshot: PendingTaskPrompt? = null
+
+    @Volatile
+    private var lastReferencedTaskId: Long? = null
 
     @Volatile
     private var activeTelephonyCallRecordId: Long? = null
@@ -149,13 +174,20 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 recentHistory = recentHistory,
                 currentQuery = userText,
                 activeCoworker = latestSelectedCoworker,
-                recentPhoneCalls = latestPhoneCallRecords
+                recentPhoneCalls = latestPhoneCallRecords,
+                activeTasks = latestTasks
             )
         },
         directTurnResponder = { userText ->
-            handleVoiceCallCommand(userText)
+            handleVoiceTurnCommand(userText)
         }
     )
+
+    private val pendingCallLock = Any()
+    private val pendingTaskLock = Any()
+
+    @Volatile
+    private var voiceConfirmTtsSignal: CompletableDeferred<Unit>? = null
 
     private var tickerJob: Job? = null
     private var callTimerJob: Job? = null
@@ -172,7 +204,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             isTelephonySupported = phoneCallManager.isTelephonySupported(),
             hasContactsPermission = phoneCallManager.hasContactsPermission(),
             hasCallPhonePermission = phoneCallManager.hasCallPhonePermission(),
-            hasPhoneStatePermission = phoneCallManager.hasPhoneStatePermission()
+            hasPhoneStatePermission = phoneCallManager.hasPhoneStatePermission(),
+            hasNotificationsPermission = AndroidTaskReminderScheduler.hasNotificationPermission(appContext)
         )
     )
     val uiState: StateFlow<VoiceLabUiState> = _uiState.asStateFlow()
@@ -186,6 +219,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         initializePersistence()
         refreshPhonePermissions()
         startObservingTelephonyState()
+        reconcileTaskReminders()
         refreshModelState()
         refreshMetrics()
         ensureInitialModelsDownloaded()
@@ -260,6 +294,12 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update { it.copy(phoneCallRecords = records) }
             }
         }
+        viewModelScope.launch(Dispatchers.IO) {
+            taskRepository.observeAllTasks().collect { taskList ->
+                latestTasks = taskList
+                _uiState.update { it.copy(tasks = taskList) }
+            }
+        }
     }
 
     private fun initializePersistence() {
@@ -279,7 +319,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                     turns = savedTurns,
                     systemPrompt = ContextPromptBuilder.buildSystemPrompt(
                         identity = identity,
-                        conversationSummary = latestConversationSummary
+                        conversationSummary = latestConversationSummary,
+                        activeCoworker = latestSelectedCoworker
                     )
                 )
                 _uiState.update {
@@ -296,6 +337,11 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private fun attachConversationCallbacks() {
         conversationEngine.attachCallbacks(object : ConversationEngine.Callbacks {
             override fun onStateChanged(state: ConversationState, statusText: String) {
+                if (state == ConversationState.INTERRUPTED) {
+                    cancelDelayedVoiceConfirmJob(clearPending = false)
+                } else if (state == ConversationState.LISTENING) {
+                    voiceConfirmTtsSignal?.complete(Unit)
+                }
                 _uiState.update { current ->
                     current.copy(
                         conversationState = state,
@@ -323,6 +369,12 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             }
 
             override fun onUserTurnCommitted(turn: ConversationTurn) {
+                val handledByDeterministicRouter = synchronized(pendingCallLock) {
+                    CallIntentRouter.route(turn.text, pendingRequestSnapshot) != CallIntentAction.None
+                } || synchronized(pendingTaskLock) {
+                    TaskIntentRouter.route(turn.text, pendingTaskPromptSnapshot) != TaskIntentAction.None
+                }
+
                 viewModelScope.launch(Dispatchers.IO) {
                     var targetConvId = 0L
                     persistenceMutex.withLock {
@@ -350,7 +402,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                         }
                     }
 
-                    if (latestIdentity.memoryEnabled) {
+                    if (latestIdentity.memoryEnabled && !handledByDeterministicRouter) {
                         val currentSuggestions = _uiState.value.pendingMemorySuggestions
                         val detected = MemoryCandidateExtractor.extractCandidates(
                             userUtterance = turn.text,
@@ -372,6 +424,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             }
 
             override fun onAssistantTurnCommitted(turn: ConversationTurn) {
+                voiceConfirmTtsSignal?.complete(Unit)
                 viewModelScope.launch(Dispatchers.IO) {
                     persistenceMutex.withLock {
                         val convId = if (activeConversationIdSnapshot > 0L) {
@@ -943,6 +996,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun endCall() {
+        cancelDelayedVoiceConfirmJob(clearPending = true)
         if (!conversationEngine.isCallActive() && _uiState.value.conversationState == ConversationState.IDLE) {
             return
         }
@@ -956,6 +1010,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun interruptCall() {
+        cancelDelayedVoiceConfirmJob(clearPending = false)
         conversationEngine.interruptSpeaking()
     }
 
@@ -1176,6 +1231,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val contactsOk = phoneCallManager.hasContactsPermission()
         val callOk = phoneCallManager.hasCallPhonePermission()
         val stateOk = phoneCallManager.hasPhoneStatePermission()
+        val notificationsOk = AndroidTaskReminderScheduler.hasNotificationPermission(appContext)
         val supported = phoneCallManager.isTelephonySupported()
 
         _uiState.update { current ->
@@ -1183,14 +1239,32 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 hasContactsPermission = contactsOk,
                 hasCallPhonePermission = callOk,
                 hasPhoneStatePermission = stateOk,
+                hasNotificationsPermission = notificationsOk,
                 isTelephonySupported = supported
             )
         }
-        if (contactsOk) {
-            refreshNativeContactSearch()
-        }
+        refreshNativeContactSearch()
         if (stateOk) {
             startObservingTelephonyState()
+        } else {
+            phoneCallManager.stopObservingCallState()
+            activeTelephonyCallRecordId = null
+            activeTelephonyStartedAtMs = null
+            _uiState.update { it.copy(systemTelephonyState = SystemTelephonyState.IDLE) }
+        }
+    }
+
+    fun refreshNotificationPermission() {
+        val granted = AndroidTaskReminderScheduler.hasNotificationPermission(appContext)
+        _uiState.update { it.copy(hasNotificationsPermission = granted) }
+        if (granted) {
+            reconcileTaskReminders()
+        }
+    }
+
+    private fun reconcileTaskReminders() {
+        viewModelScope.launch(Dispatchers.IO) {
+            taskRepository.reconcileReminders()
         }
     }
 
@@ -1234,6 +1308,23 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                             endedAtMs = now,
                             durationSeconds = elapsedSec
                         )
+                        val linkedTasks = taskRepository.getAllTasks().filter {
+                            it.status == TaskStatus.PENDING && it.linkedCallRecordId == trackedId
+                        }
+                        if (linkedTasks.isNotEmpty()) {
+                            linkedTasks.filter { it.reminderActive }.forEach { task ->
+                                AndroidTaskReminderScheduler.showReminderNotification(
+                                    context = appContext,
+                                    task = task,
+                                    isOverdue = false
+                                )
+                            }
+                            _uiState.update {
+                                it.copy(
+                                    taskStatusMessage = "Llamada finalizada (${elapsedSec} s). Tienes ${linkedTasks.size} seguimiento(s) vinculado(s)."
+                                )
+                            }
+                        }
                     }
                     _uiState.update {
                         it.copy(phoneStatusMessage = "Llamada finalizada (${elapsedSec} s registrados).")
@@ -1293,25 +1384,52 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    private fun setPendingCallRequest(req: PendingCallRequest?) {
+        synchronized(pendingCallLock) {
+            pendingRequestSnapshot = req
+            _uiState.update { it.copy(pendingCallRequest = req) }
+        }
+    }
+
+    private fun takePendingCallIfMatches(expectedRequestId: String? = null): PendingCallRequest? =
+        synchronized(pendingCallLock) {
+            val current = pendingRequestSnapshot ?: return null
+            if (expectedRequestId != null && current.requestId != expectedRequestId) return null
+            pendingRequestSnapshot = null
+            _uiState.update { it.copy(pendingCallRequest = null) }
+            current
+        }
+
+    private fun cancelDelayedVoiceConfirmJob(clearPending: Boolean = false) {
+        delayedVoiceConfirmJob?.cancel()
+        delayedVoiceConfirmJob = null
+        voiceConfirmTtsSignal?.cancel()
+        voiceConfirmTtsSignal = null
+        if (clearPending) {
+            setPendingCallRequest(null)
+        }
+    }
+
     fun preparePendingCallFromEntry(
         entry: PhoneContactEntry,
         reason: String = "",
         scheduledNote: String = "",
         source: String = "UI"
     ) {
-        delayedVoiceConfirmJob?.cancel()
-        val req = PendingCallRequest(
-            requestId = "req_${nextPendingRequestSeq++}",
-            contactName = entry.displayName,
-            phoneNumber = entry.phoneNumber,
-            reason = reason.trim(),
-            scheduledNote = scheduledNote.trim(),
-            candidates = listOf(entry),
-            selectedCandidate = entry,
-            awaitingConfirmation = true,
-            source = source
-        )
-        pendingRequestSnapshot = req
+        cancelDelayedVoiceConfirmJob(clearPending = false)
+        val req = synchronized(pendingCallLock) {
+            PendingCallRequest(
+                requestId = "req_${nextPendingRequestSeq++}",
+                contactName = entry.displayName,
+                phoneNumber = entry.phoneNumber,
+                reason = reason.trim(),
+                scheduledNote = scheduledNote.trim(),
+                candidates = listOf(entry),
+                selectedCandidate = entry,
+                awaitingConfirmation = true,
+                source = source
+            ).also { pendingRequestSnapshot = it }
+        }
         _uiState.update {
             it.copy(
                 pendingCallRequest = req,
@@ -1371,7 +1489,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun selectDisambiguationCandidate(candidate: PhoneContactEntry) {
-        val current = pendingRequestSnapshot ?: return
+        val current = synchronized(pendingCallLock) { pendingRequestSnapshot } ?: return
         preparePendingCallFromEntry(
             entry = candidate,
             reason = current.reason,
@@ -1381,22 +1499,18 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun confirmAndExecutePendingCall(preferDirectCall: Boolean) {
-        val pending = pendingRequestSnapshot ?: return
-        delayedVoiceConfirmJob?.cancel()
-        pendingRequestSnapshot = null
-        _uiState.update { it.copy(pendingCallRequest = null) }
+        cancelDelayedVoiceConfirmJob(clearPending = false)
+        val pending = takePendingCallIfMatches() ?: return
         viewModelScope.launch(Dispatchers.IO) {
             executeCallInternal(pending, preferDirectCall)
         }
     }
 
     fun cancelPendingCall() {
-        delayedVoiceConfirmJob?.cancel()
-        val pending = pendingRequestSnapshot
-        pendingRequestSnapshot = null
+        cancelDelayedVoiceConfirmJob(clearPending = false)
+        val pending = takePendingCallIfMatches()
         _uiState.update {
             it.copy(
-                pendingCallRequest = null,
                 phoneStatusMessage = if (pending != null) {
                     "Llamada con ${pending.contactName} cancelada."
                 } else {
@@ -1511,34 +1625,61 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    private suspend fun handleVoiceTurnCommand(userText: String): String? {
+        val hasPendingCall = synchronized(pendingCallLock) { pendingRequestSnapshot != null }
+        if (hasPendingCall) {
+            handleVoiceCallCommand(userText)?.let { return it }
+        }
+        val hasPendingTask = synchronized(pendingTaskLock) { pendingTaskPromptSnapshot != null }
+        if (hasPendingTask) {
+            handleVoiceTaskCommand(userText)?.let { return it }
+        }
+        val callPendingWith = CallIntentRouter.route(userText, null)
+        if (callPendingWith is CallIntentAction.QueryCallHistory &&
+            callPendingWith.queryType == com.orion.voicelab.data.HistoryQueryType.PENDING_WITH
+        ) {
+            handleVoiceCallCommand(userText)?.let { return it }
+        }
+        handleVoiceTaskCommand(userText)?.let { return it }
+        return handleVoiceCallCommand(userText)
+    }
+
     private suspend fun handleVoiceCallCommand(userText: String): String? {
-        val action = CallIntentRouter.route(userText, pendingRequestSnapshot)
+        val currentSnapshot = synchronized(pendingCallLock) { pendingRequestSnapshot }
+        val action = CallIntentRouter.route(userText, currentSnapshot)
         return when (action) {
             CallIntentAction.None -> null
 
             CallIntentAction.CancelPendingCall -> {
-                delayedVoiceConfirmJob?.cancel()
-                val hadPending = pendingRequestSnapshot != null
+                val hadPending = synchronized(pendingCallLock) { pendingRequestSnapshot != null }
                 if (hadPending) {
                     cancelPendingCall()
                     "De acuerdo, llamada cancelada. No marcaré ningún número."
                 } else {
+                    cancelDelayedVoiceConfirmJob(clearPending = false)
                     "De acuerdo, no iniciaré ninguna llamada."
                 }
             }
 
             CallIntentAction.ConfirmPendingCall -> {
-                val target = pendingRequestSnapshot
-                if (target == null || !target.awaitingConfirmation) {
-                    return null
-                }
-                delayedVoiceConfirmJob?.cancel()
+                val target = synchronized(pendingCallLock) {
+                    pendingRequestSnapshot?.takeIf { it.awaitingConfirmation }
+                } ?: return null
+                cancelDelayedVoiceConfirmJob(clearPending = false)
+                val ttsDoneSignal = CompletableDeferred<Unit>()
+                voiceConfirmTtsSignal = ttsDoneSignal
                 delayedVoiceConfirmJob = viewModelScope.launch(Dispatchers.IO) {
-                    delay(1_850L)
-                    if (pendingRequestSnapshot?.requestId == target.requestId) {
-                        pendingRequestSnapshot = null
-                        _uiState.update { it.copy(pendingCallRequest = null) }
-                        executeCallInternal(target, preferDirectCall = true)
+                    try {
+                        withTimeoutOrNull(4_500L) {
+                            ttsDoneSignal.await()
+                        }
+                        delay(200L)
+                        val consumed = takePendingCallIfMatches(target.requestId) ?: return@launch
+                        executeCallInternal(consumed, preferDirectCall = true)
+                    } finally {
+                        if (voiceConfirmTtsSignal === ttsDoneSignal) {
+                            voiceConfirmTtsSignal = null
+                        }
                     }
                 }
                 if (phoneCallManager.hasCallPhonePermission()) {
@@ -1549,7 +1690,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             }
 
             is CallIntentAction.SelectCandidateByIndex -> {
-                val pending = pendingRequestSnapshot ?: return null
+                val pending = synchronized(pendingCallLock) { pendingRequestSnapshot } ?: return null
                 val candidate = pending.candidates.getOrNull(action.index) ?: return null
                 val updated = pending.copy(
                     contactName = candidate.displayName,
@@ -1558,8 +1699,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                     awaitingConfirmation = pending.scheduledNote.isBlank()
                 )
                 if (pending.scheduledNote.isNotBlank()) {
-                    pendingRequestSnapshot = null
-                    _uiState.update { it.copy(pendingCallRequest = null) }
+                    setPendingCallRequest(null)
                     phoneRepository.createCallRecord(
                         contactName = candidate.displayName,
                         phoneNumber = candidate.phoneNumber,
@@ -1570,20 +1710,18 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                     )
                     "Listo, he dejado preparada la llamada con ${candidate.displayName} (${pending.scheduledNote})."
                 } else {
-                    pendingRequestSnapshot = updated
-                    _uiState.update { it.copy(pendingCallRequest = updated) }
+                    setPendingCallRequest(updated)
                     "Has elegido a ${candidate.displayName}, número ${formatSpokenNumber(candidate.phoneNumber)}. ¿Confirmas que llame?"
                 }
             }
 
             is CallIntentAction.SelectCandidateByName -> {
-                val pending = pendingRequestSnapshot ?: return null
+                val pending = synchronized(pendingCallLock) { pendingRequestSnapshot } ?: return null
                 val narrowed = PhoneContactMatcher.findMatches(action.query, pending.candidates, maxCandidates = 2)
                 if (narrowed.size == 1) {
                     val chosen = narrowed.first()
                     if (pending.scheduledNote.isNotBlank()) {
-                        pendingRequestSnapshot = null
-                        _uiState.update { it.copy(pendingCallRequest = null) }
+                        setPendingCallRequest(null)
                         phoneRepository.createCallRecord(
                             contactName = chosen.displayName,
                             phoneNumber = chosen.phoneNumber,
@@ -1600,8 +1738,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                             selectedCandidate = chosen,
                             awaitingConfirmation = true
                         )
-                        pendingRequestSnapshot = updated
-                        _uiState.update { it.copy(pendingCallRequest = updated) }
+                        setPendingCallRequest(updated)
                         "Entendido, ${chosen.displayName}, número ${formatSpokenNumber(chosen.phoneNumber)}. ¿Confirmas que inicie la llamada?"
                     }
                 } else {
@@ -1623,15 +1760,16 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 if (latest == null) {
                     "Todavía no tengo ninguna llamada registrada desde ORION."
                 } else {
-                    val req = PendingCallRequest(
-                        requestId = "req_${nextPendingRequestSeq++}",
-                        contactName = latest.contactName,
-                        phoneNumber = latest.phoneNumber,
-                        reason = latest.reason,
-                        awaitingConfirmation = true,
-                        source = "VOICE_LAST"
-                    )
-                    pendingRequestSnapshot = req
+                    val req = synchronized(pendingCallLock) {
+                        PendingCallRequest(
+                            requestId = "req_${nextPendingRequestSeq++}",
+                            contactName = latest.contactName,
+                            phoneNumber = latest.phoneNumber,
+                            reason = latest.reason,
+                            awaitingConfirmation = true,
+                            source = "VOICE_LAST"
+                        ).also { pendingRequestSnapshot = it }
+                    }
                     _uiState.update { it.copy(pendingCallRequest = req) }
                     "El último contacto registrado fue ${latest.contactName}, número ${formatSpokenNumber(latest.phoneNumber)}. ¿Confirmas que vuelva a llamar?"
                 }
@@ -1674,48 +1812,51 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                         )
                         "He preparado la llamada con ${chosen.displayName} (${action.scheduledNote}). La tienes en la pestaña Teléfono."
                     } else {
-                        val req = PendingCallRequest(
-                            requestId = "req_${nextPendingRequestSeq++}",
-                            contactName = action.rawTargetQuery,
-                            phoneNumber = "",
-                            reason = action.reason,
-                            scheduledNote = action.scheduledNote.ifBlank { "Preparada" },
-                            candidates = resolved.take(3),
-                            awaitingConfirmation = false,
-                            source = "VOICE"
-                        )
-                        pendingRequestSnapshot = req
+                        val req = synchronized(pendingCallLock) {
+                            PendingCallRequest(
+                                requestId = "req_${nextPendingRequestSeq++}",
+                                contactName = action.rawTargetQuery,
+                                phoneNumber = "",
+                                reason = action.reason,
+                                scheduledNote = action.scheduledNote.ifBlank { "Preparada" },
+                                candidates = resolved.take(3),
+                                awaitingConfirmation = false,
+                                source = "VOICE"
+                            ).also { pendingRequestSnapshot = it }
+                        }
                         _uiState.update { it.copy(pendingCallRequest = req) }
                         val opts = req.candidates.mapIndexed { idx, c -> "${idx + 1}, ${c.displayName}" }.joinToString("; ")
                         "He encontrado varios contactos para preparar la llamada: $opts. ¿Cuál eliges?"
                     }
                 } else if (resolved.size == 1) {
                     val chosen = resolved.first()
-                    val req = PendingCallRequest(
-                        requestId = "req_${nextPendingRequestSeq++}",
-                        contactName = chosen.displayName,
-                        phoneNumber = chosen.phoneNumber,
-                        reason = action.reason,
-                        candidates = listOf(chosen),
-                        selectedCandidate = chosen,
-                        awaitingConfirmation = true,
-                        source = "VOICE"
-                    )
-                    pendingRequestSnapshot = req
+                    val req = synchronized(pendingCallLock) {
+                        PendingCallRequest(
+                            requestId = "req_${nextPendingRequestSeq++}",
+                            contactName = chosen.displayName,
+                            phoneNumber = chosen.phoneNumber,
+                            reason = action.reason,
+                            candidates = listOf(chosen),
+                            selectedCandidate = chosen,
+                            awaitingConfirmation = true,
+                            source = "VOICE"
+                        ).also { pendingRequestSnapshot = it }
+                    }
                     _uiState.update { it.copy(pendingCallRequest = req) }
                     val reasonCue = if (action.reason.isNotBlank()) " por ${action.reason}" else ""
                     "Voy a llamar a ${chosen.displayName}, número ${formatSpokenNumber(chosen.phoneNumber)}$reasonCue. ¿Confirmas que inicie la llamada?"
                 } else {
-                    val req = PendingCallRequest(
-                        requestId = "req_${nextPendingRequestSeq++}",
-                        contactName = action.rawTargetQuery,
-                        phoneNumber = "",
-                        reason = action.reason,
-                        candidates = resolved.take(3),
-                        awaitingConfirmation = false,
-                        source = "VOICE"
-                    )
-                    pendingRequestSnapshot = req
+                    val req = synchronized(pendingCallLock) {
+                        PendingCallRequest(
+                            requestId = "req_${nextPendingRequestSeq++}",
+                            contactName = action.rawTargetQuery,
+                            phoneNumber = "",
+                            reason = action.reason,
+                            candidates = resolved.take(3),
+                            awaitingConfirmation = false,
+                            source = "VOICE"
+                        ).also { pendingRequestSnapshot = it }
+                    }
                     _uiState.update { it.copy(pendingCallRequest = req) }
                     val opts = req.candidates.mapIndexed { idx, c -> "${idx + 1}, ${c.displayName} (${c.label})" }.joinToString("; ")
                     "He encontrado varios contactos: $opts. Dime el primero o el segundo para confirmar antes de llamar."
@@ -1754,6 +1895,628 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private fun formatSpokenNumber(raw: String): String =
         raw.trim().ifBlank { "desconocido" }
 
+    // =========================================================================
+    // ORION 0.7 — Asistente personal, tareas, recordatorios locales y seguimientos
+    // =========================================================================
+
+    fun setTaskFilter(filter: TaskFilter) {
+        _uiState.update { it.copy(selectedTaskFilter = filter) }
+    }
+
+    fun onTaskSearchQueryChanged(query: String) {
+        _uiState.update { it.copy(taskSearchQuery = query) }
+    }
+
+    fun createManualTask(
+        title: String,
+        description: String = "",
+        dueDateEpochDay: Long? = null,
+        dueTimeMinutes: Int? = null,
+        reminderAtMs: Long? = null,
+        reminderActive: Boolean = reminderAtMs != null,
+        priority: TaskPriority = TaskPriority.NORMAL,
+        category: String = "",
+        notes: String = "",
+        contactName: String? = null,
+        contactKey: String? = null,
+        contactPhone: String? = null,
+        linkedCallRecordId: Long? = null
+    ) {
+        val cleanTitle = title.trim()
+        if (cleanTitle.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val created = taskRepository.createTask(
+                title = cleanTitle,
+                description = description,
+                dueDateEpochDay = dueDateEpochDay,
+                dueTimeMinutes = dueTimeMinutes,
+                reminderAtMs = reminderAtMs,
+                reminderActive = reminderActive,
+                priority = priority,
+                category = category,
+                notes = notes,
+                contactName = contactName,
+                contactKey = contactKey,
+                contactPhone = contactPhone,
+                linkedCallRecordId = linkedCallRecordId
+            )
+            lastReferencedTaskId = created.id
+            _uiState.update {
+                it.copy(taskStatusMessage = "Tarea «${created.title}» guardada en local.")
+            }
+        }
+    }
+
+    fun updateManualTask(
+        id: Long,
+        title: String,
+        description: String = "",
+        dueDateEpochDay: Long? = null,
+        dueTimeMinutes: Int? = null,
+        reminderAtMs: Long? = null,
+        reminderActive: Boolean = reminderAtMs != null,
+        priority: TaskPriority = TaskPriority.NORMAL,
+        category: String = "",
+        notes: String = "",
+        contactName: String? = null,
+        contactKey: String? = null,
+        contactPhone: String? = null,
+        linkedCallRecordId: Long? = null
+    ) {
+        val cleanTitle = title.trim()
+        if (cleanTitle.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = taskRepository.updateTask(
+                id = id,
+                title = cleanTitle,
+                description = description,
+                dueDateEpochDay = dueDateEpochDay,
+                dueTimeMinutes = dueTimeMinutes,
+                reminderAtMs = reminderAtMs,
+                reminderActive = reminderActive,
+                priority = priority,
+                category = category,
+                notes = notes,
+                contactName = contactName,
+                contactKey = contactKey,
+                contactPhone = contactPhone,
+                linkedCallRecordId = linkedCallRecordId
+            )
+            if (updated != null) {
+                lastReferencedTaskId = updated.id
+                _uiState.update { it.copy(taskStatusMessage = "Tarea «${updated.title}» actualizada.") }
+            }
+        }
+    }
+
+    fun toggleTaskCompleted(task: TaskItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (task.status == TaskStatus.PENDING) {
+                taskRepository.completeTask(task.id)
+                _uiState.update { it.copy(taskStatusMessage = "«${task.title}» marcada como completada.") }
+            } else {
+                taskRepository.reopenTask(task.id)
+                _uiState.update { it.copy(taskStatusMessage = "«${task.title}» reabierta como pendiente.") }
+            }
+        }
+    }
+
+    fun cancelTaskById(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = taskRepository.cancelTask(id)
+            if (updated != null) {
+                _uiState.update { it.copy(taskStatusMessage = "«${updated.title}» cancelada.") }
+            }
+        }
+    }
+
+    fun postponeTaskTo(
+        id: Long,
+        newDueDateEpochDay: Long?,
+        newDueTimeMinutes: Int?,
+        newReminderAtMs: Long?
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = taskRepository.postponeTask(
+                id = id,
+                newDueDateEpochDay = newDueDateEpochDay,
+                newDueTimeMinutes = newDueTimeMinutes,
+                newReminderAtMs = newReminderAtMs
+            )
+            if (updated != null) {
+                lastReferencedTaskId = updated.id
+                val whenStr = SpanishDateTimeParser.formatDateTimeSummary(
+                    updated.dueDateEpochDay,
+                    updated.dueTimeMinutes,
+                    updated.reminderAtMs
+                )
+                _uiState.update { it.copy(taskStatusMessage = "«${updated.title}» pospuesta ($whenStr).") }
+            }
+        }
+    }
+
+    fun snoozeTaskByMinutes(id: Long, minutes: Long = 60L) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = taskRepository.snoozeReminder(id, minutes)
+            if (updated != null) {
+                lastReferencedTaskId = updated.id
+                _uiState.update { it.copy(taskStatusMessage = "Recordatorio aplazado $minutes min.") }
+            }
+        }
+    }
+
+    fun dismissTaskReminder(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            taskRepository.dismissReminder(id)
+            _uiState.update { it.copy(taskStatusMessage = "Recordatorio desactivado; la tarea sigue pendiente.") }
+        }
+    }
+
+    fun deleteTaskById(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            taskRepository.deleteTask(id)
+            if (lastReferencedTaskId == id) lastReferencedTaskId = null
+            _uiState.update { it.copy(taskStatusMessage = "Tarea eliminada de forma permanente.") }
+        }
+    }
+
+    fun deleteFinishedTasks() {
+        viewModelScope.launch(Dispatchers.IO) {
+            taskRepository.deleteFinishedTasks()
+            _uiState.update { it.copy(taskStatusMessage = "Tareas completadas y canceladas eliminadas.") }
+        }
+    }
+
+    fun deleteAllTasks() {
+        setPendingTaskPrompt(null)
+        lastReferencedTaskId = null
+        viewModelScope.launch(Dispatchers.IO) {
+            taskRepository.deleteAllTasks()
+            _uiState.update { it.copy(taskStatusMessage = "Todas las tareas y recordatorios eliminados.") }
+        }
+    }
+
+    fun createFollowUpTaskFromCall(
+        callRecord: PhoneCallRecord,
+        title: String,
+        dueDateEpochDay: Long?,
+        dueTimeMinutes: Int?,
+        reminderAtMs: Long?,
+        priority: TaskPriority,
+        notes: String
+    ) {
+        val cleanTitle = title.trim().ifBlank { "Seguimiento con ${callRecord.contactName}" }
+        viewModelScope.launch(Dispatchers.IO) {
+            val created = taskRepository.createFollowUpForCall(
+                callRecord = callRecord,
+                title = cleanTitle,
+                dueDateEpochDay = dueDateEpochDay,
+                dueTimeMinutes = dueTimeMinutes,
+                reminderAtMs = reminderAtMs,
+                priority = priority,
+                notes = notes
+            )
+            lastReferencedTaskId = created.id
+            _uiState.update {
+                it.copy(taskStatusMessage = "Seguimiento guardado para ${callRecord.contactName}.")
+            }
+        }
+    }
+
+    fun prepareCallFromTask(task: TaskItem, onReadyForPhoneTab: () -> Unit = {}) {
+        val phone = task.contactPhone?.trim().orEmpty()
+        val name = task.contactName?.trim().orEmpty()
+        if (phone.isNotEmpty()) {
+            val normNum = PhoneContactMatcher.normalizePhoneNumber(phone)
+            val entry = PhoneContactEntry(
+                contactKey = task.contactKey ?: "task:${task.id}:$normNum",
+                displayName = name.ifBlank { phone },
+                phoneNumber = phone,
+                normalizedNumber = normNum,
+                label = "Tarea",
+                source = PhoneContactSource.MANUAL
+            )
+            preparePendingCallFromEntry(entry, reason = task.title, source = "TASK")
+            onReadyForPhoneTab()
+            return
+        }
+        if (name.isEmpty()) {
+            _uiState.update { it.copy(taskStatusMessage = "Esta tarea no tiene un contacto o número asociado.") }
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val matches = phoneRepository.resolveVoiceContactMatches(name)
+            when {
+                matches.size == 1 -> {
+                    preparePendingCallFromEntry(matches.first(), reason = task.title, source = "TASK")
+                    onReadyForPhoneTab()
+                }
+                matches.size > 1 -> {
+                    val req = synchronized(pendingCallLock) {
+                        PendingCallRequest(
+                            requestId = "req_${nextPendingRequestSeq++}",
+                            contactName = name,
+                            phoneNumber = "",
+                            reason = task.title,
+                            candidates = matches.take(3),
+                            awaitingConfirmation = false,
+                            source = "TASK"
+                        ).also { pendingRequestSnapshot = it }
+                    }
+                    _uiState.update { it.copy(pendingCallRequest = req) }
+                    onReadyForPhoneTab()
+                }
+                else -> {
+                    _uiState.update {
+                        it.copy(
+                            phoneSearchQuery = name,
+                            taskStatusMessage = "No hay teléfono guardado para $name. Búscalo en Teléfono."
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun selectTaskDisambiguationCandidate(task: TaskItem) {
+        val prompt = synchronized(pendingTaskLock) {
+            (pendingTaskPromptSnapshot as? PendingTaskPrompt.DisambiguateTasks)?.also {
+                pendingTaskPromptSnapshot = null
+                _uiState.update { state -> state.copy(pendingTaskPrompt = null) }
+            }
+        } ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            executeTaskPromptOperation(prompt, task)
+        }
+    }
+
+    fun resolveTemporalChoice(chosenTimeMinutes: Int) {
+        val prompt = synchronized(pendingTaskLock) {
+            (pendingTaskPromptSnapshot as? PendingTaskPrompt.ClarifyTemporalAmbiguity)?.also {
+                pendingTaskPromptSnapshot = null
+                _uiState.update { state -> state.copy(pendingTaskPrompt = null) }
+            }
+        } ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            createTaskFromTemporalChoice(prompt, chosenTimeMinutes)
+        }
+    }
+
+    fun dismissPendingTaskPrompt() {
+        setPendingTaskPrompt(null)
+    }
+
+    private fun setPendingTaskPrompt(prompt: PendingTaskPrompt?) {
+        synchronized(pendingTaskLock) {
+            pendingTaskPromptSnapshot = prompt
+            _uiState.update { it.copy(pendingTaskPrompt = prompt) }
+        }
+    }
+
+    private suspend fun handleVoiceTaskCommand(userText: String): String? {
+        val currentPrompt = synchronized(pendingTaskLock) { pendingTaskPromptSnapshot }
+        val action = TaskIntentRouter.route(userText, currentPrompt)
+        return when (action) {
+            TaskIntentAction.None -> null
+
+            TaskIntentAction.CancelPendingPrompt -> {
+                setPendingTaskPrompt(null)
+                "De acuerdo, cancelo esa operación de tareas."
+            }
+
+            is TaskIntentAction.SelectTaskCandidateByIndex -> {
+                val prompt = synchronized(pendingTaskLock) {
+                    pendingTaskPromptSnapshot as? PendingTaskPrompt.DisambiguateTasks
+                } ?: return null
+                val candidate = prompt.candidates.getOrNull(action.index) ?: return null
+                setPendingTaskPrompt(null)
+                executeTaskPromptOperation(prompt, candidate)
+            }
+
+            is TaskIntentAction.SelectTaskCandidateByTitle -> {
+                val prompt = synchronized(pendingTaskLock) {
+                    pendingTaskPromptSnapshot as? PendingTaskPrompt.DisambiguateTasks
+                } ?: return null
+                val narrowed = taskRepository.findMatchingTasks(action.query, prompt.candidates, pendingOnly = false)
+                if (narrowed.size == 1) {
+                    setPendingTaskPrompt(null)
+                    executeTaskPromptOperation(prompt, narrowed.first())
+                } else {
+                    "He encontrado varias coincidencias. Dime la primera o la segunda, o pulsa una en pantalla."
+                }
+            }
+
+            is TaskIntentAction.ResolveTemporalChoice -> {
+                val prompt = synchronized(pendingTaskLock) {
+                    pendingTaskPromptSnapshot as? PendingTaskPrompt.ClarifyTemporalAmbiguity
+                } ?: return null
+                setPendingTaskPrompt(null)
+                createTaskFromTemporalChoice(prompt, action.chosenTimeMinutes)
+            }
+
+            is TaskIntentAction.ProvideMissingTitle -> {
+                val prompt = synchronized(pendingTaskLock) {
+                    pendingTaskPromptSnapshot as? PendingTaskPrompt.ClarifyMissingTitle
+                } ?: return null
+                setPendingTaskPrompt(null)
+                val created = taskRepository.createTask(
+                    title = action.title,
+                    dueDateEpochDay = prompt.dueDateEpochDay,
+                    dueTimeMinutes = prompt.dueTimeMinutes,
+                    reminderAtMs = prompt.reminderAtMs,
+                    reminderActive = prompt.reminderAtMs != null,
+                    priority = prompt.priority,
+                    category = prompt.category
+                )
+                lastReferencedTaskId = created.id
+                val whenStr = SpanishDateTimeParser.formatDateTimeSummary(
+                    created.dueDateEpochDay,
+                    created.dueTimeMinutes,
+                    created.reminderAtMs
+                )
+                "He apuntado «${created.title}» (${created.priority.label}, $whenStr)."
+            }
+
+            is TaskIntentAction.CreateTask -> {
+                if (action.missingTitlePrompt != null) {
+                    setPendingTaskPrompt(action.missingTitlePrompt)
+                    return action.missingTitlePrompt.promptMessage
+                }
+                if (action.ambiguityPrompt != null) {
+                    setPendingTaskPrompt(action.ambiguityPrompt)
+                    return action.ambiguityPrompt.promptMessage
+                }
+                createTaskFromIntentAction(action)
+            }
+
+            is TaskIntentAction.QueryTasks -> answerTaskQuery(action.scope, action.specificDateEpochDay)
+
+            is TaskIntentAction.CompleteTask -> {
+                val all = taskRepository.getAllTasks()
+                val matches = taskRepository.findMatchingTasks(action.query, all, pendingOnly = true)
+                when {
+                    matches.isEmpty() -> "No encuentro ninguna tarea pendiente que coincida con «${action.query}»."
+                    matches.size == 1 -> {
+                        val completed = taskRepository.completeTask(matches.first().id) ?: matches.first()
+                        lastReferencedTaskId = completed.id
+                        "Listo, he marcado «${completed.title}» como completada."
+                    }
+                    else -> {
+                        val prompt = PendingTaskPrompt.DisambiguateTasks(
+                            actionLabel = "Completar tarea",
+                            operation = PendingTaskOperation.COMPLETE,
+                            candidates = matches
+                        )
+                        setPendingTaskPrompt(prompt)
+                        val opts = matches.mapIndexed { idx, t -> "${idx + 1}, ${t.title}" }.joinToString("; ")
+                        "He encontrado varias tareas pendientes: $opts. ¿Cuál marco como completada?"
+                    }
+                }
+            }
+
+            is TaskIntentAction.PostponeTask -> {
+                val all = taskRepository.getAllTasks()
+                val targetPool = all.filter { it.status == TaskStatus.PENDING }
+                val matches = if (action.refersToLastTask) {
+                    val last = lastReferencedTaskId?.let { id -> targetPool.firstOrNull { it.id == id } }
+                        ?: targetPool.firstOrNull()
+                    listOfNotNull(last)
+                } else {
+                    taskRepository.findMatchingTasks(action.query, targetPool, pendingOnly = true)
+                }
+                when {
+                    matches.isEmpty() -> "No tengo ninguna tarea pendiente para posponer."
+                    matches.size == 1 -> {
+                        val target = matches.first()
+                        val updated = taskRepository.postponeTask(
+                            id = target.id,
+                            newDueDateEpochDay = action.newDueDateEpochDay,
+                            newDueTimeMinutes = action.newDueTimeMinutes,
+                            newReminderAtMs = action.newReminderAtMs
+                        ) ?: target
+                        lastReferencedTaskId = updated.id
+                        val whenStr = SpanishDateTimeParser.formatDateTimeSummary(
+                            updated.dueDateEpochDay,
+                            updated.dueTimeMinutes,
+                            updated.reminderAtMs
+                        )
+                        "He pospuesto «${updated.title}» para $whenStr."
+                    }
+                    else -> {
+                        val prompt = PendingTaskPrompt.DisambiguateTasks(
+                            actionLabel = "Posponer tarea",
+                            operation = PendingTaskOperation.POSTPONE,
+                            candidates = matches,
+                            targetDueDateEpochDay = action.newDueDateEpochDay,
+                            targetDueTimeMinutes = action.newDueTimeMinutes,
+                            targetReminderAtMs = action.newReminderAtMs
+                        )
+                        setPendingTaskPrompt(prompt)
+                        val opts = matches.mapIndexed { idx, t -> "${idx + 1}, ${t.title}" }.joinToString("; ")
+                        "He encontrado varias tareas: $opts. ¿Cuál quieres posponer?"
+                    }
+                }
+            }
+
+            is TaskIntentAction.CancelTask -> {
+                val all = taskRepository.getAllTasks()
+                val matches = taskRepository.findMatchingTasks(action.query, all, pendingOnly = true)
+                when {
+                    matches.isEmpty() -> "No encuentro ningún recordatorio o tarea pendiente de «${action.query}»."
+                    matches.size == 1 -> {
+                        val cancelled = taskRepository.cancelTask(matches.first().id) ?: matches.first()
+                        "He cancelado «${cancelled.title}» y su recordatorio."
+                    }
+                    else -> {
+                        val prompt = PendingTaskPrompt.DisambiguateTasks(
+                            actionLabel = "Cancelar tarea",
+                            operation = PendingTaskOperation.CANCEL,
+                            candidates = matches
+                        )
+                        setPendingTaskPrompt(prompt)
+                        val opts = matches.mapIndexed { idx, t -> "${idx + 1}, ${t.title}" }.joinToString("; ")
+                        "Hay varias tareas parecidas: $opts. ¿Cuál cancelo?"
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun createTaskFromIntentAction(action: TaskIntentAction.CreateTask): String {
+        val resolvedContact = action.contactQuery?.let { query ->
+            val matches = phoneRepository.resolveVoiceContactMatches(query)
+            if (matches.size == 1) matches.first() else null
+        }
+        val activeOrLatestCall = if (action.linkLatestOrActiveCall) {
+            val activeId = activeTelephonyCallRecordId
+            if (activeId != null) {
+                phoneRepository.getCallRecordById(activeId)
+            } else {
+                phoneRepository.getLatestCallRecord()
+            }
+        } else {
+            null
+        }
+        val fallbackContactName = resolvedContact?.displayName
+            ?: activeOrLatestCall?.contactName
+            ?: action.contactQuery?.replaceFirstChar { it.uppercase() }
+
+        val created = taskRepository.createTask(
+            title = action.title,
+            dueDateEpochDay = action.dueDateEpochDay,
+            dueTimeMinutes = action.dueTimeMinutes,
+            reminderAtMs = action.reminderAtMs,
+            reminderActive = action.reminderAtMs != null,
+            priority = action.priority,
+            category = action.category,
+            contactName = fallbackContactName,
+            contactKey = resolvedContact?.contactKey,
+            contactPhone = resolvedContact?.phoneNumber ?: activeOrLatestCall?.phoneNumber,
+            linkedCallRecordId = activeOrLatestCall?.id
+        )
+        lastReferencedTaskId = created.id
+        val whenStr = SpanishDateTimeParser.formatDateTimeSummary(
+            created.dueDateEpochDay,
+            created.dueTimeMinutes,
+            created.reminderAtMs
+        )
+        val reminderCue = if (created.reminderActive) " con recordatorio" else ""
+        val callCue = if (activeOrLatestCall != null) {
+            " vinculada a la llamada con ${activeOrLatestCall.contactName}"
+        } else if (resolvedContact != null) {
+            " asociada a ${resolvedContact.displayName}"
+        } else {
+            ""
+        }
+        return "Apuntado$reminderCue$callCue: «${created.title}» ($whenStr)."
+    }
+
+    private suspend fun createTaskFromTemporalChoice(
+        prompt: PendingTaskPrompt.ClarifyTemporalAmbiguity,
+        chosenTimeMinutes: Int
+    ): String {
+        val zone = java.time.ZoneId.systemDefault()
+        val date = java.time.LocalDate.ofEpochDay(prompt.dateEpochDay)
+        val time = java.time.LocalTime.of(
+            (chosenTimeMinutes / 60).coerceIn(0, 23),
+            (chosenTimeMinutes % 60).coerceIn(0, 59)
+        )
+        val reminderAtMs = date.atTime(time).atZone(zone).toInstant().toEpochMilli()
+        return createTaskFromIntentAction(
+            TaskIntentAction.CreateTask(
+                title = prompt.draftTitle,
+                priority = prompt.priority,
+                dueDateEpochDay = prompt.dateEpochDay,
+                dueTimeMinutes = chosenTimeMinutes,
+                reminderAtMs = reminderAtMs,
+                category = prompt.category,
+                contactQuery = prompt.contactQuery,
+                isCallFollowUp = prompt.isCallFollowUp,
+                linkLatestOrActiveCall = prompt.linkLatestOrActiveCall
+            )
+        )
+    }
+
+    private suspend fun executeTaskPromptOperation(
+        prompt: PendingTaskPrompt.DisambiguateTasks,
+        task: TaskItem
+    ): String {
+        return when (prompt.operation) {
+            PendingTaskOperation.COMPLETE -> {
+                val updated = taskRepository.completeTask(task.id) ?: task
+                lastReferencedTaskId = updated.id
+                "Listo, he marcado «${updated.title}» como completada."
+            }
+            PendingTaskOperation.POSTPONE -> {
+                val updated = taskRepository.postponeTask(
+                    id = task.id,
+                    newDueDateEpochDay = prompt.targetDueDateEpochDay,
+                    newDueTimeMinutes = prompt.targetDueTimeMinutes,
+                    newReminderAtMs = prompt.targetReminderAtMs
+                ) ?: task
+                lastReferencedTaskId = updated.id
+                val whenStr = SpanishDateTimeParser.formatDateTimeSummary(
+                    updated.dueDateEpochDay,
+                    updated.dueTimeMinutes,
+                    updated.reminderAtMs
+                )
+                "He pospuesto «${updated.title}» para $whenStr."
+            }
+            PendingTaskOperation.CANCEL -> {
+                val updated = taskRepository.cancelTask(task.id) ?: task
+                "He cancelado «${updated.title}»."
+            }
+        }
+    }
+
+    private suspend fun answerTaskQuery(
+        scope: TaskQueryScope,
+        specificDateEpochDay: Long?
+    ): String {
+        val all = taskRepository.getAllTasks()
+        val matching = when (scope) {
+            TaskQueryScope.TODAY -> taskRepository.filterTasks(all, TaskFilter.TODAY)
+            TaskQueryScope.UPCOMING -> taskRepository.filterTasks(all, TaskFilter.UPCOMING)
+            TaskQueryScope.OVERDUE -> taskRepository.filterTasks(all, TaskFilter.OVERDUE)
+            TaskQueryScope.REMINDERS -> taskRepository.filterTasks(all, TaskFilter.REMINDERS)
+            TaskQueryScope.ALL_PENDING -> taskRepository.filterTasks(all, TaskFilter.PENDING)
+            TaskQueryScope.SPECIFIC_DATE -> {
+                val targetDay = specificDateEpochDay
+                if (targetDay == null) {
+                    taskRepository.filterTasks(all, TaskFilter.UPCOMING)
+                } else {
+                    all.filter { it.status == TaskStatus.PENDING && it.isDueOnDate(targetDay) }
+                }
+            }
+        }
+        if (matching.isEmpty()) {
+            return when (scope) {
+                TaskQueryScope.TODAY -> "No tienes tareas pendientes para hoy."
+                TaskQueryScope.OVERDUE -> "No tienes tareas atrasadas ahora mismo."
+                TaskQueryScope.REMINDERS -> "No tienes recordatorios activos en este momento."
+                TaskQueryScope.UPCOMING -> "No tienes tareas próximas programadas."
+                TaskQueryScope.SPECIFIC_DATE -> "No tienes tareas apuntadas para ${SpanishDateTimeParser.formatDateLabel(specificDateEpochDay)}."
+                TaskQueryScope.ALL_PENDING -> "No tienes ninguna tarea pendiente."
+            }
+        }
+        if (matching.size == 1) {
+            lastReferencedTaskId = matching.first().id
+        }
+        val header = when (scope) {
+            TaskQueryScope.TODAY -> "Para hoy tienes ${matching.size} tarea(s): "
+            TaskQueryScope.OVERDUE -> "Tienes ${matching.size} tarea(s) atrasada(s): "
+            TaskQueryScope.REMINDERS -> "Tienes ${matching.size} recordatorio(s) activo(s): "
+            TaskQueryScope.UPCOMING -> "Tienes ${matching.size} tarea(s) próxima(s): "
+            TaskQueryScope.SPECIFIC_DATE -> "Para ${SpanishDateTimeParser.formatDateLabel(specificDateEpochDay)} tienes ${matching.size}: "
+            TaskQueryScope.ALL_PENDING -> "Tienes ${matching.size} tarea(s) pendiente(s): "
+        }
+        val summary = matching.take(4).joinToString("; ") { t ->
+            val whenStr = SpanishDateTimeParser.formatDateTimeSummary(t.dueDateEpochDay, t.dueTimeMinutes, t.reminderAtMs)
+            "${t.title} ($whenStr)"
+        }
+        return "$header$summary."
+    }
+
     fun onPermissionDenied() {
         recordError("Permiso RECORD_AUDIO denegado")
         _uiState.update {
@@ -1765,6 +2528,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onAppBackgrounded() {
+        cancelDelayedVoiceConfirmJob(clearPending = false)
         if (conversationEngine.isCallActive()) {
             endCall()
         }
@@ -1993,12 +2757,19 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val callTel = state.callTelemetry
         val hw = state.audioHardwareStatus
         return buildString {
-            appendLine("ORION Voice Lab 0.6.0 — informe de diagnóstico")
+            appendLine("ORION Voice Lab 0.7.0 — informe de diagnóstico")
             appendLine(DeviceMetrics.deviceSummary())
             appendLine(
                 "Telefonía local: soporte=${state.isTelephonySupported} · permisoContactos=${state.hasContactsPermission} · " +
                     "permisoLlamar=${state.hasCallPhonePermission} · permisoEstado=${state.hasPhoneStatePermission} · " +
                     "favoritos=${state.favoritePhoneContacts.size} · llamadas=${state.phoneCallRecords.size} · estado=${state.systemTelephonyState.displayLabel}"
+            )
+            val overdueCount = state.tasks.count { it.isOverdue(System.currentTimeMillis()) }
+            val pendingCount = state.tasks.count { it.status == TaskStatus.PENDING }
+            val activeRemCount = state.tasks.count { it.status == TaskStatus.PENDING && it.reminderActive }
+            appendLine(
+                "Tareas locales: total=${state.tasks.size} · pendientes=$pendingCount · atrasadas=$overdueCount · " +
+                    "recordatorios=$activeRemCount · permisoNotificaciones=${state.hasNotificationsPermission}"
             )
             appendLine(
                 "Memoria local: conversaciones=${state.conversations.size} (activa: ${state.activeConversationTitle}) · " +
@@ -2136,7 +2907,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     override fun onCleared() {
         autoDownloadJob?.cancel()
         contactSearchJob?.cancel()
-        delayedVoiceConfirmJob?.cancel()
+        cancelDelayedVoiceConfirmJob(clearPending = false)
         phoneCallManager.stopObservingCallState()
         stopCallTimer()
         stopMetricsTicker()

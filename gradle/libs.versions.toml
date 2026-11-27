@@ -10,6 +10,8 @@ sherpaOnnx = "v1.13.8"
 commonsCompress = "1.27.1"
 llamacppKotlin = "0.4.0"
 junit = "4.13.2"
+robolectric = "4.14.1"
+androidxTestCore = "1.6.1"
 room = "2.8.4"
 ksp = "2.3.6"
 
@@ -32,6 +34,8 @@ sherpa-onnx = { group = "com.github.k2-fsa.sherpa-onnx", name = "sherpa-onnx", v
 commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonsCompress" }
 llamacpp-kotlin = { group = "io.github.ljcamargo", name = "llamacpp-kotlin", version.ref = "llamacppKotlin" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+androidx-test-core = { group = "androidx.test", name = "core-ktx", version.ref = "androidxTestCore" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
