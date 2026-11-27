@@ -122,6 +122,7 @@ dependencies {
     implementation(libs.sherpa.onnx)
     implementation(libs.commons.compress)
     implementation(libs.llamacpp.kotlin)
+    implementation(libs.google.play.services.auth)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
