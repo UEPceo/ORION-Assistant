@@ -209,10 +209,25 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 activeRole = latestSelectedCoworker?.roleTitle,
                 mediaStatus = mediaStatus
             )
+            val selfKnowledgeContext = OrionSelfKnowledgeAdvisor.compose(
+                userQuery = userText,
+                state = _uiState.value,
+                diagnosticLog = if (
+                    userText.contains("error", ignoreCase = true) ||
+                    userText.contains("fallo", ignoreCase = true) ||
+                    userText.contains("diagn", ignoreCase = true) ||
+                    userText.contains("log", ignoreCase = true)
+                ) {
+                    OrionCrashDiagnostics.readRecentDiagnostics(appContext)
+                } else {
+                    ""
+                }
+            )
             baseContext.copy(
                 systemPrompt = baseContext.systemPrompt + "\n\n" +
                     BrainPromptComposer.compose(brainContext) +
-                    if (creativeContext.isBlank()) "" else "\n\n$creativeContext"
+                    if (creativeContext.isBlank()) "" else "\n\n$creativeContext" +
+                    if (selfKnowledgeContext.isBlank()) "" else "\n\n$selfKnowledgeContext"
             )
         },
         directTurnResponder = { userText ->
