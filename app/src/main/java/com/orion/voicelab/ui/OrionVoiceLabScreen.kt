@@ -165,6 +165,7 @@ fun OrionVoiceLabScreen(
     initialTabName: String? = null
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val planExecutions by viewModel.planExecutionRecords.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -610,7 +611,12 @@ fun OrionVoiceLabScreen(
                                 onDownloadVoice = viewModel::downloadVoicePack,
                                 onSaveIdentity = viewModel::saveAssistantIdentity,
                                 onSetMemoryEnabled = viewModel::setMemoryEnabled,
-                                onOpenDiagnostics = { selectedTab = OrionTab.LAB }
+                                onOpenDiagnostics = { selectedTab = OrionTab.LAB },
+                                planExecutions = planExecutions,
+                                onExecutePlan = { planId, approvedIds, retryIds ->
+                                    viewModel.executePlanExecution(planId, approvedIds, retryIds)
+                                },
+                                onDeletePlan = { planId -> viewModel.deletePlanExecution(planId) }
                             )
                         }
                     }
