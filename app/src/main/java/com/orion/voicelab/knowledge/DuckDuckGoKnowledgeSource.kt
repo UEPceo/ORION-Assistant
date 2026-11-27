@@ -208,6 +208,7 @@ internal fun buildSearchQuery(query: BrainQuery, terms: String): String {
 internal object WebAuthorityClassifier {
     private val officialHosts = setOf(
         "boe.es", "aemet.es", "miteco.gob.es", "mapa.gob.es", "sanidad.gob.es",
+        "incibe.es", "aepd.es", "dgt.es", "eur-lex.europa.eu",
         "administracion.gob.es", "juntadeandalucia.es", "gva.es", "xunta.gal",
         "euskadi.eus", "gencat.cat", "navarra.es", "aragon.es", "cantabria.es",
         "asturias.es", "juntadeextremadura.es", "comunidad.madrid", "regiondemurcia.es",
