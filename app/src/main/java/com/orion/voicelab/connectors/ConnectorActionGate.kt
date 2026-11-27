@@ -28,6 +28,9 @@ object ConnectorActionGate {
         "get_repository",
         "get_file",
         "list_issues",
+        "list_commits",
+        "list_workflow_runs",
+        "list_files",
         "get_issue",
         "list_pull_requests",
         "get_pull_request"
