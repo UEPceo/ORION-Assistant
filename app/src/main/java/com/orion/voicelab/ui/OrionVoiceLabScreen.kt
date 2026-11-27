@@ -880,14 +880,14 @@ private fun VirtualCallScreen(
                         }
                     } else {
                         items(items = state.conversationTurns, key = { it.id }) { turn ->
-                            ConversationTurnCard(
+                            OrionConversationTurnCard(
                                 turn = turn,
                                 assistantName = assistantDisplayName
                             )
                         }
                         if (state.streamingAssistantText.isNotBlank()) {
                             item(key = "streaming_reply") {
-                                StreamingReplyCard(
+                                OrionStreamingReplyCard(
                                     text = state.streamingAssistantText,
                                     assistantName = assistantDisplayName
                                 )
@@ -958,14 +958,14 @@ private fun VirtualCallScreen(
                     }
                 } else {
                     items(items = state.conversationTurns, key = { it.id }) { turn ->
-                        ConversationTurnCard(
+                        OrionConversationTurnCard(
                             turn = turn,
                             assistantName = assistantDisplayName
                         )
                     }
                     if (state.streamingAssistantText.isNotBlank()) {
                         item(key = "streaming_reply") {
-                            StreamingReplyCard(
+                            OrionStreamingReplyCard(
                                 text = state.streamingAssistantText,
                                 assistantName = assistantDisplayName
                             )
