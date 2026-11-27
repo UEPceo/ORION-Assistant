@@ -7,6 +7,7 @@ object BrainPromptComposer {
             BrainPresentation.EVIDENCE_SUPPORTED -> "EVIDENCIA CONTRASTADA (no es garantía absoluta):"
             BrainPresentation.UNVERIFIED -> "INFORMACIÓN NO VERIFICADA:"
             BrainPresentation.HISTORICAL -> "INFORMACIÓN HISTÓRICA; puede estar desactualizada:"
+            BrainPresentation.AGE_UNCONFIRMED -> "ACTUALIDAD NO CONFIRMADA: la página no aporta una fecha verificable:"
             BrainPresentation.NO_SOURCES -> "SIN FUENTES RECUPERADAS:"
             BrainPresentation.SOURCE_FAILURE -> "NO SE PUDO CONSULTAR NINGUNA FUENTE:"
         }
