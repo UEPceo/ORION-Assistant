@@ -47,6 +47,20 @@ class ConnectorActionGateTest {
     }
 
     @Test
+    fun newGitHubReadOperationsRemainReadOnly() {
+        listOf("list_commits", "list_workflow_runs", "list_files", "get_issue", "get_message").forEach { operation ->
+            assertEquals(
+                ConnectorAuthorizationDecision.ALLOW,
+                ConnectorActionGate.evaluate(
+                    ConnectorAction(ConnectorId.GITHUB, operation),
+                    userRequestedExactAction = true,
+                    connectorConnected = true
+                )
+            )
+        }
+    }
+
+    @Test
     fun sendCannotBeAllowedWhenIncorrectlyLabelledReadOnly() {
         val action = ConnectorAction(
             connectorId = ConnectorId.GMAIL,
