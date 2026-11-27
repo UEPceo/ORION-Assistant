@@ -23,6 +23,13 @@ object PlanProposalParser {
         PlanStepKind.PURCHASE
     )
 
+    private val supportedReadOperations = mapOf(
+        ConnectorId.GMAIL to setOf("search_messages", "get_message", "read_latest_message"),
+        ConnectorId.GITHUB to setOf("list_repositories", "get_issue", "list_commits", "list_workflow_runs", "list_files", "list_issues"),
+        ConnectorId.GOOGLE_MAPS to setOf("search_place"),
+        ConnectorId.PESCAIA to setOf("search_public")
+    )
+
     fun parse(raw: String, planId: String): PlanProposalParseResult {
         if (raw.length !in 2..MAX_INPUT_CHARS) return invalid("La propuesta está vacía o supera el límite de tamaño.")
         if (planId.isBlank() || planId.length > 100) return invalid("Identificador de plan no válido.")
@@ -73,6 +80,30 @@ object PlanProposalParser {
                 val operation = item.optString("connectorOperation").takeUnless { it.isBlank() || it == "null" }?.take(100)
                 if (kind in connectorKinds && (connectorId == null || operation.isNullOrBlank())) {
                     return invalid("El paso externo $id necesita conector y operación explícitos.")
+                }
+                if (kind == PlanStepKind.CONNECTOR_READ && connectorId != null && operation != null) {
+                    if (operation !in supportedReadOperations[connectorId].orEmpty()) {
+                        return invalid("La operación $operation no está implementada para $connectorId.")
+                    }
+                    val requiredArguments = when (connectorId to operation) {
+                        ConnectorId.GMAIL to "search_messages" -> setOf("query")
+                        ConnectorId.GMAIL to "get_message" -> setOf("message_id")
+                        ConnectorId.GITHUB to "get_issue" -> setOf("repository", "number")
+                        ConnectorId.GITHUB to "list_commits",
+                        ConnectorId.GITHUB to "list_workflow_runs",
+                        ConnectorId.GITHUB to "list_files",
+                        ConnectorId.GITHUB to "list_issues" -> setOf("repository")
+                        ConnectorId.GOOGLE_MAPS to "search_place" -> setOf("destination")
+                        ConnectorId.PESCAIA to "search_public" -> setOf("query")
+                        else -> emptySet()
+                    }
+                    val missingArguments = requiredArguments - arguments.keys
+                    if (missingArguments.isNotEmpty()) {
+                        return invalid("Al paso $id le faltan argumentos: ${missingArguments.joinToString()}.")
+                    }
+                }
+                if (kind != PlanStepKind.CONNECTOR_READ && kind in connectorKinds) {
+                    return invalid("La generación automática solo admite operaciones de lectura en esta fase.")
                 }
 
                 steps += PlannedStep(
