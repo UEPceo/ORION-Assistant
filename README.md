@@ -11,7 +11,7 @@
 
 - GitHub incorpora OAuth App Device Flow para Android, sin client secret dentro del APK.
 - El Client ID público se configura mediante la propiedad Gradle `ORION_GITHUB_CLIENT_ID` o la variable de entorno homónima.
-- El primer permiso solicitado es `read:user,public_repo`; no habilita repositorios privados.
+- El primer permiso solicitado es `read:user`. Los repositorios públicos pueden consultarse sin ampliar permisos; el acceso a repositorios privados queda desactivado.
 - Los tokens se guardan mediante AES-256-GCM con clave de Android Keystore y pueden eliminarse desde la pantalla Conectores.
 - Gmail requiere configurar Google Identity Services, proyecto OAuth, paquete y huella de firma Android. No se activa hasta disponer de esa configuración.
 - Guía: `docs/CONNECTORS_AUTHENTICATION.md`.
