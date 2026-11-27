@@ -156,8 +156,8 @@ object PlanExecutionJsonCodec {
             array.put(JSONObject()
                 .put("id", id)
                 .put("status", result.status.name)
-                .put("summary", result.summary)
-                .put("outputReference", result.outputReference ?: JSONObject.NULL))
+                .put("summary", result.summary.take(6_000))
+                .put("outputReference", result.outputReference?.take(300) ?: JSONObject.NULL))
         }
         return array.toString()
     }
