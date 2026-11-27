@@ -113,9 +113,17 @@ La dirección visual por defecto es ORION Editorial (navy #080D1A, cian #16C7E8 
 
 Los contratos MediaUnderstandingProvider, ImageGenerationProvider y VideoGenerationProvider permiten integrar modelos locales, servicios remotos o aplicaciones externas. OrionMediaRuntime declara disponibilidad real y rechaza tareas si no hay proveedor configurado. El modelo Qwen2.5 1.5B actual es textual; no se debe describir como modelo de visión ni generador multimedia.
 
+## Descubrimiento web explícito
+
+Se ha conectado un adaptador de búsqueda web de solo lectura basado en la página HTML de DuckDuckGo. Solo se activa cuando el usuario pide expresamente buscar o investigar en Internet; las conversaciones normales y el modo offline no generan tráfico web. La consulta tiene timeout, límite de respuesta y máximo de cinco resultados.
+
+Alcance actual: recupera título, URL y fragmento del buscador. No descarga todavía el contenido completo de las páginas de destino ni ejecuta acciones sobre ellas. Los resultados se clasifican como autoridad UNKNOWN y se presentan como pistas para localizar fuentes, nunca como evidencia confirmatoria. El verificador exige dos editores con autoridad reconocida para corroboración general, o evidencia primaria cuando el dominio lo requiere. Los fragmentos desconocidos no pueden elevar una respuesta a verificada.
+
+Limitaciones: el HTML del buscador puede cambiar, bloquear peticiones o devolver resultados incompletos; el adaptador debe informar de ausencia/fallo sin inventar resultados. El siguiente paso es una capa de lectura de páginas con lista de dominios permitidos, control de redirecciones, límites de tamaño, extracción de texto, fecha/editor y clasificación de autoridad antes de incorporarlas al corpus. No se guardan automáticamente los fragmentos web en la memoria personal ni en el corpus local.
+
 ## Fuentes externas y aprendizaje
 
-OrionBrainRuntime acepta KnowledgeSource externos inyectables además del corpus local. En la configuración actual del runtime de la app solo se registra el corpus local; no hay todavía un motor general de búsqueda web activo. El aprendizaje persiste documentos con procedencia y hash, pero no modifica automáticamente los pesos del modelo. Los proveedores de búsqueda, indexación y actualización deben registrarse y someterse a los mismos controles de autoridad, frescura, contradicción y seguridad.
+OrionBrainRuntime acepta KnowledgeSource externos inyectables además del corpus local. El runtime registra el corpus local y el adaptador de descubrimiento web explícito descrito arriba; todavía no existe lectura completa y validada de páginas web. El aprendizaje persiste documentos con procedencia y hash, pero no modifica automáticamente los pesos del modelo. Los proveedores de búsqueda, indexación y actualización deben registrarse y someterse a los mismos controles de autoridad, frescura, contradicción y seguridad.
 
 Detalle creativo/multimedia y pendientes: [ORION_CREATIVE_MULTIMODAL_ARCHITECTURE.md](ORION_CREATIVE_MULTIMODAL_ARCHITECTURE.md).
 
