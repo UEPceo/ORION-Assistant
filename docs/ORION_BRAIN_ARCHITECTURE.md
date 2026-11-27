@@ -32,7 +32,7 @@ ORION no puede garantizar verdad absoluta ni prometer que nunca cometerá errore
 - Si no hay evidencia suficiente, ORION dice «no lo he podido verificar» y no completa huecos inventando.
 - Cada dato dinámico (tiempo, mareas, tráfico, disponibilidad, calendario, CI) lleva fecha/hora de consulta y zona geográfica cuando corresponda.
 
-Se han incorporado contratos de evidencia, enrutador determinista por dominio, repositorio local privado persistente, motor de recuperación, composición de contexto con procedencia y política de aprendizaje. Los veredictos incluyen SUPPORTED, NEEDS_CORROBORATION, PRIMARY_SOURCE_REQUIRED, STALE, AGE_UNCONFIRMED, CONFLICTING, NO_EVIDENCE e INVALID_TIMESTAMP. El núcleo ya se invoca desde el contexto de cada turno de voz. El corpus local comienza vacío: no se simula que existan fuentes descargadas ni se presenta el conocimiento del modelo como evidencia. El corpus se guarda en almacenamiento privado mediante escritura atómica y la recuperación local es léxica, no semántica/vectorial. La búsqueda web solo se activa ante una petición explícita. El contexto RAG se limita a 1.800 caracteres para proteger la ventana reducida del modelo local.
+Se han incorporado contratos de evidencia, enrutador determinista por dominio, repositorio local privado persistente, motor de recuperación, composición de contexto con procedencia y política de aprendizaje. Los veredictos incluyen SUPPORTED, NEEDS_CORROBORATION, PRIMARY_SOURCE_REQUIRED, STALE, AGE_UNCONFIRMED, CONFLICTING, NO_EVIDENCE e INVALID_TIMESTAMP. El núcleo ya se invoca desde el contexto de cada turno de voz. El corpus local se inicializa automáticamente en el primer uso con seis paquetes y dieciséis documentos incluidos en los assets. Se guarda en almacenamiento privado mediante escritura atómica y la recuperación combina índice semántico disperso y ranking léxico; no presenta el conocimiento del modelo como evidencia. La búsqueda web solo se activa ante una petición explícita. El contexto RAG se limita a 1.800 caracteres para proteger la ventana reducida del modelo local.
 
 ## Fuentes por ámbito
 
@@ -192,7 +192,7 @@ La arquitectura está bien separada en recuperación, verificación, memoria, di
 |---|---|---|
 | Conversación por voz offline | Implementación local | Calidad de razonamiento limitada por Qwen2.5 1.5B y ventana corta |
 | Conocimiento general offline | Conocimiento paramétrico del modelo | Sin enciclopedia/documentación local indexada |
-| RAG local | Implementado, corpus inicialmente vacío | Búsqueda léxica; falta índice semántico/híbrido y packs versionados |
+| RAG local | Implementado, seis packs y dieciséis documentos | Búsqueda híbrida local, fragmentos solapados y actualizaciones periódicas verificadas |
 | Búsqueda web | Búsqueda explícita + lectura HTML acotada | Sin navegador completo, JS, PDF, múltiples buscadores ni cobertura amplia de fuentes |
 | Verificación | Política conservadora implementada | Clasificador de autoridad pequeño; conflictos y fechas aún parciales |
 | Aprendizaje | Ingesta curada disponible | Sin flujo UI completo de revisión, versionado y actualización programada |
@@ -247,7 +247,7 @@ Esta actualización incorpora las primeras implementaciones de los seis frentes 
 ### 1. Calidad del conocimiento y fuentes
 - Catálogo inicial de fuentes oficiales españolas y europeas y documentación técnica: BOE, EUR-Lex, AEMET, MITECO, Sanidad, INCIBE, AEPD, DGT, Junta de Andalucía, MAPA, Android, Kotlin, Python, OWASP, MDN y GitHub Docs.
 - El catálogo registra dominio, jurisdicción, autoridad y cadencia de revisión. Las búsquedas sensibles se restringen preferentemente a los dominios oficiales registrados. Una URL de catálogo no se considera evidencia hasta recuperarla, fecharla y verificarla.
-- La recuperación local usa ponderación por coincidencia en título, extracto y cuerpo, frecuencia inversa de documento, cobertura de términos y desempate por autoridad/fecha. Es una mejora léxica tipo TF-IDF ponderado, no un motor vectorial ni búsqueda semántica.
+- La recuperación local combina BM25-like léxico y vectores dispersos por fragmento (conceptos, alias y trigramas), con desempate por autoridad/fecha. No utiliza todavía embeddings neuronales.
 - Sigue pendiente extracción PDF, varios buscadores, corroboración avanzada, fecha de modificación robusta y defensa completa contra DNS rebinding.
 
 ### 2. Planificación multipaso
@@ -296,7 +296,7 @@ Cada área debe disponer de criterios reproducibles, pruebas unitarias e integra
 - Tests: contenido y atribución de los seis assets, instalación real con Robolectric, repetición idempotente, búsqueda posterior y estado dinámico de instalación.
 - Índice semántico: `KnowledgeSemanticIndex` mantiene vectores dispersos por fragmento en un archivo privado independiente. Combina términos normalizados, trigramas de caracteres y un mapa explícito de conceptos/sinónimos en español; la recuperación combina puntuación léxica BM25-like y similitud coseno. No requiere red ni un modelo adicional.
 - Profundidad documental: `KnowledgeDocumentChunker` crea pasajes de hasta 1.200 caracteres con solapamiento de 160 caracteres y preferencia por límites de frase/párrafo. La respuesta recupera el pasaje más relevante y conserva la procedencia del documento.
-- Actualización automática: `KnowledgePackUpdateScheduler` registra trabajo periódico semanal con WorkManager, solo red no medida (Wi-Fi) y batería no baja. Android puede aplazar la ejecución por ahorro energético; también existe una solicitud manual inmediata.
+- Actualización automática: `KnowledgePackUpdateScheduler` registra trabajo periódico semanal con WorkManager, solo redes no medidas (habitualmente Wi-Fi) y batería no baja. Android puede aplazar la ejecución por ahorro energético; también existe una solicitud manual inmediata.
 - Canal remoto: manifiesto versionado en GitHub Raw, seis paquetes allowlist por ID y ruta, descargas HTTPS limitadas por tamaño/tiempo, validación de SHA-256, versión monotónica y escritura atómica en caché. El instalador vuelve a verificar el hash antes de ingerir. Los fallos generan reintentos y no sustituyen la versión válida instalada.
 - Límite importante: el índice actual es semántico disperso basado en conceptos y n-gramas, no embeddings neuronales. Resuelve sinónimos y variaciones léxicas conocidas, pero no alcanza la comprensión de un encoder multilingüe. Se mantiene la búsqueda léxica como respaldo y la próxima mejora será un modelo de embeddings ONNX cuantizado descargable opcional.
 - Seguridad del canal: TLS y SHA-256 detectan transporte corrupto o archivos que no coinciden con el manifiesto, pero el manifiesto y los paquetes residen en el mismo repositorio; no es una firma criptográfica independiente del editor. Para un canal de alta garantía queda pendiente firmar el manifiesto con una clave privada fuera del repositorio y verificar con clave pública fijada en la app.
