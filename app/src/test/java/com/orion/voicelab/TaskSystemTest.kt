@@ -94,6 +94,13 @@ class TaskSystemTest {
         // Relative offset
         val offset = SpanishDateTimeParser.parse("revisar horno en 30 minutos", fixedNowMs, zoneId)
         assertEquals(fixedNowMs + 30 * 60_000L, offset.reminderAtMs)
+        // Number words must support the complete Spanish range accepted by the parser.
+        val sevenHours = SpanishDateTimeParser.parse("revisar horno en siete horas", fixedNowMs, zoneId)
+        assertEquals(fixedNowMs + 7 * 3_600_000L, sevenHours.reminderAtMs)
+        val fortyFiveMinutes = SpanishDateTimeParser.parse("revisar horno en cuarenta y cinco minutos", fixedNowMs, zoneId)
+        assertEquals(fixedNowMs + 45 * 60_000L, fortyFiveMinutes.reminderAtMs)
+        val twelveDays = SpanishDateTimeParser.parse("revisar horno dentro de doce dias", fixedNowMs, zoneId)
+        assertEquals(fixedToday.plusDays(12).toEpochDay(), twelveDays.dueDateEpochDay)
 
         // Temporal ambiguity: "a las 8" without mañana/tarde
         val ambiguousClock = SpanishDateTimeParser.parse("llamar al banco mañana a las 8", fixedNowMs, zoneId)
