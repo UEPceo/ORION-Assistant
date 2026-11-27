@@ -14,7 +14,7 @@ class BundledKnowledgePackInstallerTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val store = KnowledgeCorpusStore(context)
         val ingestion = KnowledgeIngestionService(store, now = { 1795800000000L })
-        val installer = BundledKnowledgePackInstaller(context, ingestion, now = { 1795800000000L })
+        val installer = BundledKnowledgePackInstaller(context, ingestion, store, now = { 1795800000000L })
 
         val first = installer.installIfNeeded()
         assertTrue("Fallos de instalación: ${first.failedPackIds}", first.failedPackIds.isEmpty())
@@ -30,6 +30,13 @@ class BundledKnowledgePackInstallerTest {
         val query = BrainQueryRouter.route("Kotlin coroutine dispatcher", null)
         val results = store.search(query, 10)
         assertTrue(results.any { it.evidence.title.contains("Coroutines", ignoreCase = true) })
+
+        val savedId = results.first().evidence.id
+        store.remove(savedId)
+        val repaired = installer.installIfNeeded()
+        assertTrue(repaired.failedPackIds.isEmpty())
+        assertTrue(repaired.installedDocuments > 0)
+        assertTrue(store.contains(savedId))
     }
 
     @Test fun packContentHasSourceAttributionAndNonTrivialText() {
