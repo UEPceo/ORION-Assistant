@@ -18,13 +18,17 @@ class KnowledgeSemanticIndex(context: Context) {
     private var vectors: MutableMap<String, Map<String, Double>>? = null
 
     fun upsert(documentId: String, chunks: List<String>) = synchronized(lock) {
-        val vector = buildVector(chunks.joinToString(" "))
-        allVectors()[documentId] = vector
+        allVectors().keys.filter { it.startsWith(documentId + "::") || it == documentId }.toList()
+            .forEach { allVectors().remove(it) }
+        chunks.forEachIndexed { index, chunk ->
+            allVectors()[documentId + "::" + index] = buildVector(chunk)
+        }
         persist()
     }
 
     fun remove(documentId: String) = synchronized(lock) {
-        allVectors().remove(documentId)
+        allVectors().keys.filter { it.startsWith(documentId + "::") || it == documentId }.toList()
+            .forEach { allVectors().remove(it) }
         persist()
     }
 
@@ -33,12 +37,16 @@ class KnowledgeSemanticIndex(context: Context) {
     }
 
     fun score(documentId: String, query: String): Double = synchronized(lock) {
-        cosine(buildVector(query), allVectors()[documentId].orEmpty())
+        val queryVector = buildVector(query)
+        allVectors().filterKeys { it.startsWith(documentId + "::") || it == documentId }
+            .values.maxOfOrNull { cosine(queryVector, it) } ?: 0.0
     }
 
     fun rebuild(documents: List<Pair<String, List<String>>>) = synchronized(lock) {
         val next = linkedMapOf<String, Map<String, Double>>()
-        documents.forEach { (id, chunks) -> next[id] = buildVector(chunks.joinToString(" ")) }
+        documents.forEach { (id, chunks) ->
+            chunks.forEachIndexed { index, chunk -> next[id + "::" + index] = buildVector(chunk) }
+        }
         vectors = next
         persist()
     }
