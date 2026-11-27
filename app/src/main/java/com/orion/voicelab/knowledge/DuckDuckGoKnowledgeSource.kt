@@ -200,7 +200,8 @@ internal fun buildSearchQuery(query: BrainQuery, terms: String): String {
         .mapNotNull { runCatching { URL(it.url).host }.getOrNull() }
     if (hosts.isEmpty()) return terms.take(240)
     val restriction = hosts.joinToString(" OR ") { "site:$it" }
-    return "($terms) ($restriction)".take(240)
+    val termsBudget = (220 - restriction.length).coerceAtLeast(40)
+    return "(${terms.take(termsBudget)}) ($restriction)".take(240)
 }
 
 /** Conservative publisher registry. Unknown domains are never upgraded by suffix guessing. */
