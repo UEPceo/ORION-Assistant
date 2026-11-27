@@ -69,6 +69,32 @@ object ConnectorVoiceIntentRouter {
             ))
         }
 
+        val pescaiaMention = containsAny(normalized, "pescaia", "pesca ia", "en la web de pesca")
+        if (pescaiaMention) {
+            val query = text.replace(Regex("""(?i)^.*?(?:consulta|busca|mira|revisa|abre)?\\s*(?:en\\s+)?(?:pescaia(?:\\s+surfcasting)?|pesca\\s+ia)\\s*[:,]?\\s*"""), "").trim()
+                .ifBlank { "playas y metodología" }
+            return RoutedAction(ConnectorAction(
+                ConnectorId.PESCAIA, "search_public", mapOf("query" to query.take(240))
+            ))
+        }
+
+        val mapsMention = containsAny(normalized, "google maps", "en maps", "abre maps", "mapa de")
+        if (mapsMention) {
+            val navigate = containsAny(normalized, "navega", "llévame", "llevame", "cómo llego", "como llego", "ruta")
+            val destination = text.replace(Regex("""(?i)^.*?(?:google\\s+maps|maps|mapa(?:\\s+de)?)\\s*"""), "")
+                .replace(Regex("""(?i)^(?:a|hasta|hacia)\\s+"""), "")
+                .trim().ifBlank { "" }
+            return RoutedAction(ConnectorAction(
+                ConnectorId.GOOGLE_MAPS,
+                if (navigate) "navigate" else "search_place",
+                mapOf("destination" to destination, "mode" to when {
+                    containsAny(normalized, "a pie", "andando", "caminando") -> "walking"
+                    containsAny(normalized, "transporte público", "transporte publico", "metro", "autobús", "autobus") -> "transit"
+                    else -> "driving"
+                })
+            ))
+        }
+
         if (containsAny(normalized, "mis repositorios", "repositorios de github", "repos de github", "lista mis repos")) {
             return RoutedAction(ConnectorAction(
                 ConnectorId.GITHUB, "list_repositories", mapOf("limit" to "10")
