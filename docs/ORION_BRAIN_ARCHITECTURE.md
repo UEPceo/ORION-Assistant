@@ -262,8 +262,8 @@ Esta actualización incorpora las primeras implementaciones de los seis frentes 
 ### 3. Conocimiento offline
 - Catálogo de seis packs previstos: normativa España/UE, seguridad España, ciberseguridad, Android/Kotlin, Python/Internet y pesca recreativa Andalucía.
 - Cada pack declara versión, dominios, jurisdicción, fuentes, licencia y frecuencia de revisión.
-- **Estado actualizado: seis packs con contenido real incluido en APK assets, 11 documentos fuente y un instalador local versionado.** Los documentos se incorporan al corpus privado al primer uso del cerebro, sin red ni descarga. Se calcula SHA-256 del contenido, se conserva URL/editor/autoridad/jurisdicción y se valida cada documento antes de guardarlo.
-- Packs incluidos: Android/Kotlin (ciclo de vida y coroutines), Python (fundamentos), ciberseguridad (OWASP Top 10 e higiene digital INCIBE), legislación España/UE (consulta BOE y EUR-Lex), seguridad general y pesca recreativa Andalucía (licencias, PescaREC y aviso sobre cambios judiciales).
+- **Estado actualizado: seis packs con contenido real incluido en APK assets, 12 documentos fuente y un instalador local versionado.** Los documentos se incorporan al corpus privado al primer uso del cerebro, sin red ni descarga. Se calcula SHA-256 del contenido, se conserva URL/editor/autoridad/jurisdicción y se valida cada documento antes de guardarlo.
+- Packs incluidos: Android/Kotlin (ciclo de vida y coroutines), Python (fundamentos y HTTP), ciberseguridad (OWASP Top 10 e higiene digital INCIBE), legislación España/UE (consulta BOE y EUR-Lex), emergencias 112 y pesca recreativa Andalucía (licencias, PescaREC y aviso sobre cambios judiciales).
 - La instalación es idempotente y versionada; el paquete andaluz está en versión 2 para reflejar información institucional consultada el 27/11/2026. Si un paquete falla, se registra el error y no se marca como instalado.
 - El contenido es una síntesis educativa con enlaces a las fuentes, no una copia íntegra ni una base legal exhaustiva. El conocimiento normativo y de seguridad debe verificarse online antes de actuar; las fechas de revisión y las advertencias de vigencia se conservan.
 
