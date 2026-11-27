@@ -24,6 +24,7 @@ object ConnectorActionGate {
         "search_messages",
         "list_messages",
         "get_message",
+        "read_latest_message",
         "list_repositories",
         "get_repository",
         "get_file",
