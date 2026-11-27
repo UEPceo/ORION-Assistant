@@ -16,6 +16,7 @@ class OrionSelfDiagnosticRegistryTest {
         assertTrue(report.contains("LLM"))
         assertTrue(report.contains("CONNECTORS"))
         assertTrue(report.contains("DIAGNOSTICS"))
+        assertTrue(report.contains("PLANNING"))
         assertTrue(report.contains("ONNX Runtime Android 1.28.0"))
         assertTrue(report.contains("encoder neuronal ONNX opcional"))
     }
