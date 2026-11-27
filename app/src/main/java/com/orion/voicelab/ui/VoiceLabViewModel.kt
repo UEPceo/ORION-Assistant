@@ -6,7 +6,6 @@ import android.net.Uri
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.orion.voicelab.BuildConfig
 import com.orion.voicelab.asr.MoonshineSpeechRecognitionEngine
 import com.orion.voicelab.audio.AudioRoutingController
 import com.orion.voicelab.conversation.ConversationEngine
@@ -2772,7 +2771,10 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val callTel = state.callTelemetry
         val hw = state.audioHardwareStatus
         return buildString {
-            appendLine("ORION Voice Lab ${BuildConfig.VERSION_NAME} — informe técnico de diagnóstico")
+            val versionName = runCatching {
+                appContext.packageManager.getPackageInfo(appContext.packageName, 0).versionName
+            }.getOrNull() ?: "desconocida"
+            appendLine("ORION Voice Lab $versionName — informe técnico de diagnóstico")
             appendLine("Generado: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())}")
             appendLine("Formato: texto UTF-8 · exportación local solicitada por el usuario")
             appendLine("Privacidad: no se incluyen mensajes, transcripciones, nombres de contactos ni números de teléfono.")
