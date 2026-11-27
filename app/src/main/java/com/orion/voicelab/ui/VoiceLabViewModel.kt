@@ -11,6 +11,8 @@ import com.orion.voicelab.conversation.ConversationEngine
 import com.orion.voicelab.connectors.ConnectorResult
 import com.orion.voicelab.connectors.ConnectorVoiceIntentRouter
 import com.orion.voicelab.connectors.OrionConnectorRuntime
+import com.orion.voicelab.creative.CreativeSkillRouter
+import com.orion.voicelab.creative.CreativeBrainPromptComposer
 import com.orion.voicelab.data.AsrStats
 import com.orion.voicelab.data.AssistantIdentity
 import com.orion.voicelab.data.AudioHardwareStatus
@@ -189,9 +191,16 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             val brainContext = withContext(Dispatchers.IO) {
                 brainRuntime.retrieve(userText)
             }
+            val creativeSkill = CreativeSkillRouter.route(userText)
+            val creativeContext = CreativeBrainPromptComposer.compose(
+                userText = userText,
+                skill = creativeSkill,
+                activeRole = latestSelectedCoworker?.roleTitle
+            )
             baseContext.copy(
                 systemPrompt = baseContext.systemPrompt + "\n\n" +
-                    BrainPromptComposer.compose(brainContext)
+                    BrainPromptComposer.compose(brainContext) +
+                    if (creativeContext.isBlank()) "" else "\n\n$creativeContext"
             )
         },
         directTurnResponder = { userText ->
