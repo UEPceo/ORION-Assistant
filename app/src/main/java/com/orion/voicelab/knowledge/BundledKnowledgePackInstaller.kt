@@ -133,8 +133,10 @@ class BundledKnowledgePackInstaller(
 
     private fun versionKey(id: String) = "pack_version_$id"
 
-    private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
-        .digest(value.toByteArray(Charsets.UTF_8))
+    private fun sha256(value: String): String = sha256(value.toByteArray(Charsets.UTF_8))
+
+    private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+        .digest(bytes)
         .joinToString("") { "%02x".format(it) }
 
     private companion object {
