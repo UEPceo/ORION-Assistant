@@ -7,6 +7,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.provider.Settings
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -38,6 +39,20 @@ class AndroidTaskReminderScheduler(
 
         fun notificationIdFor(taskId: Long): Int =
             NOTIFICATION_BASE_ID + (taskId.coerceAtLeast(0L) % 100_000L).toInt()
+
+        fun canScheduleExactAlarms(context: Context): Boolean {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+            val manager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return false
+            return manager.canScheduleExactAlarms()
+        }
+
+        /** Returns a system-settings intent; callers must launch it only after an explicit user action. */
+        fun exactAlarmSettingsIntent(context: Context): Intent? {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || canScheduleExactAlarms(context)) return null
+            return Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                data = Uri.parse("package:${context.packageName}")
+            }
+        }
 
         fun hasNotificationPermission(context: Context): Boolean =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -208,6 +223,17 @@ class AndroidTaskReminderScheduler(
                 val pi = buildAlarmPendingIntent(appContext, task.id)
                 alarmManager?.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, task.reminderAtMs, pi)
             }
+        }
+    }
+
+    private fun scheduleAlarm(taskId: Long, triggerAtMs: Long) {
+        val manager = alarmManager ?: return
+        val pendingIntent = buildAlarmPendingIntent(appContext, taskId)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && canScheduleExactAlarms(appContext)) {
+            manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
+        } else {
+            // Android may defer this alarm; keep reminders functional without special access.
+            manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
         }
     }
 
