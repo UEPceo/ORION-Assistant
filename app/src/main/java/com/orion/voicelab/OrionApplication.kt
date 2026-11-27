@@ -11,4 +11,14 @@ class OrionApplication : Application() {
         OrionCrashDiagnostics.install(this)
         OrionCrashDiagnostics.recordHistoricalProcessExits(this)
     }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        OrionCrashDiagnostics.recordMemoryPressure(this, level)
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        OrionCrashDiagnostics.recordLowMemory(this)
+    }
 }
