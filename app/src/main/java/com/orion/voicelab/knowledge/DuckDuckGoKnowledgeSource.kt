@@ -162,9 +162,9 @@ object WebSearchIntentPolicy {
         var value = text.trim()
         val prefix = explicitPrefixes.firstOrNull { value.startsWith(it, ignoreCase = true) } ?: return null
         value = value.drop(prefix.length).trimStart(' ', ':', ',', ';')
-        value = value.replace(Regex("[A-Z0-9._%+-]+@[A-Z0-9.-]+\\\\.[A-Z]{2,}", RegexOption.IGNORE_CASE), " ")
-            .replace(Regex("(?<!\\\\w)(?:\\\\+?\\\\d[\\\\d\\\\s().-]{7,}\\\\d)(?!\\\\w)"), " ")
-            .replace(Regex("\\\\s+"), " ").trim()
+        value = value.replace(Regex("[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("(?<!\\w)(?:\\+?\\d[\\d\\s().-]{7,}\\d)(?!\\w)"), " ")
+            .replace(Regex("\\s+"), " ").trim()
         return value.takeIf { it.length >= 3 }?.take(240)
     }
 }
