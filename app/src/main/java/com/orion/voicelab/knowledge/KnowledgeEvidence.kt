@@ -83,6 +83,14 @@ object KnowledgeVerifier {
         val relevant = evidence.filter { it.domain == domain && it.canonicalUrl.isNotBlank() }
         val publishers = relevant.map { it.publisherId.trim().lowercase() }
             .filter(String::isNotBlank).toSet()
+        val corroboratingPublishers = relevant.filter {
+            it.authority in setOf(
+                EvidenceAuthority.OFFICIAL_PRIMARY,
+                EvidenceAuthority.PRIMARY_TECHNICAL,
+                EvidenceAuthority.PEER_REVIEWED,
+                EvidenceAuthority.REPUTABLE_SECONDARY
+            )
+        }.map { it.publisherId.trim().lowercase() }.filter(String::isNotBlank).toSet()
         val hasPrimary = relevant.any {
             it.authority == EvidenceAuthority.OFFICIAL_PRIMARY ||
                 it.authority == EvidenceAuthority.PRIMARY_TECHNICAL
@@ -125,9 +133,9 @@ object KnowledgeVerifier {
                 verdict = KnowledgeVerdict.PRIMARY_SOURCE_REQUIRED
                 reason = "Este ámbito exige una fuente oficial o primaria antes de afirmar que el dato está verificado."
             }
-            publishers.size < 2 && !hasPrimary -> {
+            corroboratingPublishers.size < 2 && !hasPrimary -> {
                 verdict = KnowledgeVerdict.NEEDS_CORROBORATION
-                reason = "Solo hay una fuente independiente y no es primaria."
+                reason = "No hay dos fuentes independientes con autoridad suficiente; los fragmentos de buscador y las fuentes desconocidas no cuentan como corroboración."
             }
             else -> {
                 verdict = KnowledgeVerdict.SUPPORTED
