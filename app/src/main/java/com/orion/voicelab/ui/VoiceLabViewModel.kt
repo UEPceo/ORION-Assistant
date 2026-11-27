@@ -25,6 +25,8 @@ import com.orion.voicelab.data.ComponentModelState
 import com.orion.voicelab.data.ContactProfile
 import com.orion.voicelab.data.ConversationState
 import com.orion.voicelab.data.ConversationTurn
+import com.orion.voicelab.data.ChatMessage
+import com.orion.voicelab.data.ChatRole
 import com.orion.voicelab.data.DeviceMetrics
 import com.orion.voicelab.data.ListeningState
 import com.orion.voicelab.data.MemoryCategory
@@ -257,6 +259,11 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         },
         directTurnResponder = { userText ->
             handleVoiceTurnCommand(userText)
+                ?: if (PlanningPromptComposer.isMultiStepRequest(userText)) {
+                    generatePlanProposalResponse(userText)
+                } else {
+                    null
+                }
         }
     )
 
@@ -325,6 +332,47 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     /** Stores a validated plan locally before any step is allowed to execute. */
     fun savePlanExecution(plan: OrionPlan): Job = viewModelScope.launch(Dispatchers.IO) {
         planExecutionService.create(plan)
+    }
+
+    private suspend fun generatePlanProposalResponse(userText: String): String? {
+        if (!languageModel.isLoaded()) return null
+        val systemPrompt = """
+            Eres el generador estructurado de planes de ORION. Tu única salida debe ser un objeto JSON válido, sin Markdown ni bloques de código.
+            Convierte la solicitud del usuario en un plan de consultas de SOLO LECTURA. No ejecutes nada y no inventes capacidades.
+            Máximo 8 pasos. Usa solo kind=CONNECTOR_READ y risk=LOW; requiresApproval=false.
+            Conectores y operaciones exactas disponibles:
+            - GMAIL: search_messages (requiere query), get_message (requiere message_id), read_latest_message (query opcional).
+            - GITHUB: list_repositories (limit opcional), get_issue (repository y number), list_commits (repository), list_workflow_runs (repository), list_files (repository; path opcional), list_issues (repository; state opcional).
+            - GOOGLE_MAPS: search_place (destination). Esta operación abre Maps cuando el usuario ejecute el plan.
+            - PESCAIA: search_public (query).
+            No propongas escrituras, envíos, llamadas, borrados, compras, navegación ni operaciones distintas de la lista.
+            No incluyas contraseñas, tokens, credenciales ni datos de autenticación.
+            Si la petición no se puede resolver con esas consultas, devuelve un JSON con steps vacío.
+            Esquema:
+            {"goal":"objetivo breve","budget":{"maxSteps":8,"maxRetriesPerStep":1,"maxDurationMs":120000},"steps":[{"id":"s1","kind":"CONNECTOR_READ","title":"...","rationale":"...","risk":"LOW","dependsOn":[],"requiresApproval":false,"connectorId":"GITHUB","connectorOperation":"list_repositories","connectorArguments":{"limit":"5"}}]}
+            Los argumentos deben ser cadenas. IDs únicos. Las dependencias deben referirse a IDs existentes y no crear ciclos.
+        """.trimIndent()
+        val generated = languageModel.generateReply(
+            systemPrompt = systemPrompt,
+            history = listOf(ChatMessage(ChatRole.USER, userText.take(2_000)))
+        ) { }
+        if (generated.cancelled || generated.text.isBlank()) return null
+        val rawJson = generated.text.trim()
+            .removePrefix("```json")
+            .removePrefix("```")
+            .removeSuffix("```")
+            .trim()
+        return when (val parsed = PlanProposalParser.parse(rawJson, UUID.randomUUID().toString())) {
+            is PlanProposalParseResult.Valid -> {
+                try {
+                    withContext(Dispatchers.IO) { planExecutionService.create(parsed.plan) }
+                    "He preparado y guardado un borrador de plan con ${parsed.plan.steps.size} consultas. No he ejecutado ninguna acción. Revísalo en Ajustes → Planes y ejecuciones guardadas; podrás autorizar su ejecución cuando las conexiones necesarias estén disponibles."
+                } catch (error: Exception) {
+                    "He podido estructurar el plan, pero no guardarlo: ${error.message ?: error::class.java.simpleName}. No se ha ejecutado nada."
+                }
+            }
+            is PlanProposalParseResult.Invalid -> null
+        }
     }
 
     /** Parses a structured model proposal and stores it for user review; never executes it. */
