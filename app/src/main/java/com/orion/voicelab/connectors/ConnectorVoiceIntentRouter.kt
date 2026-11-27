@@ -13,6 +13,14 @@ object ConnectorVoiceIntentRouter {
         val normalized = text.trim().lowercase()
         if (normalized.isBlank()) return null
 
+        val messageId = Regex("""(?:abre|lee|muestra|consulta) (?:el )?(?:correo|mensaje) (?:con )?(?:id )?([A-Za-z0-9_-]{10,200})""", RegexOption.IGNORE_CASE)
+            .find(text)?.groupValues?.get(1)
+        if (messageId != null) {
+            return RoutedAction(ConnectorAction(
+                ConnectorId.GMAIL, "get_message", mapOf("message_id" to messageId)
+            ))
+        }
+
         if (containsAny(normalized, "gmail", "mi correo", "mis correos", "correo electrónico", "emails")) {
             val rawQuery = text.substringAfter(':', "").trim().takeIf { it.isNotBlank() }
                 ?: stripLeadingIntent(text, listOf(
@@ -43,7 +51,10 @@ object ConnectorVoiceIntentRouter {
         }
 
         val repository = repositoryPattern.find(text)?.value ?: lastRepository
+        val issueNumber = Regex("""(?:incidencia|issue)\s+#?(\d+)""", RegexOption.IGNORE_CASE)
+            .find(text)?.groupValues?.get(1)
         val operation = when {
+            issueNumber != null && containsAny(normalized, "detalle", "detalles", "información", "informacion", "describe", "abre") -> "get_issue"
             containsAny(normalized, "commit", "commits", "cambios recientes", "últimos cambios", "ultimos cambios", "historial de cambios") -> "list_commits"
             containsAny(normalized, "ci", "compilación", "compilacion", "workflow", "actions", "integración continua", "integracion continua", "ha terminado de compilar") -> "list_workflow_runs"
             containsAny(normalized, "archivos", "carpetas", "estructura del repo", "estructura del repositorio", "contenido del repositorio") -> "list_files"
@@ -54,6 +65,7 @@ object ConnectorVoiceIntentRouter {
         val repo = repository.orEmpty()
         val args = buildMap {
             if (repo.isNotBlank()) put("repository", repo)
+            if (operation == "get_issue" && issueNumber != null) put("number", issueNumber)
             if (operation == "list_issues") put("state", if (normalized.contains("cerrad")) "closed" else "open")
             if (operation == "list_files") {
                 val pathMatch = Regex("""(?:en la ruta|en carpeta|carpeta|directorio)\s+([A-Za-z0-9_./-]{1,250})""", RegexOption.IGNORE_CASE).find(text)
