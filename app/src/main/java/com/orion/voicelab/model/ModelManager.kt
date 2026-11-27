@@ -402,6 +402,7 @@ object ModelManager {
 
     fun isTtsVoiceInstalled(filesDir: File, directoryName: String, modelFileName: String): Boolean {
         val directory = ttsVoiceDirectory(filesDir, directoryName)
+        recoverBackupIfNeeded(directory, File(filesDir, "models/$directoryName.bak"))
         val model = File(directory, modelFileName)
         val tokens = File(directory, "tokens.txt")
         val espeak = File(directory, "espeak-ng-data")
