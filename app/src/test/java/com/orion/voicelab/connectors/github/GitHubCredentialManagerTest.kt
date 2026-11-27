@@ -3,7 +3,7 @@ package com.orion.voicelab.connectors.github
 import com.orion.voicelab.connectors.ConnectorCredentialStore
 import com.orion.voicelab.connectors.ConnectorId
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -27,7 +27,9 @@ class GitHubCredentialManagerTest {
         )
 
         assertTrue(manager.isConnected())
-        assertArrayEquals(token.toByteArray(Charsets.UTF_8), store.value!!)
+        val stored = org.json.JSONObject(String(store.value!!, Charsets.UTF_8))
+        assertEquals(token, stored.getString("access_token"))
+        assertEquals("test-refresh-token", stored.getString("refresh_token"))
 
         manager.disconnect()
 
