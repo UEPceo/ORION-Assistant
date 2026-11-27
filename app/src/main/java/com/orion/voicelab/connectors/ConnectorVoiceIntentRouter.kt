@@ -71,7 +71,7 @@ object ConnectorVoiceIntentRouter {
 
         val pescaiaMention = containsAny(normalized, "pescaia", "pesca ia", "en la web de pesca")
         if (pescaiaMention) {
-            val query = text.replace(Regex("""(?i)^.*?(?:consulta|busca|mira|revisa|abre)?\\s*(?:en\\s+)?(?:pescaia(?:\\s+surfcasting)?|pesca\\s+ia)\\s*[:,]?\\s*"""), "").trim()
+            val query = text.replace(Regex("""(?i)^.*?(?:consulta|busca|mira|revisa|abre)?\s*(?:en\s+)?(?:pescaia(?:\s+surfcasting)?|pesca\s+ia)\s*[:,]?\s*"""), "").trim()
                 .ifBlank { "playas y metodología" }
             return RoutedAction(ConnectorAction(
                 ConnectorId.PESCAIA, "search_public", mapOf("query" to query.take(240))
@@ -81,8 +81,8 @@ object ConnectorVoiceIntentRouter {
         val mapsMention = containsAny(normalized, "google maps", "en maps", "abre maps", "mapa de")
         if (mapsMention) {
             val navigate = containsAny(normalized, "navega", "llévame", "llevame", "cómo llego", "como llego", "ruta")
-            val destination = text.replace(Regex("""(?i)^.*?(?:google\\s+maps|maps|mapa(?:\\s+de)?)\\s*"""), "")
-                .replace(Regex("""(?i)^(?:a|hasta|hacia)\\s+"""), "")
+            val destination = text.replace(Regex("""(?i)^.*?(?:google\s+maps|maps|mapa(?:\s+de)?)\s*"""), "")
+                .replace(Regex("""(?i)^(?:a|hasta|hacia)\s+"""), "")
                 .trim().ifBlank { "" }
             return RoutedAction(ConnectorAction(
                 ConnectorId.GOOGLE_MAPS,
