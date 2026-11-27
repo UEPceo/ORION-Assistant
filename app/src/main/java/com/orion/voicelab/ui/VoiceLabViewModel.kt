@@ -617,11 +617,6 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 installAsrSuspend(throwOnError = true)
                 installLlmSuspend(throwOnError = true)
 
-                val allReady = ModelManager.isAsrInstalled(appContext.filesDir) &&
-                    ModelManager.isTtsInstalled(appContext.filesDir) &&
-                    ModelManager.isLlmInstalled(appContext.filesDir)
-                if (allReady) {
-                }
                 _uiState.update {
                     it.copy(
                         isAutoDownloadingInitialModels = false,
