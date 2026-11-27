@@ -108,4 +108,21 @@ class KnowledgeVerifierTest {
         assertEquals(KnowledgeVerdict.STALE, result.verdict)
     }
 
+    @Test
+    fun technicalDocumentationCannotReplaceOfficialLegalAuthority() {
+        val technical = evidence(
+            "developer.android.com",
+            EvidenceAuthority.PRIMARY_TECHNICAL,
+            KnowledgeDomain.LAW_AND_REGULATION
+        )
+        val result = KnowledgeVerifier.assess(
+            listOf(technical),
+            KnowledgeDomain.LAW_AND_REGULATION,
+            nowMs = 10_000L,
+            maxAgeMs = 60_000L,
+            requiresPublishedDate = true
+        )
+        assertEquals(KnowledgeVerdict.PRIMARY_SOURCE_REQUIRED, result.verdict)
+    }
+
 }
