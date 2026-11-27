@@ -40,7 +40,7 @@
 - La exportación es manual y permanece en el destino que el usuario elija; ORION no envía el informe a ningún servidor.
 
 
-Asistente personal y conversacional de voz **100 % offline y de coste cero (0 €)** en español para Android (`arm64-v8a`), construido con **Kotlin**, **Jetpack Compose (Material 3)**, **Room + KSP**, **sherpa-onnx** (`1.13.8`) y **llama.cpp** (`io.github.ljcamargo:llamacpp-kotlin:0.4.0`).
+Asistente personal y conversacional de voz en español para Android (`arm64-v8a`), con núcleo de voz/LLM/memoria local y offline tras descargar los modelos. Los conectores opcionales Gmail y GitHub requieren Internet y autorización OAuth. Construido con **Kotlin**, **Jetpack Compose (Material 3)**, **Room + KSP**, **sherpa-onnx** (`1.13.8`) y **llama.cpp** (`io.github.ljcamargo:llamacpp-kotlin:0.4.0`).
 
 ## Novedades de la Fase 0.7.0 (Asistente personal, tareas y recordatorios locales)
 
@@ -132,7 +132,7 @@ Asistente personal y conversacional de voz **100 % offline y de coste cero (0 �
 6. **TTS en español (`LocalSpeechSynthesizer` / `SherpaOnnxSpeechSynthesizer`)**: **Piper VITS `es_ES-sharvard-medium-int8`** (`MIT / CC-BY 3.0`), 2 voces españolas, reproducción por `AudioTrack`.
 7. **Interrupción (*barge-in*) y control de RAM**: Botón **Interrumpir** o voz sostenida del usuario; **Liberar RAM** descarga modelos sin borrar archivos ni memoria persistente.
 
-Sin claves API, sin suscripciones ni llamadas a servicios en la nube (coste **0 €**).
+El núcleo local no requiere claves de proveedores externos ni suscripciones. Las integraciones opcionales acceden a Gmail y GitHub mediante sus APIs oficiales y requieren conexión.
 
 
 ## Conectores Gmail y GitHub — primera integración funcional
