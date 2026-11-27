@@ -77,6 +77,7 @@ import androidx.compose.material.icons.outlined.PhoneInTalk
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -150,6 +151,7 @@ private enum class OrionTab {
     MEMORY,
     CONNECTORS,
     LAB,
+    MORE,
     SETTINGS
 }
 
@@ -592,6 +594,15 @@ fun OrionVoiceLabScreen(
                             }
                         }
 
+                        OrionTab.MORE -> {
+                            OrionMoreScreen(
+                                onOpenConversations = { selectedTab = OrionTab.CONVERSATIONS },
+                                onOpenMemory = { selectedTab = OrionTab.MEMORY },
+                                onOpenConnectors = { selectedTab = OrionTab.CONNECTORS },
+                                onOpenLab = { selectedTab = OrionTab.LAB }
+                            )
+                        }
+
                         OrionTab.SETTINGS -> {
                             OrionSettingsScreen(
                                 state = state,
@@ -688,32 +699,15 @@ private fun TopBrandAndTabs(
                         modifier = tabItemMod("tab_tasks")
                     )
                     TabSegmentButton(
-                        selected = selectedTab == OrionTab.CONVERSATIONS,
-                        icon = Icons.Outlined.Forum,
-                        label = stringResource(R.string.tab_conversations),
-                        onClick = { onSelectTab(OrionTab.CONVERSATIONS) },
-                        modifier = tabItemMod("tab_conversations")
-                    )
-                    TabSegmentButton(
-                        selected = selectedTab == OrionTab.MEMORY,
-                        icon = Icons.Outlined.Psychology,
-                        label = stringResource(R.string.tab_memory),
-                        onClick = { onSelectTab(OrionTab.MEMORY) },
-                        modifier = tabItemMod("tab_memory")
-                    )
-                    TabSegmentButton(
-                        selected = selectedTab == OrionTab.CONNECTORS,
-                        icon = Icons.Outlined.Lock,
-                        label = stringResource(R.string.tab_connectors),
-                        onClick = { onSelectTab(OrionTab.CONNECTORS) },
-                        modifier = tabItemMod("tab_connectors")
-                    )
-                    TabSegmentButton(
-                        selected = selectedTab == OrionTab.LAB,
-                        icon = Icons.Outlined.Science,
-                        label = stringResource(R.string.tab_lab),
-                        onClick = { onSelectTab(OrionTab.LAB) },
-                        modifier = tabItemMod("tab_lab")
+                        selected = selectedTab == OrionTab.MORE ||
+                            selectedTab == OrionTab.CONVERSATIONS ||
+                            selectedTab == OrionTab.MEMORY ||
+                            selectedTab == OrionTab.CONNECTORS ||
+                            selectedTab == OrionTab.LAB,
+                        icon = Icons.Outlined.Menu,
+                        label = "Más",
+                        onClick = { onSelectTab(OrionTab.MORE) },
+                        modifier = tabItemMod("tab_more")
                     )
                     TabSegmentButton(
                         selected = selectedTab == OrionTab.SETTINGS,
