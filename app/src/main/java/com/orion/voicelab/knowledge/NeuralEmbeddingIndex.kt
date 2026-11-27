@@ -119,6 +119,7 @@ class NeuralEmbeddingIndex(context: Context) {
         private const val SCHEMA = 1
         fun contentFingerprint(chunks: List<String>): String {
             val digest = MessageDigest.getInstance("SHA-256")
+            digest.update(NeuralEmbeddingModelManager.MODEL_ID.toByteArray(Charsets.UTF_8))
             chunks.forEach { digest.update(it.toByteArray(Charsets.UTF_8)); digest.update(0.toByte()) }
             return digest.digest().joinToString("") { "%02x".format(it) }
         }
