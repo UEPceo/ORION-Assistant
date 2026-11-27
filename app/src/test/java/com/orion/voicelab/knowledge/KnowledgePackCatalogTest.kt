@@ -3,7 +3,7 @@ import org.junit.Assert.*
 import org.junit.Test
 class KnowledgePackCatalogTest {
  @Test fun noMetadataOnlyPackIsClaimedAsInstalled() {
-  assertTrue(KnowledgePackCatalog.installed().isEmpty())
+  assertTrue(KnowledgePackCatalog.withRuntimeState(emptySet()).none { it.state == KnowledgePackState.INSTALLED })
   assertTrue(KnowledgePackCatalog.packs.all { it.state==KnowledgePackState.READY_TO_INSTALL })
  }
  @Test fun allSixOfflinePacksHaveRealBundledAssets() {
