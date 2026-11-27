@@ -96,7 +96,7 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                     val conflicts = item.optJSONArray("conflictsWithIds")?.let { values ->
                         buildSet {
                             for (conflictIndex in 0 until values.length()) {
-                                values.optString(conflictIndex).takeIf(String::isNotBlank)?.let(::add)
+                                values.optString(conflictIndex).takeIf { it.isNotBlank() }?.let { add(it) }
                             }
                         }
                     }.orEmpty()
@@ -130,7 +130,7 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                 evidence.contentHash?.let { put("contentHash", it) }
                 put("excerpt", document.excerpt)
                 val conflicts = JSONArray()
-                document.conflictsWithIds.forEach(conflicts::put)
+                document.conflictsWithIds.forEach { conflicts.put(it) }
                 put("conflictsWithIds", conflicts)
             })
         }
