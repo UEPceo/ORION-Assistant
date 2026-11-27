@@ -22,14 +22,17 @@ Límite importante: Android no ofrece un proveedor universal que permita leer to
 
 ## 2. Calendario
 
-Primera vía: Android Calendar Provider (CalendarContract), con permisos de lectura/escritura solicitados por separado y explicados al usuario.
+Primera entrega implementada:
+- Formulario para preparar título, fecha, hora de inicio/fin y descripción.
+- Transferencia mediante ACTION_INSERT y CalendarContract.Events.CONTENT_URI a la aplicación de calendario instalada.
+- El usuario revisa y guarda el evento en la aplicación de destino. No se solicitan permisos de calendario y ORION no escribe silenciosamente.
 
-Capacidades:
-- Consultar próximos eventos y disponibilidad básica de calendarios seleccionados.
-- Crear, modificar y eliminar eventos después de confirmación contextual.
-- Crear recordatorios/tareas locales de ORION sin depender del calendario.
-- Respetar zona horaria, recurrencia, calendario de destino, invitados y eventos de día completo.
-- Si no se concede permiso, abrir la pantalla de creación/consulta de la aplicación de calendario mediante intents del sistema.
+Pendiente para completar el conector:
+- Lectura de próximos eventos mediante CalendarContract con permiso READ_CALENDAR en tiempo de ejecución.
+- Crear directamente en un calendario seleccionado con WRITE_CALENDAR y confirmación explícita, si el usuario habilita esa modalidad.
+- Modificar y eliminar eventos con confirmación reforzada.
+- Recurrencia, invitados y eventos de día completo.
+- Consultar disponibilidad sin duplicar la agenda dentro de la base local de ORION.
 
 No duplicar el calendario completo dentro de la base de ORION. Consultar bajo demanda y guardar únicamente el contexto mínimo autorizado.
 
