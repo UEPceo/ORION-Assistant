@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.PhoneInTalk
 import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -32,7 +33,8 @@ fun OrionMoreScreen(
     onOpenConversations: () -> Unit,
     onOpenMemory: () -> Unit,
     onOpenConnectors: () -> Unit,
-    onOpenLab: () -> Unit
+    onOpenLab: () -> Unit,
+    onOpenPhoneTools: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -45,6 +47,7 @@ fun OrionMoreScreen(
         MoreDestinationCard("Conversaciones", "Consulta y recupera tus conversaciones anteriores.", Icons.Outlined.Forum, onOpenConversations, "tab_conversations")
         MoreDestinationCard("Memoria", "Gestiona los recuerdos y la identidad de ORION.", Icons.Outlined.Memory, onOpenMemory, "tab_memory")
         MoreDestinationCard("Conectores", "Administra las aplicaciones y servicios autorizados.", Icons.Outlined.Lock, onOpenConnectors, "tab_connectors")
+        MoreDestinationCard("Contactos del dispositivo y llamadas", "Buscar contactos del móvil, consultar llamadas y gestionar devoluciones de llamada.", Icons.Outlined.PhoneInTalk, onOpenPhoneTools, "more_phone_tools")
         MoreDestinationCard("Laboratorio y diagnóstico", "Estado de modelos, rendimiento e informes técnicos.", Icons.Outlined.Science, onOpenLab, "tab_lab")
     }
 }
