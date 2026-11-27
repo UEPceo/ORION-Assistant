@@ -216,7 +216,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                     OrionCrashDiagnostics.readRecentDiagnostics(appContext)
                 } else {
                     ""
-                }
+                },
+                context = appContext
             )
             baseContext.copy(
                 systemPrompt = buildString {
