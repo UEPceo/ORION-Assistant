@@ -1,6 +1,6 @@
 # ORION — Arquitectura del cerebro autónomo y conocimiento verificable
 
-Estado: especificación de arquitectura para guiar la siguiente fase.
+Estado: núcleo modular implementado e integrado en el contexto de cada turno; conectores de fuentes externas e ingesta avanzada pendientes.
 
 ## Objetivo
 
@@ -32,7 +32,7 @@ ORION no puede garantizar verdad absoluta ni prometer que nunca cometerá errore
 - Si no hay evidencia suficiente, ORION dice «no lo he podido verificar» y no completa huecos inventando.
 - Cada dato dinámico (tiempo, mareas, tráfico, disponibilidad, calendario, CI) lleva fecha/hora de consulta y zona geográfica cuando corresponda.
 
-Se ha incorporado el primer contrato ejecutable de evidencia en knowledge/KnowledgeEvidence.kt, con veredictos conservadores: SUPPORTED, NEEDS_CORROBORATION, PRIMARY_SOURCE_REQUIRED, STALE, CONFLICTING y NO_EVIDENCE. Es una puerta de calidad inicial, no un motor semántico completo ni una prueba matemática de verdad.
+Se han incorporado contratos de evidencia, enrutador determinista por dominio, repositorio local privado persistente, motor de recuperación, composición de contexto con procedencia y política de aprendizaje. Los veredictos incluyen SUPPORTED, NEEDS_CORROBORATION, PRIMARY_SOURCE_REQUIRED, STALE, CONFLICTING, NO_EVIDENCE e INVALID_TIMESTAMP. El núcleo ya se invoca desde el contexto de cada turno de voz. El corpus local comienza vacío: no se simula que existan fuentes descargadas ni se presenta el conocimiento del modelo como evidencia. La recuperación actual es léxica y local; todavía no es búsqueda semántica/vectorial ni recuperación web.
 
 ## Fuentes por ámbito
 
