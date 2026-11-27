@@ -34,7 +34,7 @@ class OrionSelfDiagnosticRegistryTest {
 
     @Test
     fun reportDoesNotInventLocationWithoutStackTrace() {
-        val log = "[2026-11-27 12:00:00.000] ERROR: eventId=OR-124 component=ASR causa=unknown"
+        val log = "[2026-11-27 12:00:00.000] ERROR: eventId=OR-124 component=ASR cause=unknown"
         val report = OrionSelfDiagnosticRegistry.composeReport(VoiceLabUiState(), log)
         assertTrue(report.contains("No se ha encontrado un marco Kotlin"))
         assertTrue(report.contains("No hay firma conocida"))
