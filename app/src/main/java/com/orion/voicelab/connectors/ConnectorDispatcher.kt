@@ -42,7 +42,7 @@ class ConnectorDispatcher(
                 if (!userConfirmed) {
                     ConnectorResult.ConfirmationRequired(
                         action = action,
-                        prompt = "Voy a ejecutar ${action.operation} en ${action.connectorId}. ¿Confirmas esta acción?"
+                        prompt = confirmationPrompt(action)
                     )
                 } else {
                     executeSafely(connector, action)
@@ -50,6 +50,21 @@ class ConnectorDispatcher(
             }
             ConnectorAuthorizationDecision.ALLOW -> executeSafely(connector, action)
         }
+    }
+
+    private fun confirmationPrompt(action: ConnectorAction): String {
+        val safeArguments = action.arguments.entries
+            .filterNot { (key, _) ->
+                key.contains("token", ignoreCase = true) ||
+                    key.contains("secret", ignoreCase = true) ||
+                    key.contains("password", ignoreCase = true) ||
+                    key.contains("authorization", ignoreCase = true)
+            }
+            .take(5)
+            .joinToString("; ") { (key, value) -> "$key=${value.take(160)}" }
+            .take(500)
+        val details = safeArguments.takeIf { it.isNotBlank() }?.let { " Detalles: $it." }.orEmpty()
+        return "Voy a ejecutar ${action.operation} en ${action.connectorId}.$details ¿Confirmas esta acción?"
     }
 
     private suspend fun executeSafely(
