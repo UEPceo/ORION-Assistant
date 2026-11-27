@@ -9,7 +9,7 @@ sealed interface PlanProposalParseResult {
     data class Invalid(val errors: List<String>) : PlanProposalParseResult
 }
 
-/** Strict parser for a future structured LLM plan channel. Parsing never executes a plan. */
+/** Strict parser for structured LLM plan proposals. Parsing never executes a plan. Parsing never executes a plan. */
 object PlanProposalParser {
     private const val MAX_INPUT_CHARS = 24_000
     private const val MAX_STEPS = 12
