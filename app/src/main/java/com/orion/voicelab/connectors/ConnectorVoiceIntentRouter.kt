@@ -35,12 +35,18 @@ object ConnectorVoiceIntentRouter {
                 .trim()
             val recentOnly = normalized.contains("últimos correos") || normalized.contains("ultimos correos") ||
                 normalized.contains("correos recientes")
+            val recentTail = Regex("""^(?:los\\s+)?(?:últimos|ultimos|recientes)\\s+correos(?:\\s+de)?\\s*""", RegexOption.IGNORE_CASE)
+                .find(query)?.let { query.drop(it.value.length).trim() }
+            val effectiveQuery = if (recentOnly && recentTail != null) {
+                if (recentTail.isBlank()) "" else "from:$recentTail"
+            } else query
             val gmailQuery = when {
-                query.isBlank() && recentOnly -> "newer_than:7d"
-                query.isBlank() -> "in:anywhere"
-                query.lowercase().contains("último") || query.lowercase().contains("ultimo") ||
-                    query.lowercase().contains("reciente") -> "newer_than:7d $query".take(256)
-                else -> query.take(256)
+                effectiveQuery.isBlank() && recentOnly -> "newer_than:7d"
+                effectiveQuery.isBlank() -> "in:anywhere"
+                recentOnly -> "newer_than:7d $effectiveQuery".take(256)
+                effectiveQuery.lowercase().contains("último") || effectiveQuery.lowercase().contains("ultimo") ||
+                    effectiveQuery.lowercase().contains("reciente") -> "newer_than:7d $effectiveQuery".take(256)
+                else -> effectiveQuery.take(256)
             }
             return RoutedAction(ConnectorAction(
                 connectorId = ConnectorId.GMAIL,
