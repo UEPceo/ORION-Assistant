@@ -143,4 +143,18 @@ class PlanningContractsTest {
         assertTrue(paused?.summary?.contains("incierto") == true)
     }
 
+    @Test fun rejectsCredentialMaterialFromPersistedConnectorArguments() {
+        val plan = OrionPlan("secret", "unsafe", listOf(
+            PlannedStep(
+                "read", PlanStepKind.CONNECTOR_READ, "Read", "", PlanRisk.LOW,
+                connectorId = ConnectorId.GITHUB,
+                connectorOperation = "get_issue",
+                connectorArguments = mapOf("access_token" to "must-not-be-saved")
+            )
+        ))
+        val validation = PlanValidator.validate(plan)
+        assertFalse(validation.valid)
+        assertTrue(validation.errors.any { it.contains("credencial") })
+    }
+
 }
