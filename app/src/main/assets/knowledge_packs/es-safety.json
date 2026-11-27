@@ -1,0 +1,17 @@
+{
+  "id": "es-safety",
+  "version": 1,
+  "title": "Seguridad personal y actuación ante emergencias",
+  "documents": [
+    {
+      "id": "emergency-principles",
+      "title": "Principios generales de actuación ante una emergencia",
+      "url": "https://www.sanidad.gob.es/",
+      "publisher": "Ministerio de Sanidad",
+      "domain": "HEALTH_AND_SAFETY",
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "ES",
+      "content": "Ante un peligro inmediato para la vida o la integridad, prioriza la seguridad de la escena y contacta con los servicios de emergencia mediante el número oficial aplicable en tu ubicación. No te expongas a humo, fuego, tráfico, electricidad, agua peligrosa ni sustancias desconocidas para intentar ayudar. Comunica con claridad qué ha ocurrido, ubicación precisa, número de personas afectadas, riesgos presentes y estado aparente. Sigue las instrucciones del operador y no cuelgues hasta que te lo indiquen. Si la escena es segura, presta únicamente la ayuda para la que estés formado y evita mover a una persona con posible lesión grave salvo peligro inmediato. No administres alimentos, bebidas ni medicamentos a una persona inconsciente. Esta ficha es orientación general, no un protocolo clínico ni una guía de primeros auxilios completa. Los números, protocolos y recomendaciones dependen del país y pueden actualizarse; ORION debe confirmar la fuente oficial local antes de dar instrucciones específicas."
+    }
+  ]
+}
