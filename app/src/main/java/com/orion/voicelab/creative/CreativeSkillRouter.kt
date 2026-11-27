@@ -8,10 +8,10 @@ object CreativeSkillRouter {
     fun route(text: String): CreativeSkill {
         val value = text.lowercase(Locale.ROOT)
         return when {
-            any(value, "interpreta esta imagen", "analiza esta foto", "qué aparece en la imagen", "describe la imagen", "lee el texto de la foto") -> CreativeSkill.IMAGE_UNDERSTANDING
-            any(value, "analiza este vídeo", "analiza este video", "resume el vídeo", "resume el video", "resume este vídeo", "resume este video", "qué ocurre en el vídeo", "que ocurre en el video") -> CreativeSkill.VIDEO_UNDERSTANDING
+            any(value, "interpreta esta imagen", "analiza esta imagen", "analiza esta foto", "qué aparece en la imagen", "describe la imagen", "lee el texto de la foto") -> CreativeSkill.IMAGE_UNDERSTANDING
+            any(value, "analiza este vídeo", "analiza este video", "interpreta el vídeo", "interpreta el video", "resume el vídeo", "resume el video", "resume este vídeo", "resume este video", "qué ocurre en el vídeo", "que ocurre en el video") -> CreativeSkill.VIDEO_UNDERSTANDING
             any(value, "genera un vídeo", "genera un video", "crea un vídeo", "crea un video", "anima esta imagen") -> CreativeSkill.VIDEO_GENERATION
-            any(value, "genera una imagen", "crea una imagen", "dibuja", "ilustra", "renderiza") -> CreativeSkill.IMAGE_GENERATION
+            any(value, "genera una imagen", "crea una imagen", "haz una imagen", "dibuja", "ilustra", "renderiza") -> CreativeSkill.IMAGE_GENERATION
             any(value, "analiza las métricas", "rendimiento de publicaciones", "estadísticas de redes", "estadisticas de redes") -> CreativeSkill.CONTENT_ANALYTICS
             any(value, "storyboard", "guion visual", "secuencia de planos") -> CreativeSkill.STORYBOARD
             any(value, "instagram", "tiktok", "youtube", "redes sociales", "reel", "shorts", "publicación", "publicacion", "publicaciones", "contenido", "calendario editorial", "algoritmo") -> CreativeSkill.SOCIAL_STRATEGY
