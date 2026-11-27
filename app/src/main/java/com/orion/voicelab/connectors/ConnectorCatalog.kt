@@ -26,30 +26,30 @@ object ConnectorCatalog {
         ConnectorDescriptor(
             id = ConnectorId.ANDROID_NOTES,
             displayName = "Notas del móvil",
-            description = "Enviar notas a Google Keep mediante Android Sharesheet. La importación entrante y la biblioteca local indexable siguen pendientes.",
+            description = "Enviar notas a Google Keep mediante Android Sharesheet; importar notas compartidas a ORION sigue pendiente.",
             capabilities = setOf(ConnectorCapability.CREATE),
-            isImplemented = false
+            isImplemented = true
         ),
         ConnectorDescriptor(
             id = ConnectorId.ANDROID_CALENDAR,
             displayName = "Calendario",
-            description = "Preparar eventos y transferirlos a la aplicación de calendario para revisión y guardado. La lectura directa de agenda sigue pendiente.",
+            description = "Preparar eventos y transferirlos a la aplicación de calendario para revisión y guardado; lectura de agenda pendiente.",
             capabilities = setOf(ConnectorCapability.CREATE),
-            isImplemented = false
+            isImplemented = true
         ),
         ConnectorDescriptor(
             id = ConnectorId.GOOGLE_MAPS,
             displayName = "Google Maps",
-            description = "Buscar lugares, abrir ubicaciones y preparar rutas o navegación mediante Google Maps.",
+            description = "Buscar lugares y abrir navegación mediante intents de Android.",
             capabilities = setOf(ConnectorCapability.SEARCH, ConnectorCapability.READ),
-            isImplemented = false
+            isImplemented = true
         ),
         ConnectorDescriptor(
             id = ConnectorId.PESCAIA,
             displayName = "PescaIA Surfcasting",
-            description = "Consultar playas, previsión marina, mareas, solunar, técnicas y normativa con fuentes y fecha de revisión.",
+            description = "Consultar contenido público de PescaIA sobre playas y metodología; las páginas dinámicas y la cuenta privada requieren API específica.",
             capabilities = setOf(ConnectorCapability.SEARCH, ConnectorCapability.READ),
-            isImplemented = false
+            isImplemented = true
         )
     )
 }
