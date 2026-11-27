@@ -51,6 +51,7 @@ import com.orion.voicelab.engine.MoonshineModelManager
 import com.orion.voicelab.engine.OrionVoiceEngine
 import com.orion.voicelab.llm.LlamaCppLanguageModel
 import com.orion.voicelab.knowledge.OrionBrainRuntime
+import com.orion.voicelab.brain.PlanningPromptComposer
 import com.orion.voicelab.knowledge.BrainPromptComposer
 import com.orion.voicelab.memory.ContextPromptBuilder
 import com.orion.voicelab.memory.MemoryCandidateExtractor
@@ -224,6 +225,11 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                     append(baseContext.systemPrompt)
                     append("\n\n")
                     append(BrainPromptComposer.compose(brainContext))
+                    val planningGuidance = PlanningPromptComposer.compose(userText)
+                    if (planningGuidance.isNotBlank()) {
+                        append("\\n\\n")
+                        append(planningGuidance)
+                    }
                     if (creativeContext.isNotBlank()) {
                         append("\n\n")
                         append(creativeContext)
