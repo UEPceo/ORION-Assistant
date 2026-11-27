@@ -599,7 +599,8 @@ fun OrionVoiceLabScreen(
                                 onOpenConversations = { selectedTab = OrionTab.CONVERSATIONS },
                                 onOpenMemory = { selectedTab = OrionTab.MEMORY },
                                 onOpenConnectors = { selectedTab = OrionTab.CONNECTORS },
-                                onOpenLab = { selectedTab = OrionTab.LAB }
+                                onOpenLab = { selectedTab = OrionTab.LAB },
+                                onOpenPhoneTools = { selectedTab = OrionTab.PHONE_TOOLS }
                             )
                         }
 
