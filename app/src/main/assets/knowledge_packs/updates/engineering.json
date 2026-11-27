@@ -1,0 +1,27 @@
+{
+  "id": "engineering",
+  "version": 1,
+  "title": "Ingeniería",
+  "documents": [
+    {
+      "id": "Ingeniería de sistemas y ciclo de vida",
+      "title": "https://www.nasa.gov/reference/systems-engineering-handbook/",
+      "url": "NASA",
+      "publisher": "OFFICIAL_PRIMARY",
+      "domain": "ENGINEERING",
+      "authority": "La ingeniería transforma necesidades en soluciones bajo restricciones de coste, seguridad, tiempo, mantenimiento y entorno. La ingeniería de sistemas convierte necesidades en requisitos medibles, define arquitectura, analiza riesgos, integra componentes y valida resultados. Verificación pregunta si se cumplen especificaciones; validación pregunta si se resuelve la necesidad real. Los requisitos deben ser claros, trazables y comprobables. Un manual técnico no sustituye normas obligatorias ni certificaciones.",
+      "jurisdiction": null,
+      "reviewedAtMs": 1795737600000
+    },
+    {
+      "id": "Medición y Sistema Internacional",
+      "title": "https://www.nist.gov/pml/owm/metric-si/si-units",
+      "url": "NIST",
+      "publisher": "OFFICIAL_PRIMARY",
+      "domain": "ENGINEERING",
+      "authority": "La ingeniería depende de medidas reproducibles. El Sistema Internacional define unidades coherentes para longitud, masa, tiempo, corriente, temperatura y otras magnitudes. Toda medición tiene incertidumbre asociada al instrumento, método, calibración, resolución y entorno. Precisión, exactitud y resolución no son sinónimos. Los resultados deben expresar unidad y condiciones; las conversiones deben conservar dimensiones y factores correctos. Para cumplimiento legal en España y la UE deben consultarse disposiciones metrológicas aplicables.",
+      "jurisdiction": null,
+      "reviewedAtMs": 1795737600000
+    }
+  ]
+}
