@@ -31,7 +31,7 @@ object BrainPromptComposer {
             if (context.sourceFailures.isNotEmpty()) {
                 builder.append("La consulta de fuentes falló; informa de la incidencia y no afirmes que no existe información. ")
             }
-                .append("Expón la incertidumbre y solicita una fuente o consulta actualizada si es necesaria.")
+            builder.append("Expón la incertidumbre y solicita una fuente o consulta actualizada si es necesaria.")
         } else {
             builder.append("\nInstrucciones: separa hechos de inferencias; no añadas datos ausentes; ")
                 .append("si las fuentes no bastan, dilo. Cita las fuentes por su número [1], [2]...")
