@@ -3,6 +3,7 @@ package com.orion.voicelab.brain
 import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.Insert
+import androidx.room.Index
 import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
@@ -11,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import org.json.JSONArray
 import org.json.JSONObject
 
-@Entity(tableName = "plan_executions")
+@Entity(tableName = "plan_executions", indices = [Index(value = ["updatedAtMs"])])
 data class PlanExecutionEntity(
     @PrimaryKey val id: String,
     val goal: String,
