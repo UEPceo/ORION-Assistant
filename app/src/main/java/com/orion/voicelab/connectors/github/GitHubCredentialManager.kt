@@ -17,11 +17,19 @@ class GitHubCredentialManager(
             .put("token_type", result.tokenType)
             .put("scope", result.scope)
             .toString()
-        credentialStore.save(ConnectorId.GITHUB, serialized.toByteArray(Charsets.UTF_8))
+        val credentialBytes = serialized.toByteArray(Charsets.UTF_8)
+        try {
+            credentialStore.save(ConnectorId.GITHUB, credentialBytes)
+        } finally {
+            credentialBytes.fill(0)
+        }
     }
 
-    suspend fun isConnected(): Boolean =
-        credentialStore.read(ConnectorId.GITHUB) != null
+    suspend fun isConnected(): Boolean {
+        val stored = credentialStore.read(ConnectorId.GITHUB) ?: return false
+        stored.fill(0)
+        return true
+    }
 
     suspend fun disconnect() {
         credentialStore.delete(ConnectorId.GITHUB)
