@@ -75,7 +75,8 @@ class BrainRetrievalEngine(
                 candidates.isEmpty() && sourceFailures.isNotEmpty() -> BrainPresentation.SOURCE_FAILURE
                 candidates.isEmpty() -> BrainPresentation.NO_SOURCES
                 safeToPresentAsVerified -> BrainPresentation.EVIDENCE_SUPPORTED
-                verification.verdict == KnowledgeVerdict.STALE || verification.verdict == KnowledgeVerdict.AGE_UNCONFIRMED -> BrainPresentation.HISTORICAL
+                verification.verdict == KnowledgeVerdict.AGE_UNCONFIRMED -> BrainPresentation.AGE_UNCONFIRMED
+                verification.verdict == KnowledgeVerdict.STALE -> BrainPresentation.HISTORICAL
                 else -> BrainPresentation.UNVERIFIED
             }
         )
@@ -117,6 +118,7 @@ enum class BrainPresentation {
     EVIDENCE_SUPPORTED,
     UNVERIFIED,
     HISTORICAL,
+    AGE_UNCONFIRMED,
     NO_SOURCES,
     SOURCE_FAILURE
 }
