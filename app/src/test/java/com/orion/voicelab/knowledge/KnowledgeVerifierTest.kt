@@ -82,4 +82,30 @@ class KnowledgeVerifierTest {
         )
         assertEquals(KnowledgeVerdict.NO_EVIDENCE, result.verdict)
     }
+    @Test
+    fun retrievalTimeAloneDoesNotProveFreshness() {
+        val result = KnowledgeVerifier.assess(
+            listOf(evidence("official", EvidenceAuthority.OFFICIAL_PRIMARY, KnowledgeDomain.LAW_AND_REGULATION)),
+            KnowledgeDomain.LAW_AND_REGULATION,
+            nowMs = 10_000L,
+            maxAgeMs = 60_000L,
+            requiresPublishedDate = true
+        )
+        assertEquals(KnowledgeVerdict.AGE_UNCONFIRMED, result.verdict)
+    }
+
+    @Test
+    fun oldPublicationDateIsNotMadeCurrentByFreshRetrieval() {
+        val old = evidence("official", EvidenceAuthority.OFFICIAL_PRIMARY, KnowledgeDomain.LAW_AND_REGULATION)
+            .copy(retrievedAtMs = 9_000L, publishedAtMs = 1_000L)
+        val result = KnowledgeVerifier.assess(
+            listOf(old),
+            KnowledgeDomain.LAW_AND_REGULATION,
+            nowMs = 100_000L,
+            maxAgeMs = 10_000L,
+            requiresPublishedDate = true
+        )
+        assertEquals(KnowledgeVerdict.STALE, result.verdict)
+    }
+
 }
