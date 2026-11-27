@@ -2705,11 +2705,26 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private fun recordError(message: String) {
+    private fun recordError(message: String, error: Throwable? = null) {
         val clean = message.trim()
         if (clean.isEmpty()) return
+
+        // Existing call sites identify their subsystem as "Component: detail".
+        // Keep that origin visible to users and persist a correlated technical record.
+        val separator = clean.indexOf(':')
+        val component = if (separator in 1..64) clean.substring(0, separator).trim() else "Aplicación"
+        val cause = if (separator in 1..64) clean.substring(separator + 1).trim() else clean
         val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-        val formatted = "[$timestamp] $clean"
+        val eventId = "OR-${System.currentTimeMillis()}"
+        val formatted = "[$timestamp] [$eventId] [$component] $cause"
+
+        OrionCrashDiagnostics.recordOperationalError(
+            context = appContext,
+            eventId = eventId,
+            component = component,
+            message = cause,
+            error = error
+        )
         _uiState.update { current ->
             val updated = (listOf(formatted) + current.recentErrors).take(MAX_RECENT_ERRORS)
             current.copy(recentErrors = updated)
