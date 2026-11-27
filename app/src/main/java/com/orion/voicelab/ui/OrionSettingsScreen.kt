@@ -210,7 +210,11 @@ fun OrionSettingsScreen(
                                 ) }
                                 Button(
                                     enabled = connectorOnly && record.status !in setOf("COMPLETED", "RUNNING"),
-                                    onClick = { onExecutePlan(record.id, approvedIds, retryIds) },
+                                    onClick = {
+                                        onExecutePlan(record.id, approvedIds, retryIds)
+                                        approvedIds = emptySet()
+                                        retryIds = emptySet()
+                                    },
                                     modifier = Modifier.fillMaxWidth()
                                 ) { Text("Ejecutar / reanudar") }
                                 if (!connectorOnly) {
@@ -218,7 +222,10 @@ fun OrionSettingsScreen(
                                 }
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                TextButton(onClick = { onDeletePlan(record.id) }) { Text("Eliminar historial") }
+                                TextButton(
+                                    enabled = record.status != "RUNNING",
+                                    onClick = { onDeletePlan(record.id) }
+                                ) { Text("Eliminar historial") }
                             }
                         }
                     }
