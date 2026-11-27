@@ -38,7 +38,8 @@ enum class KnowledgeVerdict {
     PRIMARY_SOURCE_REQUIRED,
     STALE,
     CONFLICTING,
-    NO_EVIDENCE
+    NO_EVIDENCE,
+    INVALID_TIMESTAMP
 }
 
 data class KnowledgeEvidence(
@@ -99,6 +100,10 @@ object KnowledgeVerifier {
             relevant.isEmpty() -> {
                 verdict = KnowledgeVerdict.NO_EVIDENCE
                 reason = "No se ha recuperado evidencia identificable para este ámbito."
+            }
+            relevant.any { it.retrievedAtMs <= 0L || it.retrievedAtMs > nowMs + 5L * 60L * 1000L } -> {
+                verdict = KnowledgeVerdict.INVALID_TIMESTAMP
+                reason = "Una o varias fuentes tienen una fecha de recuperación inválida o futura."
             }
             conflictDetected -> {
                 verdict = KnowledgeVerdict.CONFLICTING
