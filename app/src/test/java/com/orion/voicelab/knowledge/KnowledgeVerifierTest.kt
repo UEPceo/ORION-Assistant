@@ -49,7 +49,7 @@ class KnowledgeVerifierTest {
     @Test
     fun staleEvidenceIsNotPresentedAsVerified() {
         val result = KnowledgeVerifier.assess(
-            listOf(evidence("official", EvidenceAuthority.OFFICIAL_PRIMARY, retrievedAt = 1_000L)),
+            listOf(evidence("official", EvidenceAuthority.OFFICIAL_PRIMARY, KnowledgeDomain.MARINE_WEATHER, retrievedAt = 1_000L)),
             KnowledgeDomain.MARINE_WEATHER,
             nowMs = 100_000L,
             maxAgeMs = 10_000L
