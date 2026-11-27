@@ -271,7 +271,7 @@ class PersistentPlanExecutionService(
             return PlanExecutionReport(planId, PlanStatus.FAILED, saved.results, "Solo se pueden reintentar pasos fallidos guardados.")
         }
         val initial = saved.results.filterValues { it.status !in setOf(StepStatus.BLOCKED, StepStatus.SKIPPED, StepStatus.RUNNING) }
-        return coordinator.execute(
+        return coordinator.executeResumable(
             plan = saved.plan,
             approvedStepIds = approvedStepIds,
             runner = runner,
