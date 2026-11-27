@@ -78,12 +78,14 @@ class DuckDuckGoKnowledgeSource : KnowledgeSource {
             if (content.isBlank()) continue
             val canonical = page?.canonicalUrl ?: target
             val id = "web-" + canonical.hashCode().toUInt().toString(16)
-            val authority = WebAuthorityClassifier.classify(host)
+            val finalHost = runCatching { URL(canonical).host.lowercase(Locale.ROOT).removePrefix("www.") }
+                .getOrDefault(host)
+            val authority = if (page == null) EvidenceAuthority.UNKNOWN else WebAuthorityClassifier.classify(finalHost)
             val evidence = KnowledgeEvidence(
                 id = id,
                 title = title,
                 canonicalUrl = canonical,
-                publisherId = host,
+                publisherId = finalHost,
                 domain = query.domain,
                 authority = if (page == null) EvidenceAuthority.UNKNOWN else authority,
                 retrievedAtMs = now,
