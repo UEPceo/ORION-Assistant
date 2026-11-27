@@ -3,19 +3,31 @@ package com.orion.voicelab
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineMoonshineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
+import com.k2fsa.sherpa.onnx.OfflineTtsConfig
+import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
+import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
 import com.k2fsa.sherpa.onnx.SileroVadModelConfig
 import com.k2fsa.sherpa.onnx.VadModelConfig
+import com.orion.voicelab.conversation.ConversationSession
+import com.orion.voicelab.conversation.SpeechSentenceChunker
 import com.orion.voicelab.data.AsrStats
+import com.orion.voicelab.data.ChatMessage
+import com.orion.voicelab.data.ChatRole
 import com.orion.voicelab.data.DeviceMetrics
+import com.orion.voicelab.data.TurnLatencyMetrics
 import com.orion.voicelab.engine.MoonshineModelManager
 import com.orion.voicelab.engine.OrionVoiceEngine
+import com.orion.voicelab.llm.ChatPromptFormatter
+import com.orion.voicelab.model.ModelManager
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.nehuatl.llamacpp.LlamaAndroid
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -145,4 +157,143 @@ class VoiceLabUnitTest {
         assertEquals("n/d", DeviceMetrics.formatTemp(Float.NaN))
         assertTrue(DeviceMetrics.formatTemp(32.5f).contains("32"))
     }
+
+    @Test
+    fun `chat prompt formatter builds ChatML turns and strips markdown and stop tokens`() {
+        val history = listOf(
+            ChatMessage(ChatRole.USER, "Hola ORION"),
+            ChatMessage(ChatRole.ASSISTANT, "Hola, te escucho."),
+            ChatMessage(ChatRole.USER, "¿Cómo va todo?")
+        )
+        val prompt = ChatPromptFormatter.formatChatMl(
+            systemPrompt = "Eres ORION.",
+            history = history,
+            maxTurns = 2
+        )
+        assertFalse(prompt.contains("Hola ORION"))
+        assertTrue(prompt.startsWith("<|im_start|>system\nEres ORION.<|im_end|>"))
+        assertTrue(prompt.contains("<|im_start|>assistant\nHola, te escucho.<|im_end|>"))
+        assertTrue(prompt.endsWith("<|im_start|>user\n¿Cómo va todo?<|im_end|>\n<|im_start|>assistant\n"))
+
+        val cleaned = ChatPromptFormatter.cleanAssistantText("**Hola** *mundo*<|im_end|>basura")
+        assertEquals("Hola mundo", cleaned)
+    }
+
+    @Test
+    fun `speech sentence chunker splits Spanish sentences and flushes trailing words`() {
+        val chunker = SpeechSentenceChunker(minClauseChars = 16, maxClauseChars = 80)
+        val emitted = mutableListOf<String>()
+        val tokens = listOf("Hola", ", ", "estoy ", "listo. ", "Dime ", "qué ", "necesitas", " hoy")
+        for (tok in tokens) {
+            emitted.addAll(chunker.appendToken(tok))
+        }
+        assertEquals(listOf("Hola, estoy listo."), emitted)
+        assertEquals("Dime qué necesitas hoy", chunker.flush())
+        assertNull(chunker.flush())
+    }
+
+    @Test
+    fun `conversation session tracks multi-turn context and resets cleanly`() {
+        val session = ConversationSession(maxHistoryMessages = 4)
+        val u1 = session.addUserMessage("Buenos días", audioMs = 1200L, decodeMs = 210L)
+        val latency = TurnLatencyMetrics(
+            asrMs = 210L,
+            llmFirstTokenMs = 340L,
+            llmTotalMs = 1500L,
+            ttsSynthMs = 280L,
+            endToSpeechStartMs = 890L
+        )
+        val a1 = session.addAssistantMessage("Buenos días, ¿en qué trabajamos?", latency)
+        session.addUserMessage("Revisa el proyecto", audioMs = 1400L, decodeMs = 240L)
+        session.addAssistantMessage("Perfecto, dime qué parte revisamos.", latency)
+        session.addUserMessage("La voz offline", audioMs = 1100L, decodeMs = 190L)
+
+        assertEquals(1L, u1.id)
+        assertEquals(2L, a1.id)
+        assertEquals(4, session.historySnapshot().size)
+        assertEquals(5, session.turnsSnapshot().size)
+
+        session.reset()
+        assertTrue(session.historySnapshot().isEmpty())
+        assertTrue(session.turnsSnapshot().isEmpty())
+    }
+
+    @Test
+    fun `model manager validates GGUF header and extracts TTS archive preserving espeak-ng-data`() {
+        val rootDir = createTempDirectory("orion_04_model_test").toFile()
+        try {
+            val validGguf = File(rootDir, "valid.gguf").apply {
+                writeBytes(byteArrayOf('G'.code.toByte(), 'G'.code.toByte(), 'U'.code.toByte(), 'F'.code.toByte(), 3, 0, 0, 0))
+            }
+            val invalidGguf = File(rootDir, "invalid.gguf").apply {
+                writeBytes("<!DOCTYPE html>".toByteArray())
+            }
+            assertTrue(ModelManager.hasGgufMagicHeader(validGguf))
+            assertFalse(ModelManager.hasGgufMagicHeader(invalidGguf))
+
+            val ttsArchive = File(rootDir, ModelManager.TTS_ARCHIVE_NAME)
+            FileOutputStream(ttsArchive).use { fos ->
+                BZip2CompressorOutputStream(BufferedOutputStream(fos)).use { bz ->
+                    TarArchiveOutputStream(bz).use { tar ->
+                        fun addFile(entryName: String, content: ByteArray) {
+                            val entry = TarArchiveEntry(entryName)
+                            entry.size = content.size.toLong()
+                            tar.putArchiveEntry(entry)
+                            tar.write(content)
+                            tar.closeArchiveEntry()
+                        }
+
+                        addFile(
+                            "${ModelManager.TTS_DIR_NAME}/${ModelManager.TTS_MODEL_FILE}",
+                            ByteArray(5_500_000) { 7 }
+                        )
+                        addFile("${ModelManager.TTS_DIR_NAME}/tokens.txt", ByteArray(512) { 65 })
+                        addFile("${ModelManager.TTS_DIR_NAME}/espeak-ng-data/phontab", ByteArray(128) { 9 })
+                        addFile("${ModelManager.TTS_DIR_NAME}/../../escape.txt", "blocked".toByteArray())
+                    }
+                }
+            }
+
+            val filesDir = File(rootDir, "files").apply { mkdirs() }
+            assertFalse(ModelManager.isTtsInstalled(filesDir))
+
+            ModelManager.extractTtsArchive(ttsArchive, filesDir)
+
+            assertTrue(ModelManager.isTtsInstalled(filesDir))
+            assertTrue(File(ModelManager.ttsEspeakDataDir(filesDir), "phontab").isFile)
+            assertFalse(File(rootDir, "escape.txt").exists())
+        } finally {
+            rootDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `sherpa onnx VITS TTS config and llamacpp Android binding symbols resolve on JVM`() {
+        val vitsConfig = OfflineTtsVitsModelConfig(
+            model = "/tmp/es_ES-sharvard-medium.onnx",
+            tokens = "/tmp/tokens.txt",
+            dataDir = "/tmp/espeak-ng-data",
+            noiseScale = 0.667f,
+            noiseScaleW = 0.8f,
+            lengthScale = 1.0f
+        )
+        val ttsConfig = OfflineTtsConfig(
+            model = OfflineTtsModelConfig(
+                vits = vitsConfig,
+                numThreads = 2,
+                debug = false,
+                provider = "cpu"
+            ),
+            maxNumSentences = 1
+        )
+        assertEquals("/tmp/es_ES-sharvard-medium.onnx", ttsConfig.model.vits.model)
+        assertEquals("/tmp/espeak-ng-data", ttsConfig.model.vits.dataDir)
+
+        val methodNames = LlamaAndroid::class.java.methods.map { it.name }.toSet()
+        assertTrue(methodNames.contains("startEngine"))
+        assertTrue(methodNames.contains("launchCompletion"))
+        assertTrue(methodNames.contains("stopCompletion"))
+        assertTrue(methodNames.contains("releaseContext"))
+    }
 }
+

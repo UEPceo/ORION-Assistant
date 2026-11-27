@@ -8,9 +8,8 @@ composeBom = "2024.09.00"
 materialIconsExtended = "1.7.0"
 sherpaOnnx = "v1.13.8"
 commonsCompress = "1.27.1"
+llamacppKotlin = "0.4.0"
 junit = "4.13.2"
-robolectric = "4.16.1"
-androidxTestCore = "1.6.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -26,9 +25,8 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version.ref = "materialIconsExtended" }
 sherpa-onnx = { group = "com.github.k2-fsa.sherpa-onnx", name = "sherpa-onnx", version.ref = "sherpaOnnx" }
 commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonsCompress" }
+llamacpp-kotlin = { group = "io.github.ljcamargo", name = "llamacpp-kotlin", version.ref = "llamacppKotlin" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
-robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
-androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -68,7 +68,22 @@ data class VoiceLabUiState(
     val endSnapshot: DeviceMetrics.Snapshot? = null,
     val sessionStartMs: Long = 0L,
     val sessionEndMs: Long = 0L,
-    val isBusy: Boolean = false
+    val isBusy: Boolean = false,
+    // Voice Lab 0.4 conversational state
+    val llmModelState: ComponentModelState = ComponentModelState.NotInstalled,
+    val ttsModelState: ComponentModelState = ComponentModelState.NotInstalled,
+    val conversationState: ConversationState = ConversationState.IDLE,
+    val callStatusMessage: String = "",
+    val isCallActive: Boolean = false,
+    val isMuted: Boolean = false,
+    val isSpeechDetected: Boolean = false,
+    val callDurationSeconds: Long = 0L,
+    val conversationTurns: List<ConversationTurn> = emptyList(),
+    val streamingAssistantText: String = "",
+    val availableVoices: List<VoiceProfile> = emptyList(),
+    val selectedVoiceId: String = "sharvard_f",
+    val callTelemetry: CallTelemetry = CallTelemetry(),
+    val areLoadedModelsInRam: Boolean = false
 ) {
     val isModelReady: Boolean
         get() = modelState is ModelInstallState.Installed
@@ -79,4 +94,9 @@ data class VoiceLabUiState(
     val isRunning: Boolean
         get() = listeningState == ListeningState.LISTENING ||
             listeningState == ListeningState.VOICE_DETECTED
+
+    val areAllConversationalModelsReady: Boolean
+        get() = isModelReady &&
+            llmModelState is ComponentModelState.Installed &&
+            ttsModelState is ComponentModelState.Installed
 }

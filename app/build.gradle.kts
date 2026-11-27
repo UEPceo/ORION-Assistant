@@ -11,11 +11,11 @@ android {
         applicationId = "com.aistudio.orionvoicelab.kxrqmw"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.3"
+        versionCode = 4
+        versionName = "0.4"
 
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
 
@@ -72,6 +72,7 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.sherpa.onnx)
     implementation(libs.commons.compress)
+    implementation(libs.llamacpp.kotlin)
 
     testImplementation(libs.junit)
 }

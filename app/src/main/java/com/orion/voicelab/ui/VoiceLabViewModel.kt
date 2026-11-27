@@ -4,7 +4,13 @@ import android.app.Application
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.orion.voicelab.asr.MoonshineSpeechRecognitionEngine
+import com.orion.voicelab.conversation.ConversationEngine
 import com.orion.voicelab.data.AsrStats
+import com.orion.voicelab.data.CallTelemetry
+import com.orion.voicelab.data.ComponentModelState
+import com.orion.voicelab.data.ConversationState
+import com.orion.voicelab.data.ConversationTurn
 import com.orion.voicelab.data.DeviceMetrics
 import com.orion.voicelab.data.ListeningState
 import com.orion.voicelab.data.ModelInstallState
@@ -12,6 +18,9 @@ import com.orion.voicelab.data.TranscriptEntry
 import com.orion.voicelab.data.VoiceLabUiState
 import com.orion.voicelab.engine.MoonshineModelManager
 import com.orion.voicelab.engine.OrionVoiceEngine
+import com.orion.voicelab.llm.LlamaCppLanguageModel
+import com.orion.voicelab.model.ModelManager
+import com.orion.voicelab.tts.SherpaOnnxSpeechSynthesizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -27,39 +36,175 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     companion object {
         private const val METRICS_TICK_MS = 15_000L
+        private const val CALL_TIMER_TICK_MS = 1_000L
     }
 
     private val appContext = application.applicationContext
     private val engine = OrionVoiceEngine()
+
+    private val speechRecognizer = MoonshineSpeechRecognitionEngine(
+        modelDirectory = ModelManager.asrDirectory(appContext.filesDir)
+    )
+    private val languageModel = LlamaCppLanguageModel(
+        contentResolver = appContext.contentResolver,
+        modelFile = ModelManager.llmModelFile(appContext.filesDir)
+    )
+    private val speechSynthesizer = SherpaOnnxSpeechSynthesizer(
+        filesDir = appContext.filesDir
+    )
+    private val conversationEngine = ConversationEngine(
+        assets = appContext.assets,
+        speechRecognizer = speechRecognizer,
+        languageModel = languageModel,
+        speechSynthesizer = speechSynthesizer
+    )
+
     private var tickerJob: Job? = null
+    private var callTimerJob: Job? = null
     private var nextTranscriptId = 1L
 
-    private val _uiState = MutableStateFlow(VoiceLabUiState())
+    private val _uiState = MutableStateFlow(
+        VoiceLabUiState(
+            availableVoices = speechSynthesizer.availableVoices(),
+            selectedVoiceId = speechSynthesizer.selectedVoice().id
+        )
+    )
     val uiState: StateFlow<VoiceLabUiState> = _uiState.asStateFlow()
 
     private val _audioLevel = MutableStateFlow(0f)
     val audioLevel: StateFlow<Float> = _audioLevel.asStateFlow()
 
     init {
+        attachConversationCallbacks()
         refreshModelState()
         refreshMetrics()
     }
 
+    private fun attachConversationCallbacks() {
+        conversationEngine.attachCallbacks(object : ConversationEngine.Callbacks {
+            override fun onStateChanged(state: ConversationState, statusText: String) {
+                _uiState.update { current ->
+                    current.copy(
+                        conversationState = state,
+                        callStatusMessage = statusText,
+                        isCallActive = conversationEngine.isCallActive()
+                    )
+                }
+                if (state == ConversationState.SPEAKING || state == ConversationState.LISTENING) {
+                    refreshMetrics()
+                }
+            }
+
+            override fun onSpeechDetectedChanged(detected: Boolean) {
+                _uiState.update { it.copy(isSpeechDetected = detected) }
+            }
+
+            override fun onAudioLevel(level: Float) {
+                if (conversationEngine.isCallActive()) {
+                    _audioLevel.value = level
+                }
+            }
+
+            override fun onTurnsUpdated(turns: List<ConversationTurn>) {
+                _uiState.update { it.copy(conversationTurns = turns) }
+            }
+
+            override fun onStreamingText(text: String) {
+                _uiState.update { it.copy(streamingAssistantText = text) }
+            }
+
+            override fun onTelemetryUpdated(telemetry: CallTelemetry) {
+                _uiState.update { it.copy(callTelemetry = telemetry) }
+                refreshMetrics()
+            }
+
+            override fun onModelsInRamChanged(loaded: Boolean) {
+                _uiState.update { it.copy(areLoadedModelsInRam = loaded) }
+                refreshMetrics()
+            }
+
+            override fun onCallEnded() {
+                stopCallTimer()
+                stopMetricsTicker()
+                val finish = try {
+                    DeviceMetrics.snapshot(appContext, appContext.filesDir)
+                } catch (_: Exception) {
+                    null
+                }
+                _audioLevel.value = 0f
+                _uiState.update { current ->
+                    current.copy(
+                        isCallActive = false,
+                        isSpeechDetected = false,
+                        endSnapshot = finish ?: current.endSnapshot,
+                        sessionEndMs = if (current.sessionStartMs > 0L) {
+                            SystemClock.elapsedRealtime()
+                        } else {
+                            current.sessionEndMs
+                        }
+                    )
+                }
+                refreshMetrics()
+            }
+        })
+    }
+
     fun refreshModelState() {
-        val ready = MoonshineModelManager.modelFilesPresent(appContext.filesDir)
-        val sizeMb = MoonshineModelManager.modelSizeMb(appContext.filesDir)
+        val asrReady = ModelManager.isAsrInstalled(appContext.filesDir)
+        val asrMb = ModelManager.asrSizeMb(appContext.filesDir)
+        val llmReady = ModelManager.isLlmInstalled(appContext.filesDir)
+        val llmMb = ModelManager.llmSizeMb(appContext.filesDir)
+        val ttsReady = ModelManager.isTtsInstalled(appContext.filesDir)
+        val ttsMb = ModelManager.ttsSizeMb(appContext.filesDir)
+
         _uiState.update { state ->
+            val nextModelState = if (asrReady) {
+                ModelInstallState.Installed(asrMb)
+            } else if (state.isDownloading) {
+                state.modelState
+            } else {
+                ModelInstallState.NotInstalled
+            }
+
+            val nextLlmState = if (llmReady) {
+                ComponentModelState.Installed(llmMb)
+            } else if (
+                state.llmModelState is ComponentModelState.Downloading ||
+                state.llmModelState is ComponentModelState.Extracting
+            ) {
+                state.llmModelState
+            } else {
+                ComponentModelState.NotInstalled
+            }
+
+            val nextTtsState = if (ttsReady) {
+                ComponentModelState.Installed(ttsMb)
+            } else if (
+                state.ttsModelState is ComponentModelState.Downloading ||
+                state.ttsModelState is ComponentModelState.Extracting
+            ) {
+                state.ttsModelState
+            } else {
+                ComponentModelState.NotInstalled
+            }
+
+            val allReady = asrReady && llmReady && ttsReady
             state.copy(
-                modelState = if (ready) {
-                    ModelInstallState.Installed(sizeMb)
-                } else {
-                    ModelInstallState.NotInstalled
-                },
-                modelSizeMb = sizeMb,
-                statusMessage = if (ready) {
+                modelState = nextModelState,
+                modelSizeMb = asrMb,
+                llmModelState = nextLlmState,
+                ttsModelState = nextTtsState,
+                statusMessage = if (asrReady) {
                     "Moonshine Base ES instalado. Reconocimiento local disponible sin Internet."
                 } else {
                     "Modelo español todavía no instalado. Descárgalo con conexión Wi-Fi. Después funcionará offline."
+                },
+                callStatusMessage = if (state.callStatusMessage.isNotBlank() && state.isCallActive) {
+                    state.callStatusMessage
+                } else if (allReady) {
+                    "ASR, LLM y voz TTS listos. Conversación 100 % offline preparada."
+                } else {
+                    "Descarga los modelos locales pendientes para conversar sin conexión."
                 }
             )
         }
@@ -108,15 +253,195 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun downloadLlmModel() {
+        val cur = _uiState.value.llmModelState
+        if (cur is ComponentModelState.Downloading || cur is ComponentModelState.Installed) return
+
+        _uiState.update {
+            it.copy(
+                llmModelState = ComponentModelState.Downloading(0, 0L, 1065L),
+                callStatusMessage = "Descargando Qwen2.5-1.5B-Instruct (Q4_K_M, ~1.04 GB)…"
+            )
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                ModelManager.downloadAndInstallLlm(appContext.filesDir) { percent, downMb, totalMb ->
+                    _uiState.update {
+                        it.copy(
+                            llmModelState = ComponentModelState.Downloading(
+                                progressPercent = percent,
+                                downloadedMb = downMb,
+                                totalMb = totalMb
+                            )
+                        )
+                    }
+                }
+                refreshModelState()
+                refreshMetrics()
+            } catch (e: Exception) {
+                val msg = e.message ?: "error desconocido"
+                _uiState.update {
+                    it.copy(
+                        llmModelState = ComponentModelState.Error(msg),
+                        callStatusMessage = "No se pudo descargar el LLM: $msg"
+                    )
+                }
+            }
+        }
+    }
+
+    fun downloadTtsModel() {
+        val cur = _uiState.value.ttsModelState
+        if (
+            cur is ComponentModelState.Downloading ||
+            cur is ComponentModelState.Extracting ||
+            cur is ComponentModelState.Installed
+        ) {
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                ttsModelState = ComponentModelState.Downloading(0, 0L, 24L),
+                callStatusMessage = "Descargando voz Piper Sharvard ES (~23.5 MB)…"
+            )
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                ModelManager.downloadAndInstallTts(
+                    filesDir = appContext.filesDir,
+                    cacheDir = appContext.cacheDir,
+                    onProgress = { percent, downMb, totalMb ->
+                        _uiState.update {
+                            it.copy(
+                                ttsModelState = ComponentModelState.Downloading(
+                                    progressPercent = percent,
+                                    downloadedMb = downMb,
+                                    totalMb = totalMb
+                                )
+                            )
+                        }
+                    },
+                    onExtracting = {
+                        _uiState.update {
+                            it.copy(
+                                ttsModelState = ComponentModelState.Extracting,
+                                callStatusMessage = "Instalando voces españolas y datos fonéticos…"
+                            )
+                        }
+                    }
+                )
+                refreshModelState()
+                refreshMetrics()
+            } catch (e: Exception) {
+                val msg = e.message ?: "error desconocido"
+                _uiState.update {
+                    it.copy(
+                        ttsModelState = ComponentModelState.Error(msg),
+                        callStatusMessage = "No se pudo instalar la voz TTS: $msg"
+                    )
+                }
+            }
+        }
+    }
+
+    fun startCall() {
+        if (!_uiState.value.areAllConversationalModelsReady) {
+            _uiState.update {
+                it.copy(callStatusMessage = "Instala ASR, LLM y voz TTS antes de iniciar la llamada.")
+            }
+            return
+        }
+        if (engine.isRunning) {
+            engine.stop()
+        }
+        if (conversationEngine.isCallActive()) return
+
+        val begin = DeviceMetrics.snapshot(appContext, appContext.filesDir)
+        _uiState.update {
+            it.copy(
+                isCallActive = true,
+                callDurationSeconds = 0L,
+                startSnapshot = begin,
+                endSnapshot = null,
+                sessionStartMs = SystemClock.elapsedRealtime(),
+                sessionEndMs = 0L,
+                peakPssMb = maxOf(it.peakPssMb, begin.appPssMb),
+                minAvailMb = minOf(it.minAvailMb, begin.availRamMb)
+            )
+        }
+        conversationEngine.startCall()
+        startCallTimer()
+        startMetricsTicker()
+    }
+
+    fun endCall() {
+        if (!conversationEngine.isCallActive() && _uiState.value.conversationState == ConversationState.IDLE) {
+            return
+        }
+        conversationEngine.endCall(unloadModels = false)
+    }
+
+    fun toggleMute() {
+        val nextMuted = !conversationEngine.isMuted()
+        conversationEngine.setMuted(nextMuted)
+        _uiState.update { it.copy(isMuted = nextMuted) }
+    }
+
+    fun interruptCall() {
+        conversationEngine.interruptSpeaking()
+    }
+
+    fun selectVoice(voiceId: String) {
+        conversationEngine.selectVoice(voiceId)
+        _uiState.update { it.copy(selectedVoiceId = voiceId) }
+    }
+
+    fun releaseLoadedModels() {
+        if (conversationEngine.isCallActive()) {
+            conversationEngine.endCall(unloadModels = true)
+        } else {
+            conversationEngine.releaseLoadedModels()
+        }
+        _uiState.update {
+            it.copy(
+                callStatusMessage = "Memoria RAM liberada. Los modelos permanecen instalados en disco."
+            )
+        }
+    }
+
+    fun resetCallSession() {
+        conversationEngine.resetSession()
+        _uiState.update {
+            it.copy(
+                conversationTurns = emptyList(),
+                streamingAssistantText = "",
+                callTelemetry = CallTelemetry(
+                    asrLoadMs = it.callTelemetry.asrLoadMs,
+                    llmLoadMs = it.callTelemetry.llmLoadMs,
+                    ttsLoadMs = it.callTelemetry.ttsLoadMs
+                )
+            )
+        }
+    }
+
     fun onPermissionDenied() {
         _uiState.update {
-            it.copy(statusMessage = "Permiso de micrófono denegado.")
+            it.copy(
+                statusMessage = "Permiso de micrófono denegado.",
+                callStatusMessage = "Permiso de micrófono requerido para hablar con ORION."
+            )
         }
     }
 
     fun startListening() {
         if (!MoonshineModelManager.modelFilesPresent(appContext.filesDir)) return
         if (_uiState.value.isBusy) return
+        if (conversationEngine.isCallActive()) {
+            conversationEngine.endCall(unloadModels = false)
+        }
 
         _uiState.update {
             it.copy(
@@ -276,7 +601,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val snap = DeviceMetrics.snapshot(appContext, appContext.filesDir)
         val sizeMb = MoonshineModelManager.modelSizeMb(appContext.filesDir)
         _uiState.update { current ->
-            val runningNow = engine.isRunning
+            val runningNow = engine.isRunning || conversationEngine.isCallActive()
             val newPeakPss = if (runningNow && snap.appPssMb > current.peakPssMb) {
                 snap.appPssMb
             } else {
@@ -298,7 +623,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     fun resetMeasurements() {
         _uiState.update { current ->
-            val runningNow = engine.isRunning
+            val runningNow = engine.isRunning || conversationEngine.isCallActive()
             current.copy(
                 asrStats = AsrStats(),
                 peakPssMb = 0L,
@@ -314,19 +639,27 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     fun buildReport(): String {
         val state = _uiState.value
         val now = DeviceMetrics.snapshot(appContext, appContext.filesDir)
+        val llmMb = ModelManager.llmSizeMb(appContext.filesDir)
+        val ttsMb = ModelManager.ttsSizeMb(appContext.filesDir)
+        val callTel = state.callTelemetry
         return buildString {
-            appendLine("ORION Voice Lab 0.3 — informe de medición")
+            appendLine("ORION Voice Lab 0.4 — informe de medición")
             appendLine(DeviceMetrics.deviceSummary())
             appendLine("Ahora:")
             appendLine(DeviceMetrics.describe(now))
-            appendLine("Modelo en disco: ${state.modelSizeMb} MB")
+            appendLine("Modelos en disco: ASR ${state.modelSizeMb} MB · LLM $llmMb MB · TTS $ttsMb MB")
             appendLine(
                 if (state.modelLoadMs >= 0) {
-                    "Carga de modelo + VAD: ${state.modelLoadMs} ms"
+                    "Carga ASR + VAD (Lab): ${state.modelLoadMs} ms"
                 } else {
-                    "Carga de modelo + VAD: sin medir"
+                    "Carga ASR + VAD (Lab): sin medir"
                 }
             )
+            if (callTel.asrLoadMs >= 0 || callTel.llmLoadMs >= 0 || callTel.ttsLoadMs >= 0) {
+                appendLine(
+                    "Carga llamada — ASR: ${callTel.asrLoadMs} ms · LLM: ${callTel.llmLoadMs} ms · TTS: ${callTel.ttsLoadMs} ms"
+                )
+            }
             appendLine(state.asrStats.summaryLine())
             if (state.asrStats.count > 0) {
                 appendLine(
@@ -335,6 +668,13 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                         "Audio total reconocido: %.1f s",
                         state.asrStats.audioMs / 1000.0
                     )
+                )
+            }
+            if (callTel.llmTurnsCount > 0) {
+                appendLine(
+                    "Turnos conversacionales: ${callTel.llmTurnsCount} · LLM media ${callTel.avgLlmMs} ms · " +
+                        "último 1er token ${callTel.lastLlmFirstTokenMs} ms · TTS ${callTel.lastTtsSynthMs} ms · " +
+                        "voz→respuesta ${callTel.lastEndToSpeechMs} ms"
                 )
             }
             val begin = state.startSnapshot
@@ -346,7 +686,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                     SystemClock.elapsedRealtime()
                 }
                 val seconds = (endMs - state.sessionStartMs) / 1000
-                appendLine("Sesión de escucha: $seconds s${if (end == null) " (en curso)" else ""}")
+                appendLine("Sesión activa: $seconds s${if (end == null) " (en curso)" else ""}")
                 val minAvailText = if (state.minAvailMb == Long.MAX_VALUE) {
                     "n/d"
                 } else {
@@ -375,9 +715,9 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private fun startMetricsTicker() {
         tickerJob?.cancel()
         tickerJob = viewModelScope.launch {
-            while (isActive && engine.isRunning) {
+            while (isActive && (engine.isRunning || conversationEngine.isCallActive())) {
                 delay(METRICS_TICK_MS)
-                if (engine.isRunning) {
+                if (engine.isRunning || conversationEngine.isCallActive()) {
                     refreshMetrics()
                 }
             }
@@ -389,9 +729,29 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         tickerJob = null
     }
 
+    private fun startCallTimer() {
+        callTimerJob?.cancel()
+        callTimerJob = viewModelScope.launch {
+            while (isActive && conversationEngine.isCallActive()) {
+                delay(CALL_TIMER_TICK_MS)
+                if (conversationEngine.isCallActive()) {
+                    _uiState.update { it.copy(callDurationSeconds = it.callDurationSeconds + 1L) }
+                }
+            }
+        }
+    }
+
+    private fun stopCallTimer() {
+        callTimerJob?.cancel()
+        callTimerJob = null
+    }
+
     override fun onCleared() {
+        stopCallTimer()
         stopMetricsTicker()
         engine.destroy()
+        conversationEngine.shutdown()
         super.onCleared()
     }
 }
+

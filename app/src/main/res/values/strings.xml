@@ -2,7 +2,11 @@
 <resources>
     <string name="app_name">ORION Voice Lab</string>
     <string name="brand_title">ORION</string>
-    <string name="brand_subtitle">VOICE LAB 0.3 · ESPAÑOL OFFLINE</string>
+    <string name="brand_subtitle">VOICE LAB 0.4 · NÚCLEO CONVERSACIONAL OFFLINE</string>
+    <string name="tab_call">Llamada</string>
+    <string name="tab_lab">Laboratorio</string>
+
+    <!-- Voice Lab 0.3 preserved strings -->
     <string name="status_model_ready">Moonshine Base ES instalado. Reconocimiento local disponible sin Internet.</string>
     <string name="status_model_missing">Modelo español todavía no instalado. Descárgalo con conexión Wi-Fi. Después funcionará offline.</string>
     <string name="status_downloading_model">Descargando modelo oficial Moonshine Base ES…</string>
@@ -24,11 +28,26 @@
     <string name="section_transcripts">TRANSCRIPCIONES</string>
     <string name="empty_transcript">Aquí aparecerán las transcripciones.\n\nEl audio se procesa en el teléfono y no se envía a ningún servidor.</string>
     <string name="report_copied">Informe copiado al portapapeles</string>
+
+    <!-- Voice Lab 0.4 Call UI strings -->
+    <string name="call_start">Llamar a ORION</string>
+    <string name="call_end">Colgar</string>
+    <string name="call_mute">Silenciar</string>
+    <string name="call_unmute">Activar mic</string>
+    <string name="call_interrupt">Interrumpir</string>
+    <string name="call_release_memory">Liberar RAM</string>
+    <string name="call_models_title">MODELOS OFFLINE (0 €)</string>
+    <string name="call_empty_hint">Pulsa «Llamar a ORION» para iniciar una conversación de voz completamente local y sin conexión.</string>
+    <string name="call_models_required_hint">Instala los 3 modelos locales (ASR, LLM y Voz TTS) una única vez con Wi-Fi para conversar 100 % offline.</string>
+
+    <!-- Accessibility -->
     <string name="cd_voice_status">Indicador de estado de voz</string>
     <string name="cd_download_icon">Descargar modelo</string>
-    <string name="cd_mic_icon">Iniciar micrófono</string>
-    <string name="cd_stop_icon">Detener escucha</string>
+    <string name="cd_mic_icon">Micrófono</string>
+    <string name="cd_stop_icon">Detener</string>
     <string name="cd_measure_icon">Actualizar métricas</string>
     <string name="cd_copy_icon">Copiar informe</string>
     <string name="cd_clear_icon">Borrar datos</string>
+    <string name="cd_call_icon">Iniciar o finalizar llamada</string>
+    <string name="cd_interrupt_icon">Interrumpir respuesta</string>
 </resources>
