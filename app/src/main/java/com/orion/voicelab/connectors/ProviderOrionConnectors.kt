@@ -31,7 +31,10 @@ class GmailOrionConnector(
             if (id.isBlank()) return ConnectorResult.NeedsUserInput("Indica el identificador del correo.")
             return api.getMessage(id).fold(
                 onSuccess = { message ->
-                    ConnectorResult.Success("De: ${message.from}. Asunto: ${message.subject}. Fecha: ${message.date}. Resumen: ${message.snippet}")
+                    ConnectorResult.Success(
+                        "De: ${message.from}. Asunto: ${message.subject}. Fecha: ${message.date}. " +
+                            (message.bodyText.ifBlank { message.snippet }).take(3_000)
+                    )
                 },
                 onFailure = {
                     ConnectorResult.Failure(
