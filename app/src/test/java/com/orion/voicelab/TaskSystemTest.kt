@@ -201,8 +201,7 @@ class TaskSystemTest {
                 contactName = "Juan López",
                 phoneNumber = "+34600112233",
                 reason = "Presupuesto Q4",
-                status = PhoneCallStatus.COMPLETED,
-                durationSeconds = 95L
+                status = PhoneCallStatus.COMPLETED
             )
 
             val followUp = repo.createFollowUpForCall(
@@ -300,7 +299,8 @@ class TaskSystemTest {
             // 2. Reschedule same task -> still only 1 alarm (no duplicates)
             repo.postponeTask(t1.id, null, null, now + 7_200_000L)
             assertEquals(1, shadowAlarm.scheduledAlarms.size)
-            assertEquals(now + 7_200_000L, shadowAlarm.nextScheduledAlarm.triggerAtTime)
+            assertNotNull(shadowAlarm.nextScheduledAlarm)
+            assertEquals(now + 7_200_000L, shadowAlarm.nextScheduledAlarm!!.triggerAtTime)
 
             // 3. Complete task -> alarm removed & notification cleared
             AndroidTaskReminderScheduler.showReminderNotification(app, t1)
@@ -325,7 +325,7 @@ class TaskSystemTest {
 
             // Clear Robolectric alarm & notification shadows to simulate fresh boot state
             shadowAlarm.scheduledAlarms.clear()
-            shadowNm.cancelAll()
+            nm.cancelAll()
 
             TaskReminderReceiver.handleIntentSuspend(
                 context = app,
@@ -336,7 +336,8 @@ class TaskSystemTest {
 
             // Only future pending task gets AlarmManager schedule; overdue surfaces notification; completed stays off
             assertEquals(1, shadowAlarm.scheduledAlarms.size)
-            assertEquals(futureTask.reminderAtMs, shadowAlarm.nextScheduledAlarm.triggerAtTime)
+            assertNotNull(shadowAlarm.nextScheduledAlarm)
+            assertEquals(futureTask.reminderAtMs, shadowAlarm.nextScheduledAlarm!!.triggerAtTime)
             assertEquals(1, shadowNm.allNotifications.size)
 
             // Re-running boot reconciliation must leave the already-visible overdue notification alone.
