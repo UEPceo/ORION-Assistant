@@ -17,7 +17,8 @@ object OrionSelfKnowledgeAdvisor {
         val asksAboutSelf = listOf(
             "orion", "tu sistema", "tu aplicación", "tu app", "tu funcionamiento",
             "tu error", "error tuyo", "fallo tuyo", "diagnóstico", "diagnostico",
-            "por qué fallas", "porque fallas", "qué ha fallado", "que ha fallado", "te has cerrado", "te has bloqueado",\n            "no respondes", "no funciona", "te falla", "has fallado", "has dado error",
+            "por qué fallas", "porque fallas", "qué ha fallado", "que ha fallado", "te has cerrado", "te has bloqueado",
+            "no respondes", "no funciona", "te falla", "has fallado", "has dado error",
             "qué error", "que error", "registro de errores", "logs"
         ).any(normalized::contains)
 
@@ -25,7 +26,9 @@ object OrionSelfKnowledgeAdvisor {
             "cómo puedo", "como puedo", "quiero hacer", "necesito hacer",
             "ayúdame a", "ayudame a", "puedes ayudarme", "qué herramienta",
             "que herramienta", "qué función", "que funcion", "qué puedes usar",
-            "que puedes usar", "recomiéndame", "recomiendame", "la mejor forma", "quiero organizar",\n            "quiero crear", "quiero programar", "quiero diseñar", "quiero investigar",\n            "quiero gestionar", "necesito organizar", "necesito crear"
+            "que puedes usar", "recomiéndame", "recomiendame", "la mejor forma", "quiero organizar",
+            "quiero crear", "quiero programar", "quiero diseñar", "quiero investigar",
+            "quiero gestionar", "necesito organizar", "necesito crear"
         ).any(normalized::contains)
 
         if (!asksAboutSelf && !asksForAdvice) return ""
