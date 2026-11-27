@@ -25,7 +25,9 @@ class OrionConnectorRuntime(context: Context) {
             GitHubOrionConnector(
                 githubCredentials,
                 GitHubApiClient(githubCredentials, githubAuthenticator)
-            )
+            ),
+            GoogleMapsOrionConnector(context.applicationContext),
+            PescaIAOrionConnector()
         )
     )
     val dispatcher = ConnectorDispatcher(registry)
