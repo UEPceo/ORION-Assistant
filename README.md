@@ -133,3 +133,14 @@ Asistente personal y conversacional de voz **100 % offline y de coste cero (0 �
 7. **Interrupción (*barge-in*) y control de RAM**: Botón **Interrumpir** o voz sostenida del usuario; **Liberar RAM** descarga modelos sin borrar archivos ni memoria persistente.
 
 Sin claves API, sin suscripciones ni llamadas a servicios en la nube (coste **0 €**).
+
+
+## Conectores Gmail y GitHub — primera integración funcional
+
+- Gmail: búsqueda de mensajes y lectura limitada de remitente, asunto, fecha y fragmento; no se descarga el cuerpo completo ni se envían mensajes.
+- GitHub: listado de repositorios y consulta de incidencias abiertas; no se crean, editan ni cierran elementos.
+- Las órdenes de voz se reconocen mediante un enrutador determinista y se ejecutan a través de `ConnectorDispatcher`; el modelo de lenguaje no puede inventar llamadas arbitrarias a APIs.
+- Las credenciales se comparten entre la pantalla de autenticación y los adaptadores de voz mediante Android Keystore.
+- La primera versión de los comandos reconoce búsquedas explícitas de Gmail, listado de repositorios y consultas de incidencias por `propietario/repositorio`.
+- Gmail requiere completar la verificación OAuth de Google para distribución pública. GitHub requiere configurar el Client ID de la GitHub App y habilitar Device Flow.
+- Estas integraciones dependen de conexión a Internet y de que los permisos OAuth estén concedidos; el núcleo local de voz sigue funcionando sin conexión.
