@@ -61,6 +61,10 @@ class GitHubDeviceFlowAuthenticator(
                 )
             )
             val json = JSONObject(response)
+            val error = json.optString("error")
+            if (error.isNotBlank()) {
+                throw IllegalStateException(safeErrorMessage(error))
+            }
             val deviceCode = json.getString("device_code")
             val userCode = json.getString("user_code")
             val verificationUri = json.optString("verification_uri", VERIFICATION_URI)
