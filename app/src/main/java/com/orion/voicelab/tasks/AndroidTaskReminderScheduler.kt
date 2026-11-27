@@ -86,6 +86,10 @@ class AndroidTaskReminderScheduler(
             if (!hasNotificationPermission(context)) return
             ensureNotificationChannel(context)
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+            // Reconciliation may run on every app start, reboot or time-zone change.
+            // Do not re-alert for an overdue reminder that is already visible.
+            val notificationId = notificationIdFor(task.id)
+            if (nm.activeNotifications.any { it.id == notificationId }) return
 
             val openIntent = Intent(context.applicationContext, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
