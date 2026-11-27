@@ -10,7 +10,6 @@ import androidx.room.Query
 import com.orion.voicelab.connectors.ConnectorId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
 import org.json.JSONArray
 import org.json.JSONObject
@@ -294,7 +293,12 @@ class PersistentPlanExecutionService(
         retryStepIds: Set<String> = emptySet()
     ): PlanExecutionReport {
         val lock = executionLocks.computeIfAbsent(planId) { Mutex() }
-        return lock.withLock { executeLocked(planId, approvedStepIds, runner, retryStepIds) }
+        lock.lock()
+        return try {
+            executeLocked(planId, approvedStepIds, runner, retryStepIds)
+        } finally {
+            lock.unlock()
+        }
     }
 
     private suspend fun executeLocked(
