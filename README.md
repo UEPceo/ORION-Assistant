@@ -19,17 +19,17 @@
 - GitHub usa Device Flow de una GitHub App; los repositorios y permisos disponibles dependen de la instalación que autorice el usuario. Los tokens de acceso y renovación se cifran localmente y admiten rotación.
 - Los tokens se guardan mediante AES-256-GCM con clave de Android Keystore y pueden eliminarse desde la pantalla Conectores.
 - El token de Gmail es de duración limitada; no se guarda refresh token. Desconectar Gmail revoca el acceso en Google y elimina la credencial local.
-- Gmail incorpora autorización nativa Google Identity con permiso inicial de solo lectura y token cifrado de duración limitada; requiere proyecto Google Cloud, Gmail API, pantalla de consentimiento y cliente OAuth Android con la huella SHA-1 correcta. La lectura de mensajes aún no está conectada.
+- Gmail incorpora autorización nativa Google Identity con permiso `gmail.readonly`, búsqueda de mensajes y consulta de metadatos/fragmentos. Requiere proyecto Google Cloud, Gmail API, pantalla de consentimiento y cliente OAuth Android con la huella SHA-1 correcta.
 - Guía: `docs/CONNECTORS_AUTHENTICATION.md`.
 
 ## Nueva base de conectores — estructura inicial
 
-- Nueva pestaña **Conectores** con catálogo inicial de Gmail, GitHub, Google Calendar y Google Drive. Los proveedores aparecen como próximos; todavía no se anuncian como integraciones operativas.
+- Nueva pestaña **Conectores** con Gmail y GitHub operativos en lectura. Google Calendar y Google Drive permanecen como conectores futuros.
 - Contratos comunes para proveedores, capacidades, estado de conexión, acciones y resultados; registro explícito de adaptadores.
 - Política central para impedir acciones sobre proveedores desconectados y exigir confirmación en operaciones con efectos externos o destructivos.
 - Almacenamiento inicial de credenciales cifradas con AES-256-GCM y clave no exportable protegida por Android Keystore.
 - Arquitectura y requisitos de seguridad documentados en `docs/CONNECTORS_ARCHITECTURE.md`.
-- Esta entrega no añade OAuth ni llamadas a APIs externas. El núcleo de voz, memoria, tareas y telefonía continúa independiente y utilizable offline.
+- Los conectores requieren Internet y autorización OAuth. El núcleo local de voz, memoria, tareas y telefonía continúa independiente y utilizable offline.
 
 ## Novedades de la Fase 0.8.0 — Diagnóstico técnico exportable
 
