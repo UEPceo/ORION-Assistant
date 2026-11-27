@@ -11,9 +11,9 @@ object OrionSelfKnowledgeAdvisor {
     fun shouldReadDiagnostics(userQuery: String): Boolean {
         val normalized = userQuery.lowercase()
         return listOf(
-            "error", "fallo", "falla", "diagn", "log", "bloqueado", "cerrado",
+            "error", "fallo", "fallado", "falla", "diagn", "log", "bloqueado", "cerrado",
             "no respondes", "no responde", "no funciona", "te has caído", "te has caido",
-            "te has detenido", "te has parado", "crash", "se ha cerrado"
+            "te has detenido", "te has parado", "crash", "se ha cerrado", "qué ha fallado", "que ha fallado", "problema contigo"
         ).any(normalized::contains)
     }
 
@@ -77,8 +77,9 @@ object OrionSelfKnowledgeAdvisor {
                 if (diagnosticLog.isBlank()) {
                     appendLine("No hay extracto técnico local disponible en este contexto. Solicita o genera el informe de diagnóstico; no simules haber leído logs.")
                 } else {
-                    appendLine(diagnosticLog.takeLast(2_400))
+                    appendLine(diagnosticLog.takeLast(1_800))
                 }
+                appendLine(OrionSelfDiagnosticRegistry.composeReport(state, diagnosticLog, maxChars = 2_100))
             }
             if (asksForAdvice) {
                 appendLine("PROTOCOLO DE ASESORAMIENTO:")
@@ -88,5 +89,5 @@ object OrionSelfKnowledgeAdvisor {
         }.take(MAX_CONTEXT_CHARS)
     }
 
-    private const val MAX_CONTEXT_CHARS = 4_800
+    private const val MAX_CONTEXT_CHARS = 6_000
 }
