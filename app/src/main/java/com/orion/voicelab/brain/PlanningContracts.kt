@@ -29,6 +29,7 @@ object PlanValidator {
         val errors = mutableListOf<String>()
         if (plan.id.isBlank()) errors += "El plan necesita un identificador."
         if (plan.goal.isBlank()) errors += "El plan necesita un objetivo."
+        if (plan.id.length > 100 || plan.goal.length > 1_200) errors += "El identificador u objetivo del plan supera el límite permitido."
         if (plan.steps.isEmpty()) errors += "El plan no contiene pasos."
         if (plan.budget.maxSteps !in 1..50) errors += "El límite de pasos debe estar entre 1 y 50."
         if (plan.steps.size > plan.budget.maxSteps) errors += "El plan supera el máximo de pasos."
@@ -38,6 +39,11 @@ object PlanValidator {
         if (duplicateIds.isNotEmpty()) errors += "Hay identificadores de paso duplicados."
         val ids = plan.steps.map { it.id }.toSet()
         if (plan.steps.any { it.id.isBlank() || it.title.isBlank() }) errors += "Cada paso necesita ID y título."
+        if (plan.steps.any {
+                it.id.length > 80 || it.title.length > 180 || it.rationale.length > 1_200 ||
+                    it.inputSummary.length > 1_200 || it.connectorArguments.size > 30 ||
+                    it.connectorArguments.any { (key, value) -> key.length > 100 || value.length > 1_200 }
+            }) errors += "Un paso supera los límites de tamaño o argumentos."
         plan.steps.forEach { item ->
             if (item.id in item.dependsOn) errors += "Un paso no puede depender de sí mismo: ${item.id}."
             if (item.kind in EXTERNAL_KINDS && (item.connectorId == null || item.connectorOperation.isNullOrBlank())) errors += "El paso externo ${item.id} necesita conector y operación explícitos."
