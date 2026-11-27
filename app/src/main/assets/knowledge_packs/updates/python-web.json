@@ -1,0 +1,27 @@
+{
+  "id": "python-web",
+  "version": 2,
+  "title": "Python y fundamentos de programación",
+  "documents": [
+    {
+      "id": "python-tutorial",
+      "title": "Fundamentos del lenguaje Python",
+      "url": "https://docs.python.org/es/3/tutorial/index.html",
+      "publisher": "Python Software Foundation",
+      "domain": "PROGRAMMING",
+      "authority": "PRIMARY_TECHNICAL",
+      "jurisdiction": null,
+      "content": "Python es un lenguaje de alto nivel, interpretado y de tipado dinámico, con estructuras de datos integradas y soporte para programación procedural y orientada a objetos. Los bloques se delimitan mediante indentación significativa. Las variables son referencias a objetos; la asignación no implica copiar el objeto. Las listas son secuencias mutables, las tuplas son secuencias inmutables y los diccionarios almacenan asociaciones clave-valor. Las funciones se definen con def, pueden recibir argumentos posicionales o por nombre y devolver resultados con return. Las excepciones permiten separar el flujo normal de los casos de error: captura únicamente las excepciones que puedas tratar y evita usar except genérico para ocultar fallos. Los módulos permiten organizar código reutilizable; el punto de entrada if __name__ == '__main__' separa ejecución directa de importación. Los iteradores y generadores permiten procesar secuencias sin materializar todos los elementos. Para proyectos mantenibles, utiliza entornos virtuales, dependencias fijadas y pruebas automatizadas. El tutorial oficial presupone nociones básicas de programación y no sustituye la referencia completa del lenguaje ni la documentación de la biblioteca estándar. La sintaxis y los módulos disponibles pueden variar entre versiones de Python; comprueba siempre la versión objetivo antes de recomendar APIs concretas."
+    },
+    {
+      "id": "http-overview",
+      "title": "Fundamentos de HTTP para comprender la web",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Overview",
+      "publisher": "MDN Web Docs",
+      "domain": "INTERNET",
+      "authority": "PRIMARY_TECHNICAL",
+      "jurisdiction": null,
+      "content": "HTTP es un protocolo de aplicación basado en un modelo cliente-servidor: un cliente envía una solicitud a un servidor y recibe una respuesta. Una solicitud incluye un método, una URL, cabeceras y, cuando procede, un cuerpo. La respuesta incluye un código de estado, cabeceras y, cuando procede, contenido. GET suele recuperar una representación; POST envía datos para que el servidor los procese; PUT sustituye o crea una representación en una URI conocida; PATCH aplica modificaciones parciales; DELETE solicita eliminar un recurso. Los métodos y sus propiedades de seguridad e idempotencia importan al diseñar reintentos. Las cabeceras transportan metadatos como tipo de contenido, negociación, autenticación y caché. Los códigos 2xx indican éxito, 3xx redirección, 4xx problemas asociados a la solicitud o autorización y 5xx errores del servidor; el significado exacto depende del código. HTTP es sin estado a nivel de protocolo: cada solicitud debe poder interpretarse sin asumir que el servidor recuerda automáticamente la anterior, aunque cookies, tokens y otros mecanismos pueden mantener sesiones. HTTPS protege el canal mediante TLS, aportando confidencialidad e integridad en tránsito y autenticación del servidor cuando el certificado se valida correctamente. No confundas HTTPS con seguridad completa de la aplicación: autorización, validación de entradas, gestión de sesiones y protección de datos siguen siendo necesarias."
+    }
+  ]
+}
