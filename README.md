@@ -1,4 +1,13 @@
-# ORION 0.8.0 — Diagnóstico exportable y asistente personal (Android / Jetpack Compose)
+# ORION 0.8.1 — Recuperación automática de modelos y diagnóstico exportable (Android / Jetpack Compose)
+
+## Novedades de la Fase 0.8.1 — Recuperación automática de modelos
+
+- ORION comprueba en cada arranque si ASR, LLM y TTS están realmente instalados y completos.
+- Si falta un modelo o su instalación está dañada/incompleta, vuelve a iniciar la descarga automática; ya no depende de una marca persistente que podía impedir la reparación después de una instalación anterior.
+- Se conserva el orden TTS → ASR → LLM, el progreso, la cancelación, la reanudación de descargas parciales y la verificación de integridad existente.
+- Una descarga fallida no bloquea los demás módulos de la aplicación: muestra el error y permite reintentar.
+
+## Novedades de la Fase 0.8.0 — Diagnóstico técnico exportable
 
 ## Novedades de la Fase 0.8.0 — Diagnóstico técnico exportable
 
