@@ -12,5 +12,6 @@ class PlanningPromptComposerTest {
  }
  @Test fun ordinaryQuestionDoesNotForcePlanningMode() {
   assertEquals("",PlanningPromptComposer.compose("Qué es Kotlin"))
+  assertTrue(PlanningPromptComposer.isMultiStepRequest("Haz un plan de trabajo para migrar el proyecto"))
  }
 }
