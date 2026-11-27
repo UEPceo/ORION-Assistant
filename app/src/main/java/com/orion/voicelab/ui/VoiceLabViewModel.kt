@@ -45,6 +45,8 @@ import com.orion.voicelab.data.VoiceLabUiState
 import com.orion.voicelab.engine.MoonshineModelManager
 import com.orion.voicelab.engine.OrionVoiceEngine
 import com.orion.voicelab.llm.LlamaCppLanguageModel
+import com.orion.voicelab.knowledge.OrionBrainRuntime
+import com.orion.voicelab.knowledge.BrainPromptComposer
 import com.orion.voicelab.memory.ContextPromptBuilder
 import com.orion.voicelab.memory.MemoryCandidateExtractor
 import com.orion.voicelab.model.ModelManager
@@ -77,6 +79,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -91,6 +94,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     private val appContext = application.applicationContext
     private val connectorRuntime = OrionConnectorRuntime(appContext)
+    private val brainRuntime = OrionBrainRuntime(appContext)
     private val connectorPermissionManager = com.orion.voicelab.connectors.ConnectorPermissionManager()
     @Volatile private var lastConnectorRepository: String? = null
     @Volatile private var pendingConnectorInputAction: com.orion.voicelab.connectors.ConnectorAction? = null
@@ -170,7 +174,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         speechSynthesizer = speechSynthesizer,
         audioRoutingController = audioRoutingController,
         turnContextResolver = { userText, recentHistory ->
-            ContextPromptBuilder.buildTurnContext(
+            val baseContext = ContextPromptBuilder.buildTurnContext(
                 identity = latestIdentity,
                 allMemories = latestMemories,
                 conversationSummary = latestConversationSummary,
@@ -179,6 +183,13 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 activeCoworker = latestSelectedCoworker,
                 recentPhoneCalls = latestPhoneCallRecords,
                 activeTasks = latestTasks
+            )
+            val brainContext = withContext(Dispatchers.IO) {
+                brainRuntime.retrieve(userText)
+            }
+            baseContext.copy(
+                systemPrompt = baseContext.systemPrompt + "\n\n" +
+                    BrainPromptComposer.compose(brainContext)
             )
         },
         directTurnResponder = { userText ->
