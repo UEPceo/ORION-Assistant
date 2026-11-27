@@ -94,6 +94,9 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
+            // sherpa-onnx and the direct ONNX Runtime dependency both ship this SONAME.
+            // Keep a single copy; the direct ONNX Runtime dependency is declared first.
+            pickFirsts += "**/libonnxruntime.so"
         }
     }
 
