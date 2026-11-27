@@ -102,7 +102,7 @@ object OrionSelfDiagnosticRegistry {
         if (maxChars <= 0) return ""
         val log = diagnosticLog.takeLast(6_000)
         val latestEvent = Regex(
-            """eventId=(OR-[^ ]+) component=([^ ]+) cause=(.*)""",
+            """eventId=(OR-[^ ]+) component=(.*?) cause=(.*)""",
             RegexOption.IGNORE_CASE
         ).findAll(log).lastOrNull()
         val latestFatal = Regex(
@@ -121,8 +121,16 @@ object OrionSelfDiagnosticRegistry {
             appendLine("REGISTRO TÉCNICO DE AUTODIAGNÓSTICO v$REGISTRY_VERSION:")
             appendLine("Mapa de módulos (rutas de propiedad conocidas; la línea exacta solo se afirma si aparece en la traza):")
             modules.forEach { module ->
-                appendLine("- ${module.id}: ${module.owner}. Código: ${module.entryPoints}. Dependencias: ${module.dependencies}.")
-                appendLine("  Comprobaciones: ${module.checks}. Recuperación segura: ${module.recovery}.")
+                appendLine("- ${module.id}: ${module.owner}; código=${module.entryPoints}; deps=${module.dependencies}.")
+            }
+            val matchedModule = modules.firstOrNull { module ->
+                component.contains(module.id, ignoreCase = true) ||
+                    module.entryPoints.split(",").any { entry ->
+                        component.contains(entry.trim().substringBefore("."), ignoreCase = true)
+                    }
+            }
+            if (matchedModule != null) {
+                appendLine("Detalle del módulo ${matchedModule.id}: comprobar ${matchedModule.checks}. Recuperación segura: ${matchedModule.recovery}.")
             }
             appendLine("Estado vivo: ASR=${state.asrLoaded}, LLM=${state.llmLoaded}, TTS=${state.ttsLoaded}, conversación=${state.conversationState}, escucha=${state.listeningState}.")
             if (latestEvent != null) {
