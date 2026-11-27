@@ -26,6 +26,29 @@ class GmailOrionConnector(
         if (action.connectorId != ConnectorId.GMAIL) {
             return ConnectorResult.Failure("Operación de Gmail no disponible.", false)
         }
+        if (action.operation == "read_latest_message") {
+            val query = action.arguments["query"] ?: "newer_than:7d"
+            return api.searchMessages(query, 1).fold(
+                onSuccess = { messages ->
+                    val first = messages.firstOrNull()
+                    if (first == null) ConnectorResult.Success("No he encontrado correos recientes que coincidan.")
+                    else api.getMessage(first.id).fold(
+                        onSuccess = { message ->
+                            ConnectorResult.Success(
+                                "Correo más reciente. De: ${message.from}. Asunto: ${message.subject}. Fecha: ${message.date}. " +
+                                    (message.bodyText.ifBlank { message.snippet }).take(3_000)
+                            )
+                        },
+                        onFailure = {
+                            ConnectorResult.Failure("No se pudo abrir el correo más reciente.", true)
+                        }
+                    )
+                },
+                onFailure = {
+                    ConnectorResult.Failure("No se pudo buscar el correo más reciente.", true)
+                }
+            )
+        }
         if (action.operation == "get_message") {
             val id = action.arguments["message_id"].orEmpty()
             if (id.isBlank()) return ConnectorResult.NeedsUserInput("Indica el identificador del correo.")
