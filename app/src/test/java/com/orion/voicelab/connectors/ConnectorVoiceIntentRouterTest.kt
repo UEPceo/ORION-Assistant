@@ -21,6 +21,18 @@ class ConnectorVoiceIntentRouterTest {
     }
 
     @Test
+    fun naturalSenderSearchBecomesGmailFromQuery() {
+        val routed = ConnectorVoiceIntentRouter.route("Busca un correo de Amazon en Gmail")
+        assertEquals("from:Amazon", routed?.action?.arguments?.get("query"))
+    }
+
+    @Test
+    fun recentMailRequestUsesGmailDateOperator() {
+        val routed = ConnectorVoiceIntentRouter.route("Enséñame los últimos correos de Gmail")
+        assertEquals("newer_than:7d", routed?.action?.arguments?.get("query"))
+    }
+
+    @Test
     fun explicitRepositoryListIsRouted() {
         val routed = ConnectorVoiceIntentRouter.route("Lista mis repositorios de GitHub")
         assertEquals(ConnectorId.GITHUB, routed?.action?.connectorId)
