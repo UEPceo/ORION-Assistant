@@ -1,0 +1,27 @@
+{
+  "id": "es-cyber",
+  "version": 1,
+  "title": "Ciberseguridad defensiva y privacidad",
+  "documents": [
+    {
+      "id": "owasp-top10",
+      "title": "OWASP Top 10: riesgos de aplicaciones web",
+      "url": "https://owasp.org/www-project-top-ten/",
+      "publisher": "OWASP Foundation",
+      "domain": "CYBERSECURITY",
+      "authority": "PRIMARY_TECHNICAL",
+      "jurisdiction": null,
+      "content": "OWASP Top 10 es un documento de concienciación sobre riesgos relevantes de seguridad en aplicaciones web; no es una lista exhaustiva ni una certificación de que una aplicación sea segura. La edición publicada más reciente indicada por OWASP es Top 10 2025. Entre las familias de riesgo que un equipo debe analizar están los controles de acceso defectuosos, fallos criptográficos, inyección, diseño inseguro, configuraciones incorrectas, componentes vulnerables o desactualizados, fallos de autenticación, integridad de software y datos, registro y monitorización insuficientes y manejo inseguro de condiciones excepcionales. El trabajo defensivo comienza con modelado de amenazas y límites de confianza; aplica mínimo privilegio, validación en servidor, consultas parametrizadas, gestión segura de secretos, actualizaciones de dependencias, cabeceras y configuración segura, registros sin secretos y pruebas en entornos autorizados. No pruebes sistemas ajenos sin permiso explícito. Para cada aplicación, adapta los controles al lenguaje, arquitectura y amenaza real; una lista genérica no reemplaza una auditoría ni un análisis de riesgo."
+    },
+    {
+      "id": "cyber-hygiene",
+      "title": "Higiene digital: cuentas, contraseñas y phishing",
+      "url": "https://www.incibe.es/ciudadania",
+      "publisher": "INCIBE",
+      "domain": "CYBERSECURITY",
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "ES",
+      "content": "La defensa cotidiana de cuentas empieza por contraseñas largas, únicas y no reutilizadas. Un gestor de contraseñas permite generar y conservar credenciales diferentes; activa autenticación multifactor siempre que el servicio la ofrezca, preferiblemente con métodos resistentes al phishing cuando estén disponibles. Desconfía de mensajes inesperados que generen urgencia, pidan credenciales, soliciten pagos o incluyan enlaces y adjuntos no esperados. Comprueba el dominio real del remitente y accede al servicio escribiendo su dirección o usando la aplicación oficial, no desde el enlace recibido. Nunca compartas códigos de un solo uso, claves de recuperación ni contraseñas con quien te contacte. Mantén sistema, navegador y aplicaciones actualizados; realiza copias de seguridad y protege los dispositivos con bloqueo. Si introduces una contraseña en una página sospechosa, cambia la credencial desde el sitio legítimo, revoca sesiones activas, revisa los métodos de recuperación y activa MFA. Si hay fraude o incidente, conserva evidencias y busca los canales oficiales de ayuda de INCIBE y las autoridades competentes. Los procedimientos y teléfonos de asistencia pueden cambiar; verifica los canales vigentes en la fuente oficial."
+    }
+  ]
+}
