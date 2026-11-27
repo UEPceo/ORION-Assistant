@@ -1,0 +1,6 @@
+{
+  "name": "ORION Voice Lab",
+  "description": "Laboratorio offline de reconocimiento de voz en español con Silero VAD, Moonshine Base ES y panel de telemetría del dispositivo.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

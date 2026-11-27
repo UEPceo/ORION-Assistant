@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ORION Voice Lab</string>
+    <string name="brand_title">ORION</string>
+    <string name="brand_subtitle">VOICE LAB 0.3 · ESPAÑOL OFFLINE</string>
+    <string name="status_model_ready">Moonshine Base ES instalado. Reconocimiento local disponible sin Internet.</string>
+    <string name="status_model_missing">Modelo español todavía no instalado. Descárgalo con conexión Wi-Fi. Después funcionará offline.</string>
+    <string name="status_downloading_model">Descargando modelo oficial Moonshine Base ES…</string>
+    <string name="status_extracting_model">Extrayendo archivos del modelo offline…</string>
+    <string name="status_loading_models">Cargando Moonshine Base ES y Silero VAD…</string>
+    <string name="status_listening">Escuchando. Habla con naturalidad; la frase se cierra tras una pausa.</string>
+    <string name="status_voice_detected">Voz detectada…</string>
+    <string name="status_stopping">Deteniendo…</string>
+    <string name="status_stopped">Escucha detenida. El modelo permanece instalado para uso offline.</string>
+    <string name="status_permission_denied">Permiso de micrófono denegado.</string>
+    <string name="btn_download_model">Descargar modelo español (una vez)</string>
+    <string name="btn_model_installed">Modelo español instalado</string>
+    <string name="btn_start_recognition">Iniciar reconocimiento</string>
+    <string name="btn_stop_listening">Detener escucha</string>
+    <string name="btn_measure_now">Medir ahora</string>
+    <string name="btn_copy_report">Copiar informe</string>
+    <string name="btn_clear_data">Borrar datos</string>
+    <string name="section_telemetry">MEDICIÓN · FASE 0</string>
+    <string name="section_transcripts">TRANSCRIPCIONES</string>
+    <string name="empty_transcript">Aquí aparecerán las transcripciones.\n\nEl audio se procesa en el teléfono y no se envía a ningún servidor.</string>
+    <string name="report_copied">Informe copiado al portapapeles</string>
+    <string name="cd_voice_status">Indicador de estado de voz</string>
+    <string name="cd_download_icon">Descargar modelo</string>
+    <string name="cd_mic_icon">Iniciar micrófono</string>
+    <string name="cd_stop_icon">Detener escucha</string>
+    <string name="cd_measure_icon">Actualizar métricas</string>
+    <string name="cd_copy_icon">Copiar informe</string>
+    <string name="cd_clear_icon">Borrar datos</string>
+</resources>
