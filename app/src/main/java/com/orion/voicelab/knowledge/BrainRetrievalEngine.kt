@@ -64,7 +64,7 @@ class BrainRetrievalEngine(
             requiresPublishedDate = query.requiresFreshEvidence
         )
         val safeToPresentAsVerified = verification.verdict == KnowledgeVerdict.SUPPORTED &&
-            (!query.requiresPrimaryEvidence || verification.hasPrimaryEvidence)
+            (!query.requiresPrimaryEvidence || verification.hasOfficialPrimaryEvidence)
 
         return BrainContext(
             query = query,
