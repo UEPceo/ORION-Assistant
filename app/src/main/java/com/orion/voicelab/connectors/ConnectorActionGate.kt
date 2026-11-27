@@ -22,6 +22,8 @@ object ConnectorActionGate {
         "profile",
         "status",
         "search_messages",
+        "search_public",
+        "search_place",
         "list_messages",
         "get_message",
         "read_latest_message",
