@@ -17,10 +17,10 @@
     {
       "id": "mathematics-limites-derivadas-e-integrales",
       "title": "Límites, derivadas e integrales",
-      "url": "https://openstax.org/details/books/calculus-volume-1",
-      "publisher": "OpenStax",
+      "url": "https://ocw.mit.edu/courses/18-01sc-single-variable-calculus-fall-2010/",
+      "publisher": "MIT OpenCourseWare",
       "domain": "MATHEMATICS",
-      "authority": "PEER_REVIEWED",
+      "authority": "PRIMARY_TECHNICAL",
       "jurisdiction": null,
       "reviewedAtMs": 1795737600000,
       "content": "El cálculo estudia cambio y acumulación. Un límite describe el valor al que se aproxima una función; la derivada mide una tasa de cambio instantánea y la integral definida representa acumulación neta. El teorema fundamental conecta derivación e integración. En aplicaciones físicas o económicas deben revisarse unidades: derivar distancia respecto al tiempo produce velocidad e integrar una tasa respecto al tiempo produce cantidad acumulada. Los resultados simbólicos y numéricos se comprueban con estimaciones, gráficas o métodos alternativos."
