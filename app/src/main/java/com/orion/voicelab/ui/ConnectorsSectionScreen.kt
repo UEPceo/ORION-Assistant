@@ -245,7 +245,7 @@ fun ConnectorsSectionScreen(
                                     is GitHubDeviceAuthorizationResult.Authorized -> {
                                         githubCredentials.save(result)
                                         githubConnected = true
-                                        githubStatus = "GitHub autorizado. Los repositorios públicos se consultan sin ampliar permisos."
+                                        githubStatus = "GitHub autorizado. Los repositorios públicos se consultan sin ampliar permisos; las acciones API aún están en desarrollo."
                                         githubUserCode = null
                                     }
                                     GitHubDeviceAuthorizationResult.AccessDenied -> {
@@ -370,7 +370,7 @@ private fun GitHubConnectorCard(
             ) {
                 Text(connector.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
-                    text = if (connected) "Conectado" else "OAuth Device Flow",
+                    text = if (connected) "Autorizado" else "OAuth Device Flow",
                     style = MaterialTheme.typography.labelSmall,
                     color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
                 )
