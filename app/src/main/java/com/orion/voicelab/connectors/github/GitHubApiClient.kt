@@ -24,6 +24,7 @@ data class GitHubIssueSummary(
     val htmlUrl: String,
     val updatedAt: String
 )
+data class GitHubIssueDetail(val number: Int, val title: String, val state: String, val body: String, val author: String, val htmlUrl: String, val updatedAt: String)
 
 data class GitHubCommitSummary(val sha: String, val message: String, val author: String, val committedAt: String, val htmlUrl: String)
 data class GitHubWorkflowRunSummary(val name: String, val status: String, val conclusion: String, val branch: String, val htmlUrl: String, val updatedAt: String)
@@ -83,6 +84,24 @@ class GitHubApiClient(
                         )
                     }
                 }
+            }
+        }
+
+    suspend fun getIssue(repository: String, number: Int): Result<GitHubIssueDetail> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                require(REPOSITORY_PATTERN.matches(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
+                require(number > 0) { "Número de incidencia no válido." }
+                val item = requestObject("/repos/$repository/issues/$number")
+                GitHubIssueDetail(
+                    number = item.optInt("number"),
+                    title = item.optString("title").take(MAX_TITLE_LENGTH),
+                    state = item.optString("state"),
+                    body = item.optString("body").take(2_000),
+                    author = item.optJSONObject("user")?.optString("login").orEmpty().take(100),
+                    htmlUrl = item.optString("html_url"),
+                    updatedAt = item.optString("updated_at")
+                )
             }
         }
 
