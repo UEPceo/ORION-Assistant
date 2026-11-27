@@ -122,10 +122,6 @@ object KnowledgeVerifier {
                 verdict = KnowledgeVerdict.CONFLICTING
                 reason = "Las fuentes recuperadas presentan información contradictoria."
             }
-            requiresPublishedDate && relevant.any { it.publishedAtMs == null } -> {
-                verdict = KnowledgeVerdict.AGE_UNCONFIRMED
-                reason = "La página se ha consultado ahora, pero no aporta fecha de publicación o actualización verificable; no se puede afirmar que su contenido siga vigente."
-            }
             maxAgeMs >= 0L && newest != null && nowMs - newest > maxAgeMs -> {
                 verdict = KnowledgeVerdict.STALE
                 reason = "La evidencia supera el periodo de vigencia configurado."
@@ -138,6 +134,10 @@ object KnowledgeVerifier {
             ) && !hasOfficialPrimary -> {
                 verdict = KnowledgeVerdict.PRIMARY_SOURCE_REQUIRED
                 reason = "Este ámbito exige una fuente oficial o primaria antes de afirmar que el dato está verificado."
+            }
+            requiresPublishedDate && relevant.any { it.publishedAtMs == null } -> {
+                verdict = KnowledgeVerdict.AGE_UNCONFIRMED
+                reason = "La página se ha consultado ahora, pero no aporta fecha de publicación o actualización verificable; no se puede afirmar que su contenido siga vigente."
             }
             corroboratingPublishers.size < 2 && !hasPrimary -> {
                 verdict = KnowledgeVerdict.NEEDS_CORROBORATION
