@@ -11,5 +11,7 @@ object KnowledgePackCatalog {
   KnowledgePackManifest("python-web","Python e Internet",1,setOf(KnowledgeDomain.PROGRAMMING,KnowledgeDomain.INTERNET),null,setOf("python","mdn"),"Documentación oficial; respetar licencias y versiones.",2,KnowledgePackState.READY_TO_INSTALL,60),
   KnowledgePackManifest("andalucia-fishing","Pesca recreativa Andalucía",2,setOf(KnowledgeDomain.FISHING,KnowledgeDomain.SURFCASTING,KnowledgeDomain.LAW_AND_REGULATION),"ES-AN",setOf("junta-andalucia","mapa","boe"),"Resúmenes de fuentes oficiales; revisar vigencia y cambios judiciales.",3,KnowledgePackState.READY_TO_INSTALL,7)
  )
- fun installed():List<KnowledgePackManifest> = packs.filter{it.state==KnowledgePackState.INSTALLED}
+ fun withRuntimeState(installedIds: Set<String>): List<KnowledgePackManifest> = packs.map { pack ->
+  pack.copy(state = if (pack.id in installedIds) KnowledgePackState.INSTALLED else KnowledgePackState.READY_TO_INSTALL)
+ }
 }
