@@ -239,3 +239,46 @@ P4 — Herramientas y multimedia: sandbox de programación, lectura de documento
 P5 — Evaluación continua: banco de pruebas con preguntas conocidas, fuentes fechadas, tareas multi-herramienta, errores simulados, privacidad, seguridad y regresiones. No declarar el cerebro terminado hasta superar criterios medibles.
 
 **Conclusión de auditoría:** ORION ya tiene una base arquitectónica prometedora, pero su conocimiento offline es escaso y su autonomía multi-paso aún no está resuelta. Para alcanzar el objetivo ultra completo necesita más conocimiento curado, un modelo de razonamiento mejorable por perfiles y, sobre todo, un planificador con herramientas reales y validación de resultados.
+
+## Ampliación del cerebro — 27/11/2026
+
+Esta actualización incorpora las primeras implementaciones de los seis frentes de mejora. No debe confundirse el catálogo o el contrato arquitectónico con una capacidad ya operativa.
+
+### 1. Calidad del conocimiento y fuentes
+- Catálogo inicial de fuentes oficiales españolas y europeas y documentación técnica: BOE, EUR-Lex, AEMET, MITECO, Sanidad, INCIBE, AEPD, DGT, Junta de Andalucía, MAPA, Android, Kotlin, Python, OWASP, MDN y GitHub Docs.
+- El catálogo registra dominio, jurisdicción, autoridad y cadencia de revisión. Una URL de catálogo no se considera evidencia hasta recuperarla, fecharla y verificarla.
+- La recuperación local usa ponderación por coincidencia en título, extracto y cuerpo, frecuencia inversa de documento, cobertura de términos y desempate por autoridad/fecha. Es una mejora léxica tipo TF-IDF ponderado, no un motor vectorial ni búsqueda semántica.
+- Sigue pendiente extracción PDF, varios buscadores, corroboración avanzada, fecha de modificación robusta y defensa completa contra DNS rebinding.
+
+### 2. Planificación multipaso
+- Contratos tipados para planes, pasos, dependencias, riesgo, presupuestos, estados e idempotencia.
+- Validador de dependencias y ciclos, límite de pasos, reintentos y duración.
+- Coordinador secuencial: una dependencia fallida bloquea los pasos posteriores; las excepciones se convierten en resultados controlados.
+- Las escrituras externas, mensajes, llamadas, borrados y compras requieren aprobación específica para los IDs de paso de esa ejecución. No hay autorización persistente.
+- El contexto de conversación activa instrucciones de planificación cuando detecta una petición multipaso.
+- Limitación: el coordinador todavía no está conectado al dispatcher de conectores ni a un almacén persistente. El modelo puede proponer un plan, pero ORION no debe afirmar que lo ha ejecutado.
+
+### 3. Conocimiento offline
+- Catálogo de seis packs previstos: normativa España/UE, seguridad España, ciberseguridad, Android/Kotlin, Python/Internet y pesca recreativa Andalucía.
+- Cada pack declara versión, dominios, jurisdicción, fuentes, licencia y frecuencia de revisión.
+- **Estado real: catálogo únicamente. No hay contenido empaquetado ni packs instalados.** No se contabiliza un pack como conocimiento offline hasta incluir sus documentos, hashes, licencias y pruebas de actualización.
+
+### 4. Modelos y razonamiento
+- Catálogo de perfiles separa modelo ligero local, futuro modelo local avanzado y futuro proveedor remoto consentido.
+- Selector por modo, capacidades solicitadas y memoria disponible. Si ningún perfil operativo cumple los requisitos, devuelve ausencia de motor compatible en lugar de prometer capacidad.
+- Qwen2.5 1.5B Q4 continúa siendo el único perfil operativo actual, con contexto 2048 y uso ligero. No es un motor de razonamiento avanzado ni multimodal.
+- La selección multi-modelo, cuantizaciones alternativas y evaluación de calidad/rendimiento en dispositivo siguen pendientes.
+
+### 5. Herramientas y multimedia
+- Catálogo de capacidades y limitaciones para Gmail, GitHub, Maps, PescaIA, Calendar, archivos, navegador y sandbox de programación.
+- Se explicita que GitHub no equivale a compilar código, que el lector web no es navegador completo y que el sandbox no existe aún.
+- Los contratos multimedia y la puerta de consentimiento de un solo uso siguen preparados, pero no se han conectado proveedores ComfyUI ni una interfaz de progreso/resultado. Generación y análisis de imagen/vídeo siguen sin estar operativos.
+
+### 6. Evaluación continua
+- Evaluador ponderado por áreas con puntuación 0–10, brechas y criterio global: todas las áreas deben llegar a 8/10.
+- Línea base conservadora calculada desde capacidades realmente implementadas: conocimiento 6/10; planificación 4/10; conocimiento offline 4/10; razonamiento/modelo 4/10; herramientas 4/10; multimedia 4/10; fiabilidad/seguridad 6/10. Mínimo global: **4/10**; media aproximada: **4,6/10**.
+- Esta puntuación es una línea base de ingeniería basada en criterios explícitos, no una prueba independiente de inteligencia. Se recalculará cuando haya pruebas automatizadas y resultados de ejecución.
+- La meta 8/10 no está alcanzada. El mayor déficit está en contenido offline real, ejecución multipaso conectada, motores avanzados y multimedia operativa.
+
+### Criterio de aceptación para declarar 8/10
+Cada área debe disponer de criterios reproducibles, pruebas unitarias e integración, evidencia de ejecución y cobertura suficiente. Ninguna capacidad marcada como catálogo, contrato, configuración pendiente o no implementada puede sumar como operativa. La puntuación mínima entre áreas gobierna el resultado global; una media alta no puede ocultar un área débil.
