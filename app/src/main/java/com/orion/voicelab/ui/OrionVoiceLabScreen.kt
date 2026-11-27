@@ -122,9 +122,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.orion.voicelab.R
-import com.orion.voicelab.data.ChatRole
 import com.orion.voicelab.data.ConversationState
-import com.orion.voicelab.data.ConversationTurn
 import com.orion.voicelab.data.DeviceMetrics
 import com.orion.voicelab.data.ListeningState
 import com.orion.voicelab.data.MemoryCategory
