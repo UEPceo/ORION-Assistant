@@ -19,6 +19,7 @@ data class OfflinePackInstallReport(
 class BundledKnowledgePackInstaller(
     context: Context,
     private val ingestion: KnowledgeIngestionService,
+    private val repository: KnowledgeRepository,
     private val now: () -> Long = System::currentTimeMillis
 ) {
     private val appContext = context.applicationContext
@@ -31,12 +32,6 @@ class BundledKnowledgePackInstaller(
         var documentCount = 0
 
         for (manifest in KnowledgePackCatalog.packs) {
-            val currentVersion = preferences.getInt(versionKey(manifest.id), 0)
-            if (currentVersion >= manifest.version) {
-                skipped += manifest.id
-                installed += manifest.id
-                continue
-            }
             try {
                 val raw = appContext.assets.open("knowledge_packs/${manifest.id}.json")
                     .bufferedReader(Charsets.UTF_8).use { it.readText() }
@@ -46,6 +41,18 @@ class BundledKnowledgePackInstaller(
                 val documents = pack.optJSONArray("documents")
                     ?: error("El paquete no contiene documentos.")
                 require(documents.length() > 0) { "El paquete está vacío." }
+                val currentVersion = preferences.getInt(versionKey(manifest.id), 0)
+                val documentIdsPresent = if (currentVersion >= manifest.version) {
+                    (0 until documents.length()).all { index ->
+                        val url = documents.getJSONObject(index).getString("url")
+                        repository.contains(sha256(url).take(32))
+                    }
+                } else false
+                if (documentIdsPresent) {
+                    skipped += manifest.id
+                    installed += manifest.id
+                    continue
+                }
 
                 var accepted = 0
                 for (index in 0 until documents.length()) {
