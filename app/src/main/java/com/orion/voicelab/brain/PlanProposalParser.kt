@@ -14,15 +14,6 @@ object PlanProposalParser {
     private const val MAX_INPUT_CHARS = 24_000
     private const val MAX_STEPS = 12
     private const val MAX_TEXT_FIELD = 1_200
-    private val connectorKinds = setOf(
-        PlanStepKind.CONNECTOR_READ,
-        PlanStepKind.CONNECTOR_WRITE,
-        PlanStepKind.SEND_MESSAGE,
-        PlanStepKind.PLACE_CALL,
-        PlanStepKind.DELETE_DATA,
-        PlanStepKind.PURCHASE
-    )
-
     private val supportedReadOperations = mapOf(
         ConnectorId.GMAIL to setOf("search_messages", "get_message", "read_latest_message"),
         ConnectorId.GITHUB to setOf("list_repositories", "get_issue", "list_commits", "list_workflow_runs", "list_files", "list_issues"),
@@ -78,10 +69,13 @@ object PlanProposalParser {
                         ?: return invalid("Conector no reconocido en el paso $id.")
                 }
                 val operation = item.optString("connectorOperation").takeUnless { it.isBlank() || it == "null" }?.take(100)
-                if (kind in connectorKinds && (connectorId == null || operation.isNullOrBlank())) {
+                if (kind != PlanStepKind.CONNECTOR_READ) {
+                    return invalid("Esta fase solo admite pasos CONNECTOR_READ.")
+                }
+                if (connectorId == null || operation.isNullOrBlank()) {
                     return invalid("El paso externo $id necesita conector y operación explícitos.")
                 }
-                if (kind == PlanStepKind.CONNECTOR_READ && connectorId != null && operation != null) {
+                if (connectorId != null && operation != null) {
                     if (operation !in supportedReadOperations[connectorId].orEmpty()) {
                         return invalid("La operación $operation no está implementada para $connectorId.")
                     }
