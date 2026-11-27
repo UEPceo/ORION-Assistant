@@ -587,6 +587,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 modelSizeMb = asrMb,
                 llmModelState = nextLlmState,
                 ttsModelState = nextTtsState,
+                availableVoices = speechSynthesizer.availableVoices(),
                 statusMessage = if (asrReady) {
                     "Moonshine Base ES instalado. Reconocimiento local disponible sin Internet."
                 } else {
