@@ -16,7 +16,8 @@ data class BrainQuery(
 data class KnowledgeDocument(
     val evidence: KnowledgeEvidence,
     val excerpt: String = evidence.content,
-    val relevance: Double = 0.0
+    val relevance: Double = 0.0,
+    val conflictsWithIds: Set<String> = emptySet()
 )
 
 interface KnowledgeSource {
