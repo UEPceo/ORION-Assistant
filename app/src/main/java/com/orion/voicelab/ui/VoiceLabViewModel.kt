@@ -124,8 +124,6 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private val taskRepository = TaskRepository(database.taskDao(), taskReminderScheduler)
     private val planExecutionRepository = PlanExecutionRepository(database.planExecutionDao())
     private val planExecutionService = PersistentPlanExecutionService(planExecutionRepository)
-    private val planExecutionRepository = PlanExecutionRepository(database.planExecutionDao())
-    private val planExecutionService = PersistentPlanExecutionService(planExecutionRepository)
     private val persistenceMutex = Mutex()
     private val asrDownloadMutex = Mutex()
     private val ttsDownloadMutex = Mutex()
@@ -292,9 +290,6 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private val _planExecutionRecords = MutableStateFlow<List<PlanExecutionEntity>>(emptyList())
     val planExecutionRecords: StateFlow<List<PlanExecutionEntity>> = _planExecutionRecords.asStateFlow()
 
-    private val _planExecutionRecords = MutableStateFlow<List<PlanExecutionEntity>>(emptyList())
-    val planExecutionRecords: StateFlow<List<PlanExecutionEntity>> = _planExecutionRecords.asStateFlow()
-
     init {
         speechSynthesizer.selectVoice(settingsPreferences.getString("selected_voice_id", "sharvard_f").orEmpty())
         val speakerEnabled = settingsPreferences.getBoolean("speaker_enabled", false)
@@ -306,7 +301,6 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         attachConversationCallbacks()
         observePersistenceFlows()
         observePlanExecutions()
-        observePlanExecutions()
         initializePersistence()
         refreshPhonePermissions()
         startObservingTelephonyState()
@@ -314,38 +308,6 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         refreshModelState()
         refreshMetrics()
         ensureInitialModelsDownloaded()
-    }
-
-    private fun observePlanExecutions() {
-        viewModelScope.launch(Dispatchers.IO) {
-            runCatching { planExecutionService.recoverInterruptedExecutions() }
-            planExecutionRepository.observeAll().collect { records ->
-                _planExecutionRecords.value = records
-            }
-        }
-    }
-
-    /** Stores a validated plan locally before any step is allowed to execute. */
-    fun savePlanExecution(plan: OrionPlan): Job = viewModelScope.launch(Dispatchers.IO) {
-        planExecutionService.create(plan)
-    }
-
-    /** Each invocation requires fresh approval for every unfinished protected step. */
-    fun executePlanExecution(
-        planId: String,
-        approvedStepIds: Set<String>,
-        retryStepIds: Set<String> = emptySet()
-    ): Job = viewModelScope.launch(Dispatchers.IO) {
-        planExecutionService.execute(
-            planId = planId,
-            approvedStepIds = approvedStepIds,
-            runner = ConnectorPlanStepRunner(connectorRuntime.dispatcher),
-            retryStepIds = retryStepIds
-        )
-    }
-
-    fun deletePlanExecution(planId: String): Job = viewModelScope.launch(Dispatchers.IO) {
-        planExecutionRepository.delete(planId)
     }
 
     private fun observePlanExecutions() {
