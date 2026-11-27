@@ -287,10 +287,14 @@ fun ConnectorsSectionScreen(
                     },
                     onDisconnect = {
                         scope.launch {
-                            githubCredentials.disconnect()
+                            val removed = runCatching { githubCredentials.disconnect() }.isSuccess
                             githubConnected = false
                             githubUserCode = null
-                            githubStatus = "GitHub desconectado. Credencial local eliminada."
+                            githubStatus = if (removed) {
+                                "GitHub desconectado. Credencial local eliminada."
+                            } else {
+                                "No se pudo eliminar la credencial local de GitHub."
+                            }
                         }
                     }
                 )
