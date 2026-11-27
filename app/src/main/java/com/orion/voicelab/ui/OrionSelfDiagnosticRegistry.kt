@@ -1,6 +1,12 @@
 package com.orion.voicelab.ui
 
+import android.Manifest
+import android.app.ActivityManager
+import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
+import android.os.StatFs
+import com.orion.voicelab.model.ModelManager
 import com.orion.voicelab.BuildConfig
 import com.orion.voicelab.data.VoiceLabUiState
 
@@ -99,7 +105,8 @@ object OrionSelfDiagnosticRegistry {
     fun composeReport(
         state: VoiceLabUiState,
         diagnosticLog: String,
-        maxChars: Int = 3_200
+        maxChars: Int = 3_200,
+        context: Context? = null
     ): String {
         if (maxChars <= 0) return ""
         val log = diagnosticLog.takeLast(6_000)
@@ -138,6 +145,7 @@ object OrionSelfDiagnosticRegistry {
                 appendLine("Detalle del módulo ${matchedModule.id}: comprobar ${matchedModule.checks}. Recuperación segura: ${matchedModule.recovery}.")
             }
             appendLine("Estado vivo: ASR=${state.asrLoaded}, LLM=${state.llmLoaded}, TTS=${state.ttsLoaded}, conversación=${state.conversationState}, escucha=${state.listeningState}.")
+            if (context != null) appendRuntimeHealth(context.applicationContext, state)
             if (latestEvent != null) {
                 appendLine("Último error operativo correlacionado: id=${latestEvent.groupValues[1]}, componente=${component}, causa registrada=${cause.take(400)}.")
             } else {
@@ -157,6 +165,56 @@ object OrionSelfDiagnosticRegistry {
             }
             appendLine("Regla de certeza: el componente del evento es la procedencia registrada; una firma heurística es solo una pista; la clase/método/línea requieren una traza real.")
         }.take(maxChars)
+    }
+
+
+    /**
+     * Read-only checks against the installed app: model files, runtime memory, free storage
+     * and Android permissions. A missing permission is reported as a limitation, not an error.
+     */
+    private fun appendRuntimeHealth(context: Context, state: VoiceLabUiState): String = buildString {
+        appendLine("COMPROBACIONES EN VIVO (solo lectura):")
+        val filesDir = context.filesDir
+        val modelChecks = listOf(
+            Triple("ASR", runCatching { ModelManager.isAsrInstalled(filesDir) }.getOrDefault(false), state.asrLoaded),
+            Triple("LLM", runCatching { ModelManager.isLlmInstalled(filesDir) }.getOrDefault(false), state.llmLoaded),
+            Triple("TTS", runCatching { ModelManager.isTtsInstalled(filesDir) }.getOrDefault(false), state.ttsLoaded)
+        )
+        modelChecks.forEach { (name, installed, loaded) ->
+            val status = when {
+                !installed -> "NO_INSTALADO_O_INCOMPLETO"
+                loaded -> "CARGADO_EN_RAM"
+                else -> "INSTALADO_EN_DISCO_NO_CARGADO"
+            }
+            appendLine("- Modelo $name: $status.")
+        }
+
+        val permissions = listOf(
+            "micrófono" to Manifest.permission.RECORD_AUDIO,
+            "contactos" to Manifest.permission.READ_CONTACTS,
+            "llamadas" to Manifest.permission.CALL_PHONE,
+            "calendario" to Manifest.permission.READ_CALENDAR
+        ).toMutableList()
+        if (Build.VERSION.SDK_INT >= 33) {
+            permissions += "notificaciones" to Manifest.permission.POST_NOTIFICATIONS
+        }
+        permissions.forEach { (label, permission) ->
+            val granted = runCatching {
+                context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+            }.getOrDefault(false)
+            appendLine("- Permiso $label: ${if (granted) "CONCEDIDO" else "NO_CONCEDIDO"} (la función puede requerir autorización).")
+        }
+
+        val storage = runCatching { StatFs(filesDir.absolutePath).availableBytes }.getOrNull()
+        if (storage != null) appendLine("- Almacenamiento libre en partición de datos: ${storage / (1024L * 1024L)} MB.")
+        val memory = runCatching {
+            val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            ActivityManager.MemoryInfo().also(manager::getMemoryInfo)
+        }.getOrNull()
+        if (memory != null) {
+            appendLine("- RAM del dispositivo: libre=${memory.availMem / (1024L * 1024L)} MB; baja=${memory.lowMemory}; umbralSistema=${memory.threshold / (1024L * 1024L)} MB.")
+        }
+        appendLine("Los permisos no concedidos no se consideran fallos si la función correspondiente no se está utilizando.")
     }
 
     private fun componentAliasMatches(moduleId: String, component: String): Boolean = when (moduleId) {
