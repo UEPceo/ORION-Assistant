@@ -74,6 +74,7 @@ import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.PhoneInTalk
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Science
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -146,7 +147,8 @@ private enum class OrionTab {
     CONVERSATIONS,
     MEMORY,
     CONNECTORS,
-    LAB
+    LAB,
+    SETTINGS
 }
 
 private enum class MicPermissionTarget {
@@ -586,6 +588,16 @@ fun OrionVoiceLabScreen(
                                 )
                             }
                         }
+
+                        OrionTab.SETTINGS -> {
+                            OrionSettingsScreen(
+                                state = state,
+                                onSelectVoice = viewModel::selectVoice,
+                                onSaveIdentity = viewModel::saveAssistantIdentity,
+                                onSetMemoryEnabled = viewModel::setMemoryEnabled,
+                                onOpenDiagnostics = { selectedTab = OrionTab.LAB }
+                            )
+                        }
                     }
                 }
             }
@@ -698,6 +710,13 @@ private fun TopBrandAndTabs(
                         label = stringResource(R.string.tab_lab),
                         onClick = { onSelectTab(OrionTab.LAB) },
                         modifier = tabItemMod("tab_lab")
+                    )
+                    TabSegmentButton(
+                        selected = selectedTab == OrionTab.SETTINGS,
+                        icon = Icons.Outlined.Settings,
+                        label = "Ajustes",
+                        onClick = { onSelectTab(OrionTab.SETTINGS) },
+                        modifier = tabItemMod("tab_settings")
                     )
                 }
             }
