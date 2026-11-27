@@ -10,7 +10,10 @@ import org.junit.Test
 class CreativeBrainTest {
     @Test
     fun routesSocialMediaAndDesignToDedicatedDomains() {
-        assertEquals(KnowledgeDomain.SOCIAL_MEDIA, BrainQueryRouter.route("Prepara una estrategia para TikTok y Reels").domain)
+        val social = BrainQueryRouter.route("Prepara una estrategia para TikTok y Reels")
+        assertEquals(KnowledgeDomain.SOCIAL_MEDIA, social.domain)
+        assertTrue(social.requiresFreshEvidence)
+        assertTrue(social.requiresPrimaryEvidence)
         assertEquals(KnowledgeDomain.CREATIVE_DESIGN, BrainQueryRouter.route("Diseña una identidad visual y una miniatura").domain)
         assertEquals(KnowledgeDomain.IMAGE_VIDEO, BrainQueryRouter.route("Analiza este vídeo").domain)
     }
