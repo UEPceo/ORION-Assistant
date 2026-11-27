@@ -156,3 +156,10 @@ El informe de autodiagnóstico recibe ahora el contexto de la aplicación y real
 - Estado de conversación y escucha, versión de ORION, API y dispositivo, junto con los eventos técnicos correlacionados.
 
 La comprobación no solicita permisos, no descarga ni repara modelos, no modifica archivos y no transmite datos. Un permiso ausente se presenta como una limitación funcional potencial, no como un fallo automático. Un modelo instalado pero no cargado se distingue de uno ausente o incompleto. Se añade una prueba Robolectric para verificar que el informe incorpora estas comprobaciones con un contexto Android.
+
+
+### Transparencia de fallos de fuentes v1.1
+
+El motor de recuperación conserva ahora los fallos individuales de cada proveedor en `BrainContext.sourceFailures`. Registra únicamente el identificador acotado del proveedor y el tipo de excepción, nunca el mensaje bruto que podría contener URLs, credenciales u otros datos sensibles. Las cancelaciones de corrutinas siguen propagándose y no se convierten en errores de proveedor.
+
+Si todas las fuentes fallan y no hay documentos, el resultado se distingue de un corpus vacío mediante `BrainPresentation.SOURCE_FAILURE`. Si alguna fuente responde correctamente, su evidencia se conserva y el contexto incorpora además los proveedores que fallaron. El compositor del prompt instruye al modelo para que no confunda una consulta fallida con la inexistencia de información. Se añaden pruebas para ambos escenarios.
