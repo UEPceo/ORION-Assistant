@@ -1,0 +1,27 @@
+{
+  "id": "andalucia-fishing",
+  "version": 1,
+  "title": "Pesca recreativa Andalucía: marco de consulta responsable",
+  "documents": [
+    {
+      "id": "junta-recreational-fishing",
+      "title": "Consulta oficial de pesca marítima recreativa en Andalucía",
+      "url": "https://www.juntadeandalucia.es/organismos/agriculturapescaaguaydesarrollorural/areas/pesca-acuicultura/pesca-maritima-recreativa.html",
+      "publisher": "Junta de Andalucía",
+      "domain": "FISHING",
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "ES-AN",
+      "content": "La pesca marítima recreativa en Andalucía está sujeta a normativa estatal, autonómica y, según la zona, a restricciones específicas por espacios protegidos, reservas, puertos y otras figuras de ordenación. Antes de salir, identifica si se trata de pesca desde tierra, embarcación o submarina, la zona exacta, la modalidad y la fecha. Comprueba la licencia exigible, especies autorizadas, tallas mínimas, cupos, periodos de veda, artes permitidas y posibles restricciones locales en la fuente oficial vigente. No extrapoles una talla o cupo de una especie a otra ni una regla de una comunidad autónoma a otra. Una ficha general no sustituye la resolución vigente ni las condiciones de un espacio protegido. Si no se puede confirmar la norma y su fecha, ORION debe responder que no ha verificado el requisito y facilitar la consulta oficial, no inventar tallas, cupos o permisos. La normativa puede cambiar; esta ficha ofrece un método de comprobación, no una tabla legal actualizada."
+    },
+    {
+      "id": "magrama-recreational-fishing",
+      "title": "Pesca marítima recreativa: marco estatal y consulta normativa",
+      "url": "https://www.mapa.gob.es/es/pesca/temas/pesca-maritima-recreativa/",
+      "publisher": "Ministerio de Agricultura, Pesca y Alimentación",
+      "domain": "LAW_AND_REGULATION",
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "ES",
+      "content": "La pesca marítima recreativa puede estar regulada por normas estatales y autonómicas, y la competencia aplicable depende de la modalidad y del ámbito geográfico. Para comprobar una obligación concreta, identifica la especie, zona marítima, modalidad, fecha y actividad; después consulta la norma publicada en el BOE y las disposiciones autonómicas aplicables. Verifica si existen medidas de conservación, declaraciones de captura, límites de cantidad, vedas, tallas mínimas, artes autorizadas o restricciones en áreas protegidas. No asumas que una licencia recreativa permite pescar en cualquier lugar ni que las reglas de pesca profesional se aplican de forma idéntica a la recreativa. Las páginas informativas ayudan a localizar trámites, pero la norma publicada y sus modificaciones determinan el marco jurídico. Si una fuente no ofrece fecha o hay contradicción, no presentes el dato como vigente."
+    }
+  ]
+}
