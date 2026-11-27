@@ -250,9 +250,8 @@ class OrionVoiceEngine {
         try {
             asrExecutor.execute {
                 val t0 = SystemClock.elapsedRealtime()
-                var stream: com.k2fsa.sherpa.onnx.OnlineStream? = null
+                val stream = activeRecognizer.createStream()
                 try {
-                    stream = activeRecognizer.createStream()
                     stream.acceptWaveform(samples, SAMPLE_RATE)
                     activeRecognizer.decode(stream)
                     val text = activeRecognizer.getResult(stream).text.trim()
@@ -261,7 +260,7 @@ class OrionVoiceEngine {
                 } catch (e: Exception) {
                     listener.onError("Error de reconocimiento: ${e.message ?: "desconocido"}")
                 } finally {
-                    try { stream?.release() } catch (_: Exception) {}
+                    try { stream.release() } catch (_: Exception) {}
                 }
             }
         } catch (_: RejectedExecutionException) {
