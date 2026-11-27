@@ -11,7 +11,7 @@ import java.util.Locale
 
 /**
  * Explicit, read-only web discovery. It returns search snippets as UNKNOWN evidence;
- * it never fetches arbitrary result pages or treats snippets as verified facts.
+ * It reads only bounded public HTTPS result pages; unreadable snippets remain UNKNOWN.
  */
 class DuckDuckGoKnowledgeSource : KnowledgeSource {
     override val sourceId: String = "duckduckgo-web-discovery"
@@ -20,7 +20,7 @@ class DuckDuckGoKnowledgeSource : KnowledgeSource {
         val searchTerms = WebSearchIntentPolicy.searchTerms(query.rawText) ?: return emptyList()
         if (limit <= 0) return emptyList()
         return withContext(Dispatchers.IO) {
-            val html = fetchResults(searchTerms) ?: return@withContext emptyList()
+            val html = fetchResults(searchTerms) ?: throw java.io.IOException("Search provider returned no response")
             parseResults(html, query, limit.coerceAtMost(MAX_RESULTS))
         }
     }
@@ -36,7 +36,7 @@ class DuckDuckGoKnowledgeSource : KnowledgeSource {
             setRequestProperty("Accept", "text/html")
         }
         return try {
-            if (connection.responseCode !in 200..299) return null
+            if (connection.responseCode !in 200..299) throw java.io.IOException("Search provider HTTP failure")
             val bytes = connection.inputStream.use { input ->
                 val output = java.io.ByteArrayOutputStream()
                 val buffer = ByteArray(4_096)
@@ -71,7 +71,7 @@ class DuckDuckGoKnowledgeSource : KnowledgeSource {
             val host = runCatching { URL(target).host.lowercase(Locale.ROOT) }
                 .getOrNull()?.removePrefix("www.") ?: continue
             val snippet = snippets.getOrNull(index).orEmpty().take(700)
-            val page = SafeWebPageReader.read(target)
+            val page = if (documents.size < MAX_FULL_PAGE_READS) SafeWebPageReader.read(target) else null
             val title = (page?.title ?: cleanHtml(match.groupValues[2])).take(180)
             if (title.isBlank()) continue
             val content = page?.text ?: listOf(title, snippet).filter(String::isNotBlank).joinToString("\n")
@@ -97,6 +97,7 @@ class DuckDuckGoKnowledgeSource : KnowledgeSource {
             )
         }
         return documents.distinctBy { it.evidence.canonicalUrl }
+    }
 
     private fun resolveResultUrl(rawHref: String): String? {
         val decoded = cleanHtml(rawHref)
@@ -141,6 +142,7 @@ class DuckDuckGoKnowledgeSource : KnowledgeSource {
         const val READ_TIMEOUT_MS = 8_000
         const val MAX_RESPONSE_BYTES = 1_000_000
         const val MAX_RESULTS = 5
+        const val MAX_FULL_PAGE_READS = 3
         const val MAX_URL_CHARS = 1_500
         const val MAX_PAGE_TEXT_CHARS = 12_000
         const val USER_AGENT = "ORION-Android/1.0 (web discovery)"
@@ -186,7 +188,7 @@ internal object WebAuthorityClassifier {
     )
     private val technicalHosts = setOf(
         "developer.android.com", "kotlinlang.org", "docs.python.org",
-        "developer.mozilla.org", "docs.github.com", "github.com",
+        "developer.mozilla.org", "docs.github.com",
         "developer.apple.com", "learn.microsoft.com"
     )
 
