@@ -39,9 +39,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.orion.voicelab.brain.CapabilityBaseline
+import com.orion.voicelab.brain.CapabilityArea
 import com.orion.voicelab.data.AssistantIdentity
 import com.orion.voicelab.data.FormalityLevel
 import com.orion.voicelab.data.VoiceLabUiState
+import java.util.Locale
 
 @Composable
 fun OrionSettingsScreen(
@@ -53,6 +56,7 @@ fun OrionSettingsScreen(
     onOpenDiagnostics: () -> Unit
 ) {
     val identity = state.assistantIdentity
+    val capabilityEvaluation = remember { CapabilityBaseline.current() }
     val context = LocalContext.current
     var exactAlarmAllowed by remember { mutableStateOf(AndroidTaskReminderScheduler.canScheduleExactAlarms(context)) }
     val exactAlarmSettingsLauncher = rememberLauncherForActivityResult(
@@ -73,6 +77,41 @@ fun OrionSettingsScreen(
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
             Text("Ajustes de ORION", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text("Personaliza la voz, la forma de responder y la privacidad del asistente.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        SettingsSection(title = "Capacidades del cerebro", subtitle = "Evaluación técnica preliminar basada en funciones realmente implementadas. Objetivo: mínimo 8/10 en cada ámbito.") {
+            Text(
+                "Media: ${"%.1f".format(Locale.ROOT, capabilityEvaluation.averageScore)}/10 · Mínimo: ${"%.1f".format(Locale.ROOT, capabilityEvaluation.minimumScore)}/10",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            capabilityEvaluation.areas.forEach { area ->
+                val label = when (area.area) {
+                    CapabilityArea.KNOWLEDGE_QUALITY -> "Calidad del conocimiento"
+                    CapabilityArea.MULTI_STEP_PLANNING -> "Planificación multipaso"
+                    CapabilityArea.OFFLINE_KNOWLEDGE -> "Conocimiento offline"
+                    CapabilityArea.REASONING_AND_MODEL -> "Razonamiento y modelos"
+                    CapabilityArea.TOOL_EXECUTION -> "Herramientas y ejecución"
+                    CapabilityArea.MULTIMODAL -> "Imagen y vídeo"
+                    CapabilityArea.RELIABILITY_AND_SAFETY -> "Fiabilidad y seguridad"
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    Text("${"%.1f".format(Locale.ROOT, area.score)}/10", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                }
+                LinearProgressIndicator(
+                    progress = { (area.score / 10.0).toFloat() },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                area.gaps.take(2).forEach { gap ->
+                    Text("Pendiente: $gap", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Text(
+                "Una capacidad solo sube de puntuación cuando su implementación y sus pruebas lo demuestran. Los catálogos y funciones pendientes no cuentan como operativos.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         SettingsSection(title = "Voz de ORION", subtitle = "Selecciona la voz que utilizará durante las conversaciones.") {
