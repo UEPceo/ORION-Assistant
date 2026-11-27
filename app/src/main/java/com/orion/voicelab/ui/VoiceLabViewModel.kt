@@ -2812,7 +2812,6 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                     "llamadaORION=${state.isCallActive} · ocupado=${state.isBusy}"
             )
             appendLine("Errores recientes en memoria: ${state.recentErrors.size}")
-            }
             appendLine("Ahora:")
             appendLine(DeviceMetrics.describe(now))
             appendLine(
