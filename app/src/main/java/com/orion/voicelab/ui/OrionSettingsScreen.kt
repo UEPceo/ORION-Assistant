@@ -48,6 +48,7 @@ import com.orion.voicelab.data.AssistantIdentity
 import com.orion.voicelab.data.FormalityLevel
 import com.orion.voicelab.data.VoiceLabUiState
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -159,6 +160,8 @@ fun OrionSettingsScreen(
                                 embeddingInstalled = true
                                 embeddingProgress = 1f
                                 embeddingStatus = "Descarga completada. Integridad SHA-256 verificada."
+                            } catch (error: CancellationException) {
+                                throw error
                             } catch (error: Exception) {
                                 embeddingError = error.message ?: "No se pudo instalar el encoder."
                                 embeddingStatus = "La instalación no se ha completado."
@@ -211,11 +214,13 @@ fun OrionSettingsScreen(
                                 val unrelatedControl = cosine(vectors[0], vectors[3])
                                 val elapsed = SystemClock.elapsedRealtime() - startedAt
                                 embeddingStatus = "Prueba superada: 3 idiomas; ${vectors.first().size} dimensiones; vectores normalizados; similitud ES-EN ${"%.2f".format(Locale.ROOT, spanishEnglish)}, ES-PT ${"%.2f".format(Locale.ROOT, spanishPortuguese)}; control no relacionado ${"%.2f".format(Locale.ROOT, unrelatedControl)}; ${elapsed} ms."
+                            } catch (error: CancellationException) {
+                                throw error
                             } catch (error: Exception) {
                                 embeddingError = error.message ?: "Falló la prueba de inferencia ONNX."
                                 embeddingStatus = "El encoder está instalado, pero no ha superado la prueba."
                             } finally {
-                                encoder.close()
+                                runCatching { encoder.close() }
                                 embeddingTesting = false
                             }
                         }
