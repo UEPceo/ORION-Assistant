@@ -49,7 +49,7 @@ object PlanProposalParser {
                     val rationale = item.optString("rationale").trim().take(MAX_TEXT_FIELD)
                     val kind = runCatching { PlanStepKind.valueOf(item.optString("kind").uppercase(Locale.ROOT)) }.getOrNull()
                         ?: return PlanProposalParseResult.Invalid(listOf("Tipo de paso desconocido en la posición ${index + 1}."))
-                    val risk = runCatching { PlanRisk.valueOf(item.optString("risk").uppercase()) }.getOrNull()
+                    val risk = runCatching { PlanRisk.valueOf(item.optString("risk").uppercase(Locale.ROOT)) }.getOrNull()
                         ?: return PlanProposalParseResult.Invalid(listOf("Riesgo desconocido en la posición ${index + 1}."))
                     val dependenciesJson = item.optJSONArray("dependsOn")
                     val dependencies = buildSet {
