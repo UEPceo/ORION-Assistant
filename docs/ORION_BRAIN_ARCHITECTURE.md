@@ -253,7 +253,8 @@ Esta actualización incorpora las primeras implementaciones de los seis frentes 
 ### 2. Planificación multipaso
 - Contratos tipados para planes, pasos, dependencias, riesgo, presupuestos, estados e idempotencia.
 - Validador de dependencias y ciclos, límite de pasos, reintentos y duración.
-- Coordinador secuencial: una dependencia fallida bloquea los pasos posteriores; las excepciones se convierten en resultados controlados.
+- Coordinador secuencial con presupuesto temporal global, reintentos limitados y condicionados por idempotencia; una dependencia fallida bloquea los pasos posteriores y las excepciones se convierten en resultados controlados.
+- Adaptador `ConnectorPlanStepRunner` conectado al dispatcher existente y su puerta de seguridad; cada paso externo declara conector, operación y argumentos explícitos.
 - Las escrituras externas, mensajes, llamadas, borrados y compras requieren aprobación específica para los IDs de paso de esa ejecución. No hay autorización persistente.
 - El contexto de conversación activa instrucciones de planificación cuando detecta una petición multipaso. Existe un adaptador que conecta pasos externos con ConnectorDispatcher y su puerta de confirmación.
 - Limitación: falta integrar el coordinador en el runtime conversacional, convertir la salida del modelo en planes estructurados y persistir/reanudar ejecuciones. El modelo puede proponer un plan, pero ORION no debe afirmar que lo ha ejecutado.
