@@ -1,0 +1,95 @@
+package com.orion.voicelab.brain
+
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import android.content.Context
+import com.orion.voicelab.connectors.ConnectorId
+import com.orion.voicelab.persistence.OrionDatabase
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
+class PlanExecutionPersistenceTest {
+
+    @Test
+    fun planCodecRoundTripsDependenciesConnectorArgumentsAndBudget() {
+        val plan = OrionPlan(
+            id = "codec-plan",
+            goal = "Prepare a GitHub issue summary",
+            steps = listOf(
+                PlannedStep("read", PlanStepKind.CONNECTOR_READ, "Read issue", "Fetch issue details", PlanRisk.LOW,
+                    connectorId = ConnectorId.GITHUB,
+                    connectorOperation = "get_issue",
+                    connectorArguments = mapOf("repository" to "owner/repo", "issue_number" to "42")),
+                PlannedStep("draft", PlanStepKind.CREATE_DRAFT, "Prepare summary", "Summarize issue", PlanRisk.MEDIUM,
+                    dependsOn = setOf("read"), inputSummary = "Issue details")
+            ),
+            budget = ExecutionBudget(maxSteps = 8, maxRetriesPerStep = 2, maxDurationMs = 90_000L)
+        )
+        val decoded = PlanExecutionJsonCodec.decodePlan(PlanExecutionJsonCodec.encodePlan(plan))
+        assertEquals(plan, decoded)
+    }
+
+    @Test
+    fun interruptedExecutionIsPausedAndNeverAutomaticallyReplayed() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = Room.inMemoryDatabaseBuilder(context, OrionDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val repository = PlanExecutionRepository(database.planExecutionDao())
+            val service = PersistentPlanExecutionService(repository)
+            val plan = OrionPlan(
+                id = "durable-plan",
+                goal = "Perform one local read",
+                steps = listOf(PlannedStep("read", PlanStepKind.READ, "Read", "", PlanRisk.LOW))
+            )
+            repository.create(plan, nowMs = 100L)
+            repository.saveProgress(
+                id = plan.id,
+                status = PlanStatus.RUNNING,
+                results = mapOf("read" to StepExecution(StepStatus.RUNNING, "running")),
+                activeStepId = "read",
+                nowMs = 200L
+            )
+
+            assertEquals(1, service.recoverInterruptedExecutions())
+            val recovered = repository.load(plan.id)!!
+            assertEquals(PlanStatus.PAUSED, recovered.status)
+            assertEquals(StepStatus.FAILED, recovered.results["read"]?.status)
+            assertTrue(recovered.results["read"]!!.summary.contains("incierto"))
+
+            var attempts = 0
+            val held = service.execute(
+                planId = plan.id,
+                approvedStepIds = emptySet(),
+                runner = PlanStepRunner { _, _ ->
+                    attempts++
+                    StepExecution(StepStatus.SUCCEEDED, "must not run automatically")
+                }
+            )
+            assertEquals(0, attempts)
+            assertEquals(StepStatus.FAILED, held.steps["read"]?.status)
+
+            val retried = service.execute(
+                planId = plan.id,
+                approvedStepIds = emptySet(),
+                runner = PlanStepRunner { _, _ ->
+                    attempts++
+                    StepExecution(StepStatus.SUCCEEDED, "user-approved retry")
+                },
+                retryStepIds = setOf("read")
+            )
+            assertEquals(1, attempts)
+            assertEquals(PlanStatus.COMPLETED, retried.status)
+        } finally {
+            database.close()
+        }
+    }
+}
