@@ -73,6 +73,51 @@ class BrainRetrievalEngineTest {
         assertEquals(KnowledgeVerdict.NO_EVIDENCE, context.verification.verdict)
     }
 
+
+    @Test
+    fun failedSourceIsDistinguishedFromAnEmptyCorpus() = runBlocking {
+        val failing = object : KnowledgeSource {
+            override val sourceId = "official-provider"
+            override suspend fun search(query: BrainQuery, limit: Int): List<KnowledgeDocument> {
+                throw java.io.IOException("provider unavailable")
+            }
+        }
+        val context = BrainRetrievalEngine(listOf(failing), now = { 10_000L })
+            .retrieve(BrainQueryRouter.route("información general"))
+        assertEquals(BrainPresentation.SOURCE_FAILURE, context.presentation)
+        assertEquals(1, context.sourceFailures.size)
+        assertEquals("official-provider", context.sourceFailures.single().sourceId)
+        val prompt = BrainPromptComposer.compose(context)
+        assertTrue(prompt.contains("no existe información"))
+        assertTrue(prompt.contains("official-provider"))
+    }
+
+    @Test
+    fun oneFailedSourceDoesNotDiscardEvidenceFromAnotherSource() = runBlocking {
+        val evidence = KnowledgeEvidence(
+            id = "good-source",
+            title = "Fuente disponible",
+            canonicalUrl = "https://example.org/available",
+            publisherId = "example.org",
+            domain = KnowledgeDomain.GENERAL,
+            authority = EvidenceAuthority.REPUTABLE_SECONDARY,
+            retrievedAtMs = 10_000L,
+            content = "Información general comprobable"
+        )
+        val failing = object : KnowledgeSource {
+            override val sourceId = "offline-source"
+            override suspend fun search(query: BrainQuery, limit: Int): List<KnowledgeDocument> {
+                throw java.io.IOException("unavailable")
+            }
+        }
+        val available = FakeSource(KnowledgeDocument(evidence, relevance = 0.9))
+        val context = BrainRetrievalEngine(listOf(failing, available), now = { 10_000L })
+            .retrieve(BrainQueryRouter.route("información general"))
+        assertEquals(1, context.documents.size)
+        assertEquals(1, context.sourceFailures.size)
+        assertEquals(BrainPresentation.UNVERIFIED, context.presentation)
+    }
+
     private class FakeSource(
         private val document: KnowledgeDocument
     ) : KnowledgeSource {
