@@ -25,15 +25,51 @@ class SherpaOnnxSpeechSynthesizer(
         val SPANISH_VOICES = listOf(
             VoiceProfile(
                 id = "sharvard_f",
-                displayName = "Voz Femenina ES",
+                displayName = "Sharvard · Femenina",
                 speakerId = 0,
-                description = "Piper Sharvard es_ES · Locutora 0"
+                description = "Español de España · Voz incluida",
+                modelDirectoryName = ModelManager.TTS_DIR_NAME,
+                modelFileName = ModelManager.TTS_MODEL_FILE,
+                isInstalled = true
             ),
             VoiceProfile(
                 id = "sharvard_m",
-                displayName = "Voz Masculina ES",
+                displayName = "Sharvard · Masculina",
                 speakerId = 1,
-                description = "Piper Sharvard es_ES · Locutor 1"
+                description = "Español de España · Voz incluida",
+                modelDirectoryName = ModelManager.TTS_DIR_NAME,
+                modelFileName = ModelManager.TTS_MODEL_FILE,
+                isInstalled = true
+            ),
+            VoiceProfile(
+                id = "davefx_es",
+                displayName = "DaveFX",
+                speakerId = 0,
+                description = "Español de España · Piper Medium",
+                modelDirectoryName = "vits-piper-es_ES-davefx-medium",
+                modelFileName = "es_ES-davefx-medium.onnx",
+                downloadUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-es_ES-davefx-medium.tar.bz2",
+                isInstalled = false
+            ),
+            VoiceProfile(
+                id = "miro_es",
+                displayName = "Miro",
+                speakerId = 0,
+                description = "Español de España · Piper High",
+                modelDirectoryName = "vits-piper-es_ES-miro-high",
+                modelFileName = "es_ES-miro-high.onnx",
+                downloadUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-es_ES-miro-high.tar.bz2",
+                isInstalled = false
+            ),
+            VoiceProfile(
+                id = "carlfm_es",
+                displayName = "CarlFM",
+                speakerId = 0,
+                description = "Español de España · Piper x_low",
+                modelDirectoryName = "vits-piper-es_ES-carlfm-x_low",
+                modelFileName = "es_ES-carlfm-x_low.onnx",
+                downloadUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-es_ES-carlfm-x_low.tar.bz2",
+                isInstalled = false
             )
         )
     }
@@ -54,12 +90,19 @@ class SherpaOnnxSpeechSynthesizer(
     @Volatile
     private var currentVoice: VoiceProfile = SPANISH_VOICES.first()
 
-    override fun availableVoices(): List<VoiceProfile> = SPANISH_VOICES
+    override fun availableVoices(): List<VoiceProfile> = SPANISH_VOICES.map { voice ->
+        val installed = if (voice.downloadUrl == null) {
+            ModelManager.isTtsInstalled(filesDir)
+        } else {
+            ModelManager.isTtsVoiceInstalled(filesDir, voice.modelDirectoryName, voice.modelFileName)
+        }
+        voice.copy(isInstalled = installed)
+    }
 
     override fun selectedVoice(): VoiceProfile = currentVoice
 
     override fun selectVoice(voiceId: String) {
-        val match = SPANISH_VOICES.firstOrNull { it.id == voiceId }
+        val match = availableVoices().firstOrNull { it.id == voiceId && it.isInstalled }
         if (match != null) {
             currentVoice = match
         }
@@ -82,9 +125,9 @@ class SherpaOnnxSpeechSynthesizer(
                 }
                 val t0 = SystemClock.elapsedRealtime()
                 val vitsConfig = OfflineTtsVitsModelConfig(
-                    model = ModelManager.ttsModelFile(filesDir).absolutePath,
-                    tokens = ModelManager.ttsTokensFile(filesDir).absolutePath,
-                    dataDir = ModelManager.ttsEspeakDataDir(filesDir).absolutePath,
+                    model = ModelManager.ttsVoiceModelFile(filesDir, currentVoice.modelDirectoryName, currentVoice.modelFileName).absolutePath,
+                    tokens = File(ModelManager.ttsVoiceDirectory(filesDir, currentVoice.modelDirectoryName), "tokens.txt").absolutePath,
+                    dataDir = File(ModelManager.ttsVoiceDirectory(filesDir, currentVoice.modelDirectoryName), "espeak-ng-data").absolutePath,
                     noiseScale = 0.667f,
                     noiseScaleW = 0.8f,
                     lengthScale = 1.0f
