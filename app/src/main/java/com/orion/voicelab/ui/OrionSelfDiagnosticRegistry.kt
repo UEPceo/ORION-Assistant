@@ -176,9 +176,34 @@ object OrionSelfDiagnosticRegistry {
         appendLine("COMPROBACIONES EN VIVO (solo lectura):")
         val filesDir = context.filesDir
         val modelChecks = listOf(
-            Triple("ASR", runCatching { ModelManager.isAsrInstalled(filesDir) }.getOrDefault(false), state.asrLoaded),
-            Triple("LLM", runCatching { ModelManager.isLlmInstalled(filesDir) }.getOrDefault(false), state.llmLoaded),
-            Triple("TTS", runCatching { ModelManager.isTtsInstalled(filesDir) }.getOrDefault(false), state.ttsLoaded)
+            Triple(
+                "ASR",
+                runCatching {
+                    ModelManager.asrDirectory(filesDir).let { it.isDirectory && it.listFiles()?.isNotEmpty() == true }
+                }.getOrDefault(false),
+                state.asrLoaded
+            ),
+            Triple(
+                "LLM",
+                runCatching {
+                    ModelManager.llmModelFile(filesDir).let {
+                        it.isFile && it.length() == ModelManager.LLM_EXACT_BYTES
+                    }
+                }.getOrDefault(false),
+                state.llmLoaded
+            ),
+            Triple(
+                "TTS",
+                runCatching {
+                    val model = ModelManager.ttsModelFile(filesDir)
+                    val tokens = ModelManager.ttsTokensFile(filesDir)
+                    val espeak = ModelManager.ttsEspeakDataDir(filesDir)
+                    model.isFile && model.length() >= 5_000_000L &&
+                        tokens.isFile && tokens.length() > 100L &&
+                        espeak.isDirectory && espeak.listFiles()?.isNotEmpty() == true
+                }.getOrDefault(false),
+                state.ttsLoaded
+            )
         )
         modelChecks.forEach { (name, installed, loaded) ->
             val status = when {
