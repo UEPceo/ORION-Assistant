@@ -107,7 +107,7 @@ fun OrionSettingsScreen(
             Text("Personaliza la voz, la forma de responder y la privacidad del asistente.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        SettingsSection(title = "Capacidades del cerebro", subtitle = "Evaluación técnica preliminar basada en funciones realmente implementadas. Objetivo: mínimo 8/10 en cada ámbito.") {
+        ComfyUiConfigurationSection(context)\n\n        SettingsSection(title = "Capacidades del cerebro", subtitle = "Evaluación técnica preliminar basada en funciones realmente implementadas. Objetivo: mínimo 8/10 en cada ámbito.") {
             Text(
                 "Media: ${"%.1f".format(Locale.ROOT, capabilityEvaluation.averageScore)}/10 · Mínimo: ${"%.1f".format(Locale.ROOT, capabilityEvaluation.minimumScore)}/10",
                 style = MaterialTheme.typography.titleMedium,
@@ -509,5 +509,64 @@ private fun SettingsSection(
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             content()
         }
+    }
+}
+
+@Composable
+private fun ComfyUiConfigurationSection(context: android.content.Context) {
+    val prefs=context.getSharedPreferences("orion_media_settings",0)
+    var endpoint by remember { mutableStateOf(prefs.getString("endpoint","").orEmpty()) }
+    var imageWorkflow by remember { mutableStateOf(prefs.getString("image_workflow","").orEmpty()) }
+    var imageNode by remember { mutableStateOf(prefs.getString("image_prompt_node","").orEmpty()) }
+    var imageNegativeNode by remember { mutableStateOf(prefs.getString("image_negative_node","").orEmpty()) }
+    var videoWorkflow by remember { mutableStateOf(prefs.getString("video_workflow","").orEmpty()) }
+    var videoNode by remember { mutableStateOf(prefs.getString("video_prompt_node","").orEmpty()) }
+    var videoNegativeNode by remember { mutableStateOf(prefs.getString("video_negative_node","").orEmpty()) }
+    var message by remember { mutableStateOf("Configura el servidor y carga los workflows exportados en formato API.") }
+    val scope=rememberCoroutineScope()
+    val imagePicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if(uri!=null) scope.launch {
+            val text=withContext(Dispatchers.IO) { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText().take(2*1024*1024) } }
+            imageWorkflow=text.orEmpty()
+            message=if(imageWorkflow.isNotBlank()) "Workflow de imagen cargado." else "No se pudo leer el workflow."
+        }
+    }
+    val videoPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if(uri!=null) scope.launch {
+            val text=withContext(Dispatchers.IO) { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText().take(2*1024*1024) } }
+            videoWorkflow=text.orEmpty()
+            message=if(videoWorkflow.isNotBlank()) "Workflow de vídeo cargado." else "No se pudo leer el workflow."
+        }
+    }
+    SettingsSection(title="Motores multimedia autoalojados",subtitle="Conecta ComfyUI en un PC/servidor GPU. No se descargan modelos al teléfono.") {
+        OutlinedTextField(endpoint,onValueChange={endpoint=it},label={Text("URL de ComfyUI")},placeholder={Text("https://… o http://192.168.1.x:8188")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+        Text("Solo HTTPS para hosts públicos. HTTP se admite en localhost/LAN privada. No incluyas tokens ni credenciales en la URL.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Imagen · FLUX / SD",fontWeight=FontWeight.SemiBold)
+        Row(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.fillMaxWidth()) {
+            OutlinedTextField(imageNode,onValueChange={imageNode=it},label={Text("Nodo prompt positivo")},modifier=Modifier.weight(1f),singleLine=true)
+            OutlinedTextField(imageNegativeNode,onValueChange={imageNegativeNode=it},label={Text("Nodo negativo (opcional)")},modifier=Modifier.weight(1f),singleLine=true)
+        }
+        Button(onClick={imagePicker.launch(arrayOf("application/json","text/plain"))},modifier=Modifier.fillMaxWidth()) { Text(if(imageWorkflow.isBlank()) "Importar workflow API de imagen" else "Cambiar workflow de imagen") }
+        Text(if(imageWorkflow.isBlank()) "No se ha importado workflow de imagen." else "Workflow de imagen importado (${imageWorkflow.length} caracteres).",style=MaterialTheme.typography.bodySmall)
+        Text("Vídeo · Wan",fontWeight=FontWeight.SemiBold)
+        Row(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.fillMaxWidth()) {
+            OutlinedTextField(videoNode,onValueChange={videoNode=it},label={Text("Nodo prompt positivo")},modifier=Modifier.weight(1f),singleLine=true)
+            OutlinedTextField(videoNegativeNode,onValueChange={videoNegativeNode=it},label={Text("Nodo negativo (opcional)")},modifier=Modifier.weight(1f),singleLine=true)
+        }
+        Button(onClick={videoPicker.launch(arrayOf("application/json","text/plain"))},modifier=Modifier.fillMaxWidth()) { Text(if(videoWorkflow.isBlank()) "Importar workflow API de vídeo" else "Cambiar workflow de vídeo") }
+        Text(if(videoWorkflow.isBlank()) "No se ha importado workflow de vídeo." else "Workflow de vídeo importado (${videoWorkflow.length} caracteres).",style=MaterialTheme.typography.bodySmall)
+        Button(onClick={
+            runCatching {
+                if(endpoint.isNotBlank()) ComfyUiEndpointConfig(endpoint).normalizedBaseUrl()
+                if(imageWorkflow.isNotBlank()) ComfyUiWorkflowTemplate(imageWorkflow,imageNode,negativePromptNodeId=imageNegativeNode.ifBlank { null }).build(MediaGenerationRequest("ORION validation prompt"))
+                if(videoWorkflow.isNotBlank()) ComfyUiWorkflowTemplate(videoWorkflow,videoNode,negativePromptNodeId=videoNegativeNode.ifBlank { null }).build(MediaGenerationRequest("ORION validation prompt"))
+                prefs.edit().putString("endpoint",endpoint.trim()).putString("image_workflow",imageWorkflow)
+                    .putString("image_prompt_node",imageNode.trim()).putString("image_negative_node",imageNegativeNode.trim())
+                    .putString("video_workflow",videoWorkflow).putString("video_prompt_node",videoNode.trim())
+                    .putString("video_negative_node",videoNegativeNode.trim()).apply()
+                message="Configuración guardada. El endpoint no ejecuta nada hasta que ORION autorice la operación."
+            }.onFailure { message="No se guardó: ${it.message ?: "configuración inválida"}" }
+        },modifier=Modifier.fillMaxWidth()) { Text("Validar y guardar") }
+        Text(message,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
