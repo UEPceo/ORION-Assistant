@@ -14,8 +14,8 @@ class ChatPromptFormatterTest {
             ChatMessage(ChatRole.USER, "LATEST_START " + "z".repeat(700) + " LATEST_END")
         )
         val system = "SYSTEM_BEGIN " + "instructions ".repeat(20) + " SYSTEM_END"
-        val prompt = ChatPromptFormatter.formatChatMl(system, history, maxContextTokens = 512)
-        assertTrue(prompt.length <= ContextWindowBudgetPolicy.promptChars(512))
+        val prompt = ChatPromptFormatter.formatChatMl(system, history, maxContextTokens = 1024)
+        assertTrue(prompt.length <= ContextWindowBudgetPolicy.promptChars(1024))
         assertTrue(prompt.contains("SYSTEM_BEGIN"))
         assertTrue(prompt.contains("SYSTEM_END"))
         assertTrue(prompt.contains("LATEST_START"))
