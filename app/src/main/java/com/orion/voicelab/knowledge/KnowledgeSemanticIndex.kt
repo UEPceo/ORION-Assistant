@@ -57,6 +57,7 @@ class KnowledgeSemanticIndex(context: Context) {
         runCatching {
             val raw = file.openRead().bufferedReader(Charsets.UTF_8).use { it.readText() }
             val root = JSONObject(raw)
+            if (root.optInt("schema") != INDEX_SCHEMA) return@runCatching
             val items = root.optJSONArray("vectors") ?: JSONArray()
             for (i in 0 until items.length()) {
                 val item = items.getJSONObject(i)
@@ -80,7 +81,7 @@ class KnowledgeSemanticIndex(context: Context) {
         }
         val output = file.startWrite()
         try {
-            output.write(JSONObject().put("schema", 1).put("vectors", array).toString().toByteArray(Charsets.UTF_8))
+            output.write(JSONObject().put("schema", INDEX_SCHEMA).put("vectors", array).toString().toByteArray(Charsets.UTF_8))
             file.finishWrite(output)
         } catch (error: Exception) {
             file.failWrite(output)
