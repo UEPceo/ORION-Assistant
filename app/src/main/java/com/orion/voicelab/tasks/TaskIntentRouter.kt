@@ -25,6 +25,14 @@ object TaskIntentRouter {
         """^(?:por\s+favor\s+)?(?:oye\s+)?(?:orion\s+)?(?:recuerdame(?:\s+que(?:\s+(?:tengo\s+que|debo|hay\s+que))?)?|pon(?:me)?\s+un\s+recordatorio(?:\s+(?:de|para))?|crea\s+un\s+recordatorio(?:\s+(?:de|para))?)\s+(.+)$"""
     )
 
+    private val agendaCreateRegex = Regex(
+        """^(?:por\s+favor\s+)?(?:oye\s+)?(?:orion\s+)?(?:anade|agrega|pon|mete|apunta)\s+(?:(?:a|en)\s+(?:mi\s+)?agenda|(?:un\s+)?evento(?:\s+(?:en\s+)?(?:mi\s+)?agenda)?)\s*(.+)$"""
+    )
+
+    private val agendaQueryRegex = Regex(
+        """^(?:orion\s+)?(?:que\s+(?:tengo|hay)\s+(?:en\s+)?(?:mi\s+)?agenda(?:\s+(?:hoy|manana|esta\s+semana))?|(?:consulta|muestra|lista)\s+(?:mi\s+)?agenda|eventos\s+(?:para\s+)?hoy)$"""
+    )
+
     private val explicitTaskCreateRegex = Regex(
         """^(?:por\s+favor\s+)?(?:oye\s+)?(?:orion\s+)?(?:apunta(?:\s+que\s+(?:tengo\s+que|debo|hay\s+que))?|anota(?:\s+que\s+(?:tengo\s+que|debo|hay\s+que))?|apunta\s+(?:una\s+)?tarea(?:\s+(?:de|para))?|anota\s+(?:una\s+)?tarea(?:\s+(?:de|para))?|(?:anade|agrega|crea|nueva)\s+(?:una\s+)?tarea(?:\s+(?:de|para))?)\s*(.*)$"""
     )
@@ -132,6 +140,14 @@ object TaskIntentRouter {
         if (queryRemindersRegex.containsMatchIn(norm)) {
             return TaskIntentAction.QueryTasks(TaskQueryScope.REMINDERS)
         }
+        if (agendaQueryRegex.matches(norm)) {
+            val parsedDate = SpanishDateTimeParser.parse(raw, nowMs = nowMs, zoneId = zoneId)
+            return if (norm.contains("hoy") && parsedDate.dueDateEpochDay != null) {
+                TaskIntentAction.QueryTasks(TaskQueryScope.SPECIFIC_DATE, parsedDate.dueDateEpochDay)
+            } else {
+                TaskIntentAction.QueryTasks(TaskQueryScope.ALL_PENDING)
+            }
+        }
         if (queryTodayRegex.containsMatchIn(norm)) {
             return TaskIntentAction.QueryTasks(TaskQueryScope.TODAY)
         }
@@ -191,6 +207,19 @@ object TaskIntentRouter {
                 zoneId = zoneId,
                 forceReminder = true,
                 linkLatestOrActiveCall = true
+            )
+        }
+
+        // Agenda/evento: keep the calendar action local in the task store.
+        agendaCreateRegex.find(norm)?.let { match ->
+            val body = match.groupValues[1].trim()
+            val temporal = SpanishDateTimeParser.parse(body, nowMs = nowMs, zoneId = zoneId)
+            return buildCreateTaskAction(
+                rawBody = body,
+                originalUtterance = raw,
+                nowMs = nowMs,
+                zoneId = zoneId,
+                forceReminder = temporal.matchedExpression
             )
         }
 
