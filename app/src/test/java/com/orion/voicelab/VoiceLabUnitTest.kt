@@ -55,6 +55,7 @@ import com.orion.voicelab.memory.MemoryCandidateExtractor
 import com.orion.voicelab.memory.MemorySelector
 import com.orion.voicelab.model.DownloadSpec
 import com.orion.voicelab.model.ModelManager
+import com.orion.voicelab.model.ModelIntegrityManifest
 import com.orion.voicelab.model.ResumableHttpDownloader
 import com.orion.voicelab.persistence.AssistantIdentityEntity
 import com.orion.voicelab.persistence.ContactDao
