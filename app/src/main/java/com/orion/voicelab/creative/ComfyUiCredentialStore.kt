@@ -47,6 +47,9 @@ object ComfyUiCredentialStore {
         validateToken(token)
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (token.isBlank()) {
+            if (prefs.getString(ENCRYPTED_KEY, null) != null && loadKey() == null) {
+                error("No se eliminará el token cifrado mientras falte su clave Android Keystore. Reintroduce el token para sustituirlo.")
+            }
             check(prefs.edit().remove(ENCRYPTED_KEY).remove(LEGACY_KEY).commit()) {
                 "No se pudo eliminar el token multimedia."
             }
