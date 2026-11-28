@@ -40,4 +40,15 @@ object KnowledgeSourceCatalog {
         KnowledgeSourceSeed("nasa-earth", "NASA Earth Science", "https://science.nasa.gov/earth/", setOf(KnowledgeDomain.GENERAL, KnowledgeDomain.SCIENCE), EvidenceAuthority.OFFICIAL_PRIMARY, null, 90)
     )
     fun forDomain(domain: KnowledgeDomain): List<KnowledgeSourceSeed> = seeds.filter { domain in it.domains }
+
+    /** Matches only an exact allowlisted host or its real subdomains; never suffix lookalikes. */
+    fun match(url: String, domain: KnowledgeDomain): KnowledgeSourceSeed? {
+        val host = runCatching { java.net.URI(url).host?.lowercase() }.getOrNull() ?: return null
+        if (!url.startsWith("https://", ignoreCase = true)) return null
+        return seeds.firstOrNull { seed ->
+            if (domain !in seed.domains) return@firstOrNull false
+            val seedHost = runCatching { java.net.URI(seed.url).host?.lowercase() }.getOrNull() ?: return@firstOrNull false
+            host == seedHost || host.endsWith(".$seedHost")
+        }
+    }
 }
