@@ -8,6 +8,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RemoteInferencePayloadTest {
+    @Test fun remoteEndpointPolicyRejectsCredentialInjectionAndPublicHttp() {
+        val client=RemoteInferenceClient("https://example.com/v1","model","secret")
+        assertTrue(client.isSafeEndpoint("https://example.com/v1"))
+        assertTrue(client.isSafeEndpoint("http://127.0.0.1:8080/v1"))
+        assertTrue(client.isSafeEndpoint("http://192.168.1.12:8080"))
+        assertTrue(client.isSafeEndpoint("http://10.0.0.4:8000"))
+        assertFalse(client.isSafeEndpoint("http://example.com"))
+        assertFalse(client.isSafeEndpoint("https://user:pass@example.com"))
+        assertFalse(client.isSafeEndpoint("https://example.com/v1?token=leak"))
+        assertFalse(client.isSafeEndpoint("https://example.com/v1#fragment"))
+    }
+
     @Test fun includesSystemPromptAndOnlyMostRecentTwelveMessages() {
         val history = (0 until 15).map {
             ChatMessage(ChatRole.USER, "message-$it")
