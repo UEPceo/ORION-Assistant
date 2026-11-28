@@ -867,9 +867,9 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
                     .putString("image_prompt_node",imageNode.trim()).putString("image_negative_node",imageNegativeNode.trim()).putString("image_dimension_node",imageDimensionNode.trim()).putString("image_reference_nodes",imageReferenceNodes.trim())
                     .putString("video_workflow",videoWorkflow).putString("video_model_label",videoModelLabel.trim()).putString("video_prompt_node",videoNode.trim())
                     .putString("video_negative_node",videoNegativeNode.trim()).putString("video_dimension_node",videoDimensionNode.trim()).putString("video_reference_nodes",videoReferenceNodes.trim()).putString("video_duration_node",videoDurationNode.trim()).putString("video_duration_input",videoDurationInput.trim()).putString("video_fps",videoFps.trim()).apply()
-                message="Configuración guardada. El endpoint no ejecuta nada hasta que ORION autorice la operación."
+                message="Configuración guardada. La conexión y el workflow se comprobarán en el servidor después de tu autorización y antes de generar."
             }.onFailure { message="No se guardó: ${it.message ?: "configuración inválida"}" }
-        },modifier=Modifier.fillMaxWidth()) { Text("Validar y guardar") }
+        },modifier=Modifier.fillMaxWidth()) { Text("Validar estructura y guardar") }
         Text(message,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
 
         // Direct generation UI: explicit consent, actual workflow execution, and export.
