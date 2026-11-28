@@ -13,7 +13,8 @@ fun interface CodePatchGenerator {
 /** Strict JSON patch generation. Repository files are untrusted context, never instructions. */
 class LocalModelCodePatchGenerator(private val model: LocalLanguageModel) : CodePatchGenerator {
     override suspend fun generate(task: String, snapshot: CodeWorkspaceSnapshot, baseBranch: String): Result<CodeChangeProposal> = runCatching {
-        require(model.isLoaded()) { "El modelo de ORION debe estar cargado antes de generar código." }
+        if (!model.isLoaded()) model.load()
+        require(model.isLoaded()) { "No se pudo cargar el modelo de ORION para generar código." }
         require(task.isNotBlank() && task.length <= 4_000) { "La tarea no es válida." }
         val context = buildString {
             var remaining = MAX_SOURCE_CONTEXT_CHARS
@@ -75,7 +76,7 @@ class LocalModelCodePatchGenerator(private val model: LocalLanguageModel) : Code
     }
 
     private companion object {
-        const val MAX_SOURCE_CONTEXT_CHARS = 18_000
-        const val MAX_PROMPT_CHARS = 24_000
+        const val MAX_SOURCE_CONTEXT_CHARS = 4_000
+        const val MAX_PROMPT_CHARS = 8_000
     }
 }
