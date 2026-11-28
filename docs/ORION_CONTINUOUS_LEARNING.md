@@ -1,6 +1,6 @@
 # ORION — Aprendizaje continuo y mantenimiento del conocimiento
 
-Estado: ingesta en cuarentena, revisión explícita, publicación separada, versionado previo y rollback implementados; evaluación automática de respuestas y UI de revisión todavía pendientes.
+Estado: ingesta en cuarentena, revisión en Ajustes, publicación verificada/no verificada, versionado previo y rollback implementados; evaluación automática de respuestas todavía pendiente.
 
 ## Qué significa aprender
 
@@ -26,7 +26,7 @@ La memoria personal, el conocimiento general y el contenido de proyectos deben s
 
 1. La actualización semanal está centrada en los packs declarados en un manifiesto; no es un rastreador universal de Internet ni aprende automáticamente de cada conversación.
 2. El modelo no reentrena sus pesos. El conocimiento nuevo se incorpora al corpus recuperable.
-3. La bandeja persistente y las operaciones de aprobación/rechazo/publicación no verificada están implementadas en `KnowledgeReviewQueueStore`; la interfaz de revisión todavía no está conectada a Ajustes.
+3. La bandeja persistente y las operaciones de aprobación/rechazo/publicación no verificada están implementadas en `KnowledgeReviewQueueStore`; Ajustes permite revisar candidatos y elegir publicación verificada, no verificada o rechazo.
 4. El historial conserva hasta diez versiones previas por documento y permite rollback explícito. No sustituye una auditoría de cambios más amplia ni sincronización entre dispositivos.
 5. La detección automática de conflictos sigue siendo deliberadamente limitada; no demuestra que dos afirmaciones sean equivalentes ni que una fuente sea correcta.
 6. Falta una suite de regresión de respuestas que mida precisión, citas, frescura y calidad antes/después de cada actualización.
@@ -63,4 +63,4 @@ Los resultados de compilación y tests son evidencia del estado de un commit con
 
 ## Criterios de aceptación
 
-La captura, cuarentena, aprobación/rechazo, publicación verificada/no verificada y rollback tienen ya contratos e implementación local. El aprendizaje continuo completo no se declara terminado hasta conectar la UI de revisión y ejecutar una suite de regresión sin ocultar fallos ni convertir evidencia débil en información verificada.
+La captura, cuarentena, revisión en Ajustes, aprobación/rechazo, publicación verificada/no verificada y rollback tienen implementación local. El aprendizaje continuo completo no se declara terminado hasta ejecutar una suite de regresión sin ocultar fallos ni convertir evidencia débil en información verificada.
