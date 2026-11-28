@@ -67,6 +67,7 @@ import com.orion.voicelab.brain.PlanExecutionEntity
 import com.orion.voicelab.brain.PlanExecutionRepository
 import com.orion.voicelab.brain.PersistentPlanExecutionService
 import com.orion.voicelab.brain.ConnectorPlanStepRunner
+import com.orion.voicelab.brain.LocalTaskPlanStepHandler
 import com.orion.voicelab.knowledge.BrainPromptComposer
 import com.orion.voicelab.memory.ContextPromptBuilder
 import com.orion.voicelab.memory.MemoryCandidateExtractor
@@ -438,7 +439,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         planExecutionService.execute(
             planId = planId,
             approvedStepIds = approvedStepIds,
-            runner = ConnectorPlanStepRunner(connectorRuntime.dispatcher),
+            runner = ConnectorPlanStepRunner(connectorRuntime.dispatcher, LocalTaskPlanStepHandler(taskRepository)),
             retryStepIds = retryStepIds
         )
     }
