@@ -28,7 +28,7 @@ object CodeRepairBudget {
                 selected.addLast(line)
                 if (selected.size > 18) selected.removeFirst()
             }
-        val summary = if (selected.isNotEmpty()) selected.joinToString("\\n") else rawLogs.takeLast(1_200)
+        val summary = if (selected.isNotEmpty()) selected.joinToString("\n") else rawLogs.takeLast(1_200)
         return summary.takeLast(MAX_DIAGNOSTIC_CHARS)
     }
 
