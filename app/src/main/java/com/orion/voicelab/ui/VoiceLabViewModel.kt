@@ -17,6 +17,7 @@ import com.orion.voicelab.engineering.CodeEngineeringUiState
 import com.orion.voicelab.engineering.GitHubCodeEngineeringService
 import com.orion.voicelab.engineering.GitHubCodeWorkspace
 import com.orion.voicelab.engineering.LocalModelCodePatchGenerator
+import com.orion.voicelab.knowledge.KnowledgeReviewItem
 import com.orion.voicelab.connectors.ConnectorResult
 import com.orion.voicelab.connectors.ConnectorVoiceIntentRouter
 import com.orion.voicelab.connectors.OrionConnectorRuntime
@@ -137,6 +138,10 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private val codeEngineeringAuthority = CodeEngineeringSessionAuthority()
     private val _codeEngineeringState = MutableStateFlow(CodeEngineeringUiState())
     val codeEngineeringState: StateFlow<CodeEngineeringUiState> = _codeEngineeringState.asStateFlow()
+    private val _knowledgeReviews = MutableStateFlow<List<KnowledgeReviewItem>>(emptyList())
+    val knowledgeReviews: StateFlow<List<KnowledgeReviewItem>> = _knowledgeReviews.asStateFlow()
+    private val _knowledgeReviewMessage = MutableStateFlow<String?>(null)
+    val knowledgeReviewMessage: StateFlow<String?> = _knowledgeReviewMessage.asStateFlow()
     private val brainRuntime = OrionBrainRuntime(appContext)
     private fun configuredMediaRuntime(): OrionMediaRuntime {
         val mediaPrefs=appContext.getSharedPreferences("orion_media_settings",0)
@@ -533,6 +538,36 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     fun revokeCodeEngineeringSession(session: CodeEngineeringSession) {
         codeEngineeringService.revoke(session)
         _codeEngineeringState.value = CodeEngineeringUiState()
+    }
+
+    fun refreshKnowledgeReviews(): Job = viewModelScope.launch(Dispatchers.IO) {
+        runCatching { brainRuntime.pendingKnowledgeReviews() }
+            .onSuccess { _knowledgeReviews.value = it }
+            .onFailure { _knowledgeReviewMessage.value = it.message ?: "No se pudo cargar la bandeja de conocimiento." }
+    }
+
+    fun approveKnowledgeReview(id: String): Job = viewModelScope.launch(Dispatchers.IO) {
+        val result = runCatching { brainRuntime.approveKnowledgeReview(id, userConfirmed = true) }
+        _knowledgeReviewMessage.value = when {
+            result.isFailure -> result.exceptionOrNull()?.message ?: "No se pudo aprobar el documento."
+            result.getOrDefault(false) -> "Documento publicado tras superar la política de evidencia."
+            else -> "No se ha publicado como verificado: la evidencia no supera la política."
+        }
+        _knowledgeReviews.value = runCatching { brainRuntime.pendingKnowledgeReviews() }.getOrDefault(emptyList())
+    }
+
+    fun publishKnowledgeUnverified(id: String): Job = viewModelScope.launch(Dispatchers.IO) {
+        val result = runCatching { brainRuntime.publishKnowledgeAsUnverified(id, userConfirmed = true) }
+        _knowledgeReviewMessage.value = if (result.getOrDefault(false)) {
+            "Documento publicado expresamente como no verificado."
+        } else result.exceptionOrNull()?.message ?: "No se pudo publicar el documento."
+        _knowledgeReviews.value = runCatching { brainRuntime.pendingKnowledgeReviews() }.getOrDefault(emptyList())
+    }
+
+    fun rejectKnowledgeReview(id: String): Job = viewModelScope.launch(Dispatchers.IO) {
+        val result = runCatching { brainRuntime.rejectKnowledgeReview(id, userConfirmed = true) }
+        _knowledgeReviewMessage.value = if (result.getOrDefault(false)) "Candidato rechazado." else "No se pudo rechazar el candidato."
+        _knowledgeReviews.value = runCatching { brainRuntime.pendingKnowledgeReviews() }.getOrDefault(emptyList())
     }
 
     /** Each invocation requires fresh approval for every unfinished protected step. */
