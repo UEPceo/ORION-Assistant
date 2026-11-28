@@ -44,6 +44,8 @@ class ComfyUiCredentialStoreInstrumentedTest {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         if (store.containsAlias(alias)) store.deleteEntry(alias)
         assertTrue(ComfyUiCredentialStore.read(context).isFailure)
+        assertTrue(ComfyUiCredentialStore.save(context, "").isFailure)
+        assertTrue(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(ENCRYPTED_KEY))
     }
 
     @Test fun rejectsHeaderInjectionInBearerToken() {
