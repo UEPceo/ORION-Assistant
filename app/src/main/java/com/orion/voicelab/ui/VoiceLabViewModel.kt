@@ -1,6 +1,7 @@
 package com.orion.voicelab.ui
 
 import android.app.Application
+import android.app.ActivityManager
 import android.net.Uri
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
@@ -58,6 +59,7 @@ import com.orion.voicelab.engine.MoonshineModelManager
 import com.orion.voicelab.engine.OrionVoiceEngine
 import com.orion.voicelab.llm.LlamaCppLanguageModel
 import com.orion.voicelab.llm.ModelProfilePromptComposer
+import com.orion.voicelab.llm.LanguageModelProfileCatalog
 import com.orion.voicelab.knowledge.OrionBrainRuntime
 import com.orion.voicelab.brain.PlanningPromptComposer
 import com.orion.voicelab.brain.OrionPlan
@@ -227,10 +229,25 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private val speechRecognizer = MoonshineSpeechRecognitionEngine(
         modelDirectory = ModelManager.asrDirectory(appContext.filesDir)
     )
-    private val languageModel = LlamaCppLanguageModel(
-        context = appContext,
-        modelFile = ModelManager.llmModelFile(appContext.filesDir)
-    )
+    private val languageModel = run {
+        val preferences = appContext.getSharedPreferences("orion_model_settings", 0)
+        val automatic = preferences.getBoolean("auto_profile", true)
+        val activityManager = appContext.getSystemService(Application.ACTIVITY_SERVICE) as ActivityManager
+        val memoryInfo = ActivityManager.MemoryInfo()
+        activityManager.getMemoryInfo(memoryInfo)
+        val requestedId = if (automatic) {
+            LanguageModelProfileCatalog.recommendForDevice(memoryInfo.totalMem / (1024L * 1024L)).id
+        } else {
+            preferences.getString("selected_profile", "lite") ?: "lite"
+        }
+        val artifact = ModelManager.profileArtifact(requestedId)
+        val candidateFile = artifact?.let { ModelManager.profileModelFile(appContext.filesDir, it.profileId) }
+        if (artifact != null && candidateFile?.isFile == true && ModelManager.hasGgufMagicHeader(candidateFile)) {
+            LlamaCppLanguageModel.forProfile(appContext, appContext.filesDir, artifact)
+        } else {
+            LlamaCppLanguageModel(context = appContext, modelFile = ModelManager.llmModelFile(appContext.filesDir))
+        }
+    }
     private val speechSynthesizer = SherpaOnnxSpeechSynthesizer(
         filesDir = appContext.filesDir
     )
