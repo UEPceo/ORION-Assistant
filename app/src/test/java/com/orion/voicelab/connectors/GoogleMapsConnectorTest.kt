@@ -3,8 +3,11 @@ package com.orion.voicelab.connectors
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.junit.Test
 
+@RunWith(RobolectricTestRunner::class)
 class GoogleMapsConnectorTest {
     @Test
     fun transitUsesDocumentedMapsDirectionsUrl() {
