@@ -27,7 +27,7 @@ object BrainPromptComposer {
                 .append(" | Recuperada: ").append(evidence.retrievedAtMs)
                 .append(" | Publicada/actualizada: ").append(evidence.publishedAtMs ?: "desconocida").append('\n')
             if (document.conflictsWithIds.isNotEmpty()) {
-                builder.append("CONFLICTO DECLARADO con: ").append(document.conflictsWithIds.joinToString()).append('\n')
+                builder.append("POSIBLE DISCREPANCIA detectada con: ").append(document.conflictsWithIds.joinToString()).append('\n')
             }
             if (evidence.authority == EvidenceAuthority.UNKNOWN) {
                 builder.append("AVISO: resultado/fragmento no verificado; úsalo solo como pista y no como respaldo factual.\n")
