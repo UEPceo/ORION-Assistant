@@ -109,47 +109,64 @@ class PescaIAOrionConnector : OrionConnector {
     }
 
     private fun fetchText(address: String): String? {
-        val connection = (URL(address).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = 8_000
-            readTimeout = 10_000
-            instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "ORION-Android/1.0")
-            setRequestProperty("Accept", "text/html")
-        }
-        return try {
-            if (connection.responseCode !in 200..299) return null
-            val bytes = connection.inputStream.use { input ->
-                val output = java.io.ByteArrayOutputStream()
-                val buffer = ByteArray(4_096)
-                var total = 0
-                while (true) {
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    total += count
-                    if (total > MAX_HTML_BYTES) throw IllegalStateException("Página demasiado grande")
-                    output.write(buffer, 0, count)
-                }
-                output.toByteArray()
+        var current = URL(address)
+        repeat(MAX_REDIRECTS + 1) {
+            require(current.protocol.equals("https", ignoreCase = true) &&
+                current.host.lowercase() in ALLOWED_HOSTS) {
+                "Redirección fuera del dominio autorizado de PescaIA"
             }
-            String(bytes, Charsets.UTF_8)
-                .replace(Regex("(?is)<(script|style|noscript)[^>]*>.*?</\\1>"), " ")
-                .replace(Regex("(?s)<[^>]+>"), " ")
-                .replace("&nbsp;", " ")
-                .replace("&amp;", "&")
-                .replace("&quot;", "\"")
-                .replace("&#39;", "'")
-                .replace(Regex("\\s+"), " ")
-                .take(MAX_TEXT_CHARS)
-        } finally {
-            connection.disconnect()
+            val connection = (current.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 8_000
+                readTimeout = 10_000
+                instanceFollowRedirects = false
+                setRequestProperty("User-Agent", "ORION-Android/1.0")
+                setRequestProperty("Accept", "text/html")
+            }
+            try {
+                val status = connection.responseCode
+                if (status in REDIRECT_CODES) {
+                    val location = connection.getHeaderField("Location") ?: return null
+                    current = URL(current, location)
+                    return@repeat
+                }
+                if (status !in 200..299) return null
+                val bytes = connection.inputStream.use { input ->
+                    val output = java.io.ByteArrayOutputStream()
+                    val buffer = ByteArray(4_096)
+                    var total = 0
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        if (total > MAX_HTML_BYTES) throw IllegalStateException("Página demasiado grande")
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
+                }
+                return String(bytes, Charsets.UTF_8)
+                    .replace(Regex("(?is)<(script|style|noscript)[^>]*>.*?</\\1>"), " ")
+                    .replace(Regex("(?s)<[^>]+>"), " ")
+                    .replace("&nbsp;", " ")
+                    .replace("&amp;", "&")
+                    .replace("&quot;", "\"")
+                    .replace("&#39;", "'")
+                    .replace(Regex("\\s+"), " ")
+                    .take(MAX_TEXT_CHARS)
+            } finally {
+                connection.disconnect()
+            }
         }
+        return null
     }
 
     private fun String.containsAny(vararg values: String): Boolean =
         values.any { contains(it, ignoreCase = true) }
 
     private companion object {
+        const val MAX_REDIRECTS = 5
+        val REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
+        val ALLOWED_HOSTS = setOf("pescaisurfcasting.company", "www.pescaisurfcasting.company")
         const val MAX_HTML_BYTES = 1_000_000
         const val MAX_TEXT_CHARS = 100_000
     }
