@@ -1,6 +1,6 @@
 # ORION — Capacidad básica de ingeniería de software
 
-Estado: workspace, generador LLM JSON, autorización temporal, revisión visual del diff y commits aprobados integrados en la app; seguimiento CI y reparación autónoma siguen pendientes.
+Estado: workspace, generador LLM JSON, autorización temporal, revisión visual del diff y commits aprobados integrados. Runner aislado básico para Android/Python/Node añadido; recuperar logs y reparación autónoma siguen pendientes.
 
 ## Objetivo de producto
 
@@ -8,7 +8,7 @@ La programación de código será una capacidad central de ORION, no una herrami
 
 ## Alcance operativo y límites actuales
 
-La pantalla Conectores permite seleccionar repositorio y tarea, inspeccionar rutas, generar un parche JSON con el modelo local/híbrido, revisar el contenido actual/propuesto, aprobar un commit y crear un pull request draft. La creación del PR dispara GitHub Actions para validar ORION en runner efímero. Aún falta recuperar automáticamente resultados/logs, iterar reparaciones y soportar runners para proyectos arbitrarios.
+La pantalla Conectores permite seleccionar repositorio y tarea, inspeccionar rutas, generar un parche JSON con el modelo local/híbrido, revisar el contenido actual/propuesto, aprobar un commit y crear un pull request draft. El PR dispara checks; además, el workflow de proyecto detecta Android, Python y Node y ejecuta sus pruebas en GitHub-hosted runner con permisos read-only, checkout sin credenciales persistidas, límites de tiempo y sin secretos. Falta integrar consulta de logs/resultado, reparación autónoma y control de un runner propio.
 
 ## Capacidades que debe incluir
 
@@ -44,7 +44,7 @@ No se ejecutará código arbitrario del proyecto dentro del proceso Android de O
 - devolver logs y resultados identificables por commit/run;
 - destruir el entorno al terminar.
 
-El workflow ORION quality checks actúa como runner efímero GitHub-hosted para este proyecto: compila release minificado, empaqueta JNI y ejecuta unit tests/Robolectric en pull requests. Usa contents:read, no recibe secretos del repositorio y tiene timeout. No valida proyectos arbitrarios. Un runner propio requerirá aislamiento, límites de recursos/red y credenciales separadas. No se requiere IA comercial de pago.
+Los workflows GitHub-hosted ejecutan checks Android (Gradle), Python (pytest) y Node (npm test) cuando detectan esos proyectos. Checkout desactiva persistencia de credenciales, permisos contents:read, no se inyectan secretos y se fijan timeouts. El runner no es universal ni garantiza la seguridad de código malicioso, pero no se ejecuta en Android ni en un runner persistente del usuario. Un runner propio requerirá aislamiento y límites adicionales. No se requiere IA comercial de pago.
 
 ### 5. Engineering loop
 Requisitos → inspección → plan → diff → aprobación del usuario → rama de trabajo → cambios → pruebas → análisis de logs → correcciones acotadas → nueva prueba → revisión final → commit/PR con autorización.
@@ -68,7 +68,7 @@ El bucle tiene límite de iteraciones y presupuesto. Si las pruebas fallan o no 
 1. Contratos de ingeniería, validación de rutas/diffs y pruebas de seguridad.
 2. GitHub write API con control SHA, creación de ramas y pull requests; ampliar permisos del conector solo tras tests.
 3. Recuperar estados/logs de Actions desde la app y añadir un bucle de reparación con presupuesto de intentos y nueva aprobación de cada diff.
-4. Ampliar el runner aislado a proyectos externos y lenguajes adicionales, sin secretos y con límites verificables.
+4. Ampliar checks a otros stacks y endurecer contención/recursos; no ejecutar proyectos externos en runner propio sin aislamiento verificable.
 5. Añadir evaluación reproducible sobre proyectos Kotlin/Android, Python y web.
 6. Workspace local SAF y soporte IDE/terminal solo cuando dispongan de aislamiento verificable.
 
@@ -80,5 +80,5 @@ El bucle tiene límite de iteraciones y presupuesto. Si las pruebas fallan o no 
 - `ConnectorActionGate` mantiene allowlists separadas: las escrituras GitHub no pueden etiquetarse como lectura y siempre requieren confirmación contextual.
 - El router de voz reconoce la creación explícita de ramas y pull requests.
 - Pruebas automatizadas añadidas para ramas, commits atómicos, rechazo de ramas modificadas, intents de voz y autorización de escrituras.
-- GitHubCodeWorkspace conserva snapshots acotados y SHA; LocalModelCodePatchGenerator produce propuestas JSON; GitHubCodeEngineeringService coordina sesión, validación y commit aprobado. CodeEngineeringSessionAuthority aplica caducidad, alcance por tarea y aprobación de un solo uso. La pantalla Conectores presenta el diff completo y exige confirmación explícita. Aún no se crean PR ni se siguen automáticamente Actions ni se reparan fallos; ORION no se declara programador autónomo plenamente operativo.
+- GitHubCodeWorkspace conserva snapshots acotados y SHA; LocalModelCodePatchGenerator produce propuestas JSON; GitHubCodeEngineeringService coordina sesión, validación y commit aprobado. CodeEngineeringSessionAuthority aplica caducidad, alcance por tarea y aprobación de un solo uso. La pantalla Conectores presenta el diff completo y exige confirmación explícita. La pantalla puede crear PR draft; los workflows arrancan automáticamente. ORION todavía no recupera los logs/estado desde el cliente, ni reparte correcciones automáticamente. No se declara programador autónomo plenamente operativo.
 
