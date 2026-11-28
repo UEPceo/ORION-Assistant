@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -39,6 +41,9 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
       - name: Run unit tests and Robolectric
+        timeout-minutes: 35
+        env:
+          CI: true
         run: |
           chmod +x ./gradlew
           set -o pipefail
@@ -79,6 +84,9 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
       - name: Assemble minified release
+        timeout-minutes: 45
+        env:
+          CI: true
         run: |
           chmod +x ./gradlew
           ./gradlew --no-daemon --stacktrace --max-workers=2 assembleRelease
