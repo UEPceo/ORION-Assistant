@@ -119,6 +119,53 @@ class GitHubApiClientWriteTest {
     }
 
     @Test
+    fun rejectsCreatingAFileBelowAnExistingRegularFile() = runBlocking {
+        val api = client { method, path, _ ->
+            when {
+                method == "GET" && path.endsWith("/git/ref/heads/orion/task") -> JSONObject().put("object", JSONObject().put("sha", head))
+                method == "GET" && path.endsWith("/git/commits/$head") -> JSONObject().put("tree", JSONObject().put("sha", baseTree))
+                method == "GET" && path.endsWith("/git/trees/$baseTree?recursive=1") ->
+                    JSONObject().put("tree", JSONArray().put(JSONObject().put("path","app").put("type","blob").put("mode","100644").put("sha",blob)))
+                else -> error("Path conflict must be rejected before writes.")
+            }
+        }
+        val p=CodeChangeProposal("owner/repo","main","orion/task","Add","Test",listOf(CodeFileChange("app/Child.kt",CodeFileOperation.CREATE,"class Child")))
+        val result=api.commitChanges(p,head)
+        assertFalse(result.isSuccess)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("atraviesa"))
+    }
+
+    @Test
+    fun rejectsSymlinkAndSubmoduleAncestors() = runBlocking {
+        for ((mode,type) in listOf("120000" to "blob","160000" to "commit")) {
+            val api=client { method,path,_ ->
+                when {
+                    method=="GET" && path.endsWith("/git/ref/heads/orion/task")->JSONObject().put("object",JSONObject().put("sha",head))
+                    method=="GET" && path.endsWith("/git/commits/$head")->JSONObject().put("tree",JSONObject().put("sha",baseTree))
+                    method=="GET" && path.endsWith("/git/trees/$baseTree?recursive=1")->JSONObject().put("tree",JSONArray().put(JSONObject().put("path","vendor").put("type",type).put("mode",mode).put("sha",blob)))
+                    else->error("Symlink/submodule must be rejected before writes.")
+                }
+            }
+            val p=CodeChangeProposal("owner/repo","main","orion/task","Add","Test",listOf(CodeFileChange("vendor/Child.kt",CodeFileOperation.CREATE,"class Child")))
+            assertFalse(api.commitChanges(p,head).isSuccess)
+        }
+    }
+
+    @Test
+    fun rejectsReplacingDirectoryWithFile() = runBlocking {
+        val api=client { method,path,_ ->
+            when {
+                method=="GET" && path.endsWith("/git/ref/heads/orion/task")->JSONObject().put("object",JSONObject().put("sha",head))
+                method=="GET" && path.endsWith("/git/commits/$head")->JSONObject().put("tree",JSONObject().put("sha",baseTree))
+                method=="GET" && path.endsWith("/git/trees/$baseTree?recursive=1")->JSONObject().put("tree",JSONArray().put(JSONObject().put("path","app/Existing.kt").put("type","blob").put("mode","100644").put("sha",blob)))
+                else->error("Directory conflict must be rejected before writes.")
+            }
+        }
+        val p=CodeChangeProposal("owner/repo","main","orion/task","Replace","Test",listOf(CodeFileChange("app",CodeFileOperation.CREATE,"not a directory")))
+        assertFalse(api.commitChanges(p,head).isSuccess)
+    }
+
+    @Test
     fun refusesToCommitWhenWorkBranchMovedSinceReview() = runBlocking {
         val api = client { method, path, _ ->
             when {
