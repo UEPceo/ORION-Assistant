@@ -8,7 +8,7 @@ class ConnectorActionGateTest {
     fun disconnectedProviderIsAlwaysDenied() {
         val action = ConnectorAction(
             connectorId = ConnectorId.GMAIL,
-            operation = "search",
+            operation = "search_messages",
             risk = ConnectorRisk.READ_ONLY
         )
 
@@ -36,7 +36,7 @@ class ConnectorActionGateTest {
     fun unsolicitedReadRequiresConfirmation() {
         val action = ConnectorAction(
             connectorId = ConnectorId.GMAIL,
-            operation = "search",
+            operation = "search_messages",
             risk = ConnectorRisk.READ_ONLY
         )
 
@@ -116,4 +116,19 @@ class ConnectorActionGateTest {
             ConnectorActionGate.evaluate(action, userRequestedExactAction = true, connectorConnected = true)
         )
     }
+
+    @Test
+    fun genericPlaceholderOperationsAreNotWhitelisted() {
+        listOf("search", "read", "list", "get", "fetch", "inspect", "profile", "status").forEach { operation ->
+            assertEquals(
+                ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION,
+                ConnectorActionGate.evaluate(
+                    ConnectorAction(ConnectorId.GITHUB, operation),
+                    userRequestedExactAction = true,
+                    connectorConnected = true
+                )
+            )
+        }
+    }
+
 }
