@@ -166,7 +166,18 @@ class PlanExecutionCoordinator {
                 if (previous?.status == StepStatus.FAILED && id !in retryStepIds) continue
                 if (previous != null && previous.status !in setOf(StepStatus.FAILED, StepStatus.BLOCKED, StepStatus.SKIPPED, StepStatus.PENDING)) continue
 
-                val item = plan.steps.first { it.id == id }
+                val original = plan.steps.first { it.id == id }
+                val argsResolved = original.connectorArguments.mapValues { (_, value) -> PlanOutputReferences.resolve(value, results) }
+                val summaryResolved = PlanOutputReferences.resolve(original.inputSummary, results)
+                if (argsResolved.values.any { it == null } || summaryResolved == null) {
+                    results[id] = StepExecution(StepStatus.BLOCKED, "No se pudo resolver una salida de un paso anterior.")
+                    observer.onProgress(PlanStatus.RUNNING, results.toMap(), null)
+                    continue
+                }
+                val item = original.copy(
+                    connectorArguments = argsResolved.mapValues { it.value.orEmpty() },
+                    inputSummary = summaryResolved
+                )
                 val failedDependency = item.dependsOn.firstOrNull { results[it]?.status != StepStatus.SUCCEEDED }
                 if (failedDependency != null) {
                     results[id] = StepExecution(StepStatus.BLOCKED, "Bloqueado por el paso $failedDependency.")
