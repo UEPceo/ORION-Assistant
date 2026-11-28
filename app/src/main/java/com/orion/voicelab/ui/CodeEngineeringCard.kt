@@ -98,11 +98,9 @@ fun CodeEngineeringCard(
                             Text("ORION puede preparar una corrección basada en estos errores. El nuevo diff necesitará revisión y aprobación independientes.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             Button(
                                 onClick = {
-                                    onPrepareRepair(
-                                        session,
-                                        selectedPaths.split(',', '\n').map { it.trim() }.filter { it.isNotBlank() },
-                                        sourceContextConfirmed
-                                    )
+                                    val paths = selectedPaths.split(',', '\n').map { it.trim() }.filter { it.isNotBlank() }
+                                    onPrepareRepair(session, paths, sourceContextConfirmed)
+                                    sourceContextConfirmed = false
                                 },
                                 enabled = !state.isWorking && selectedPaths.isNotBlank() && sourceContextConfirmed,
                                 modifier = Modifier.fillMaxWidth()
