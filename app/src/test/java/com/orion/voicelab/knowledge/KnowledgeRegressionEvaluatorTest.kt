@@ -26,6 +26,14 @@ class KnowledgeRegressionEvaluatorTest {
         val r=KnowledgeRegressionEvaluator.evaluate(c,o,now)
         assertFalse(r.passed); assertEquals(setOf("old"),r.staleEvidenceIds); assertEquals(setOf("old"),r.domainMismatchIds)
     }
+    @Test fun primaryEvidenceRequirementFailsWhenNoEvidenceWasRetrieved() {
+        val c=KnowledgeRegressionCase("primary","query",emptySet(),KnowledgeDomain.PROGRAMMING,requirePrimary=true)
+        val o=KnowledgeRegressionObservation("primary",emptySet(),emptySet(),emptyList(),"A response without sources.")
+        val result=KnowledgeRegressionEvaluator.evaluate(c,o,now)
+        assertFalse(result.passed)
+        assertTrue(result.primaryEvidenceRequiredMissing)
+    }
+
     @Test fun emptyAnswersFailAndScoreIsDeterministic() {
         val c=KnowledgeRegressionCase("empty","q",emptySet(),KnowledgeDomain.PROGRAMMING)
         val o=KnowledgeRegressionObservation("empty",emptySet(),emptySet(),emptyList()," ")
