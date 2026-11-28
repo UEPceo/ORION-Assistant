@@ -6,10 +6,9 @@ import org.junit.Test
 class LlamaThreadPolicyTest {
     @Test fun neverUsesMoreThreadsThanAvailableProcessors() {
         for (cores in -2..16) {
-            assertEquals(
-                minOf(4, cores.coerceAtLeast(1)),
-                LlamaThreadPolicy.recommend(cores).let { if (cores == 4) 2 else it }
-            )
+            val normalized = cores.coerceAtLeast(1)
+            val expected = if (normalized == 4) 2 else minOf(4, normalized)
+            assertEquals(expected, LlamaThreadPolicy.recommend(cores))
         }
     }
 
