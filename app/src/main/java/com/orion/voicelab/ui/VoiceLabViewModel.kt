@@ -552,7 +552,14 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         }
         _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = true, error = null)
         codeEngineeringService.commitApproved(session, prepared, userConfirmedExactDiff, reviewedDiffDigest).fold(
-            onSuccess = { result -> _codeEngineeringState.value = CodeEngineeringUiState(session = session, lastCommitSha = result.commitSha) },
+            onSuccess = { result ->
+                val repairAttempts = _codeEngineeringState.value.repairAttemptsUsed
+                _codeEngineeringState.value = CodeEngineeringUiState(
+                    session = session,
+                    lastCommitSha = result.commitSha,
+                    repairAttemptsUsed = repairAttempts
+                )
+            },
             onFailure = { error -> _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = false, error = error.message ?: "No se pudo aplicar el cambio.") }
         )
     }
@@ -580,6 +587,36 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 _codeEngineeringState.value = _codeEngineeringState.value.copy(
                     isWorking = false,
                     ciError = error.message ?: "No se pudo consultar CI."
+                )
+            }
+        )
+    }
+
+    fun prepareCodeEngineeringRepair(
+        session: CodeEngineeringSession,
+        selectedPaths: List<String>
+    ): Job = viewModelScope.launch(Dispatchers.IO) {
+        val current = _codeEngineeringState.value
+        val inspection = current.ciInspection
+        if (inspection == null) {
+            _codeEngineeringState.value = current.copy(ciError = "Consulta primero el resultado de CI.")
+            return@launch
+        }
+        val attempt = current.repairAttemptsUsed + 1
+        _codeEngineeringState.value = current.copy(isWorking = true, error = null)
+        codeEngineeringService.prepareRepair(session, inspection, attempt, selectedPaths).fold(
+            onSuccess = { prepared ->
+                _codeEngineeringState.value = _codeEngineeringState.value.copy(
+                    isWorking = false,
+                    preparedChange = prepared,
+                    repairAttemptsUsed = attempt,
+                    error = null
+                )
+            },
+            onFailure = { error ->
+                _codeEngineeringState.value = _codeEngineeringState.value.copy(
+                    isWorking = false,
+                    error = error.message ?: "No se pudo preparar la reparación."
                 )
             }
         )
