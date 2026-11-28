@@ -100,8 +100,10 @@ object PlanProposalParser {
                     if (kind != PlanStepKind.LOCAL_CREATE_NOTE && arguments["title"].isNullOrBlank()) return invalid("El paso local $id necesita título.")
                     if (kind == PlanStepKind.LOCAL_CREATE_NOTE && arguments["content"].isNullOrBlank() && arguments["notes"].isNullOrBlank()) return invalid("La nota $id necesita contenido.")
                     if (kind == PlanStepKind.LOCAL_CREATE_REMINDER) {
-                        val reminderAt = arguments["reminderAtMs"]?.toLongOrNull() ?: return invalid("El recordatorio $id necesita reminderAtMs válido.")
-                        if (reminderAt <= System.currentTimeMillis()) return invalid("El recordatorio $id debe estar en el futuro.")
+                        val rawReminder = arguments["reminderAtMs"].orEmpty()
+                        val reminderAt = rawReminder.toLongOrNull()
+                        if (reminderAt == null && PlanOutputReferences.find(listOf(rawReminder)).isEmpty()) return invalid("El recordatorio $id necesita reminderAtMs válido o una referencia de salida.")
+                        if (reminderAt != null && reminderAt <= System.currentTimeMillis()) return invalid("El recordatorio $id debe estar en el futuro.")
                     }
                 } else {
                     return invalid("Tipo de paso no ejecutable en esta fase: $kind.")
