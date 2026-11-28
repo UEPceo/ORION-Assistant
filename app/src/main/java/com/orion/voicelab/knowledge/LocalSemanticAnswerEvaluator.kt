@@ -47,7 +47,11 @@ class LocalSemanticAnswerEvaluator(
             return abstention("Falló la evaluación de las afirmaciones.")
         }
         return when (report.status) {
-            AnswerGroundingStatus.VERIFIED -> draft
+            AnswerGroundingStatus.VERIFIED -> if (context.verification.verdict == KnowledgeVerdict.SUPPORTED) {
+                draft
+            } else {
+                abstention("La evaluación de las fuentes no permite presentar la respuesta como verificada. ${context.verification.reason}")
+            }
             AnswerGroundingStatus.PARTIALLY_SUPPORTED -> {
                 val supported = report.claims.filter { it.status == ClaimSupportStatus.SUPPORTED }
                     .mapNotNull { result ->
@@ -153,7 +157,7 @@ class LocalSemanticAnswerEvaluator(
             appendLine("Título: ${document.evidence.title.take(180)}")
             appendLine("Editor: ${document.evidence.publisherId} | Autoridad: ${document.evidence.authority}")
             appendLine("Jurisdicción: ${document.evidence.jurisdiction ?: "no indicada"}")
-            appendLine("Contenido: ${document.excerpt.take(420)}")
+            appendLine("Contenido: ${document.excerpt.take(350)}")
             if (document.conflictsWithIds.isNotEmpty()) {
                 appendLine("Conflictos detectados con IDs: ${document.conflictsWithIds.joinToString()}")
             }

@@ -520,8 +520,10 @@ class ConversationEngine internal constructor(
                     }
                 }
 
+                var shouldVerifyDraft = true
                 val llmResult = try {
                     val directReply = directTurnResponder?.invoke(userText)?.trim()?.takeIf { it.isNotEmpty() }
+                    if (directReply != null) shouldVerifyDraft = false
                     if (directReply != null) {
                         com.orion.voicelab.llm.LlmGenerationResult(
                             text = directReply,
@@ -564,6 +566,7 @@ class ConversationEngine internal constructor(
                 val draftReply = llmResult.text.ifBlank { streamedDisplay.toString().trim() }
                 val verifiedReply = when {
                     draftReply.isBlank() -> ""
+                    !shouldVerifyDraft -> draftReply
                     responseVerifier == null -> draftReply
                     else -> responseVerifier.invoke(userText, draftReply).trim().ifBlank {
                         "No puedo ofrecer esa respuesta como fiable porque no he podido completar su verificación."
