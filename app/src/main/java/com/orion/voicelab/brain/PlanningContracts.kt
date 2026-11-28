@@ -155,6 +155,25 @@ object PlanOutputReferences {
         return if (unresolved || Regex("\\$\\{[^}]+}").containsMatchIn(resolved)) null else resolved.take(1_200)
     }
 }
+data class PlanStepInputPreview(
+    val summary: String?,
+    val arguments: Map<String, String?>
+) {
+    val readyForApproval: Boolean
+        get() = summary != null && arguments.values.all { it != null }
+}
+
+/** Resolves every placeholder before the UI can authorize a protected write. */
+object PlanStepInputPreviewBuilder {
+    fun build(step: PlannedStep, results: Map<String, StepExecution>): PlanStepInputPreview =
+        PlanStepInputPreview(
+            summary = PlanOutputReferences.resolve(step.inputSummary, results),
+            arguments = step.connectorArguments.mapValues { (_, value) ->
+                PlanOutputReferences.resolve(value, results)
+            }
+        )
+}
+
 fun interface PlanStepRunner { suspend fun run(step: PlannedStep, budget: ExecutionBudget): StepExecution }
 data class PlanExecutionReport(val planId: String, val status: PlanStatus, val steps: Map<String, StepExecution>, val blockedReason: String? = null)
 
