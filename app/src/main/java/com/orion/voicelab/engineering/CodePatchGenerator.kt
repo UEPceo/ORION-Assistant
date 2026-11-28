@@ -67,7 +67,7 @@ class LocalModelCodePatchGenerator(private val model: LocalLanguageModel) : Code
             Esquema: {"title":"...","summary":"...","changes":[{"path":"...","operation":"CREATE|UPDATE|DELETE","content":"... o null","expectedBlobSha":"... o null"}]}.
             Limita la propuesta a los archivos necesarios. No devuelvas campos adicionales.
         """.trimIndent()
-        val promptBudget = com.orion.voicelab.llm.ContextWindowBudgetPolicy.promptChars(model.contextWindowTokens)
+        val promptBudget = MAX_PROMPT_CHARS
         val fixedUserChars = task.length + safeDiagnostics.length + PROMPT_METADATA_RESERVE_CHARS
         val sourceBudget = (promptBudget - systemPrompt.length - fixedUserChars - PROMPT_SAFETY_RESERVE_CHARS)
             .coerceIn(MIN_SOURCE_CONTEXT_CHARS, MAX_SOURCE_CONTEXT_CHARS)
@@ -141,6 +141,7 @@ class LocalModelCodePatchGenerator(private val model: LocalLanguageModel) : Code
     }
 
     private companion object {
+        const val MAX_PROMPT_CHARS = 4_800
         const val MAX_TASK_CHARS = 1_200
         const val MAX_SOURCE_CONTEXT_CHARS = 3_000
         const val MIN_SOURCE_CONTEXT_CHARS = 400
