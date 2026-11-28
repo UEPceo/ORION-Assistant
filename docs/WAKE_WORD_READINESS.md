@@ -52,3 +52,9 @@ La aplicación ya depende de sherpa-onnx v1.13.8. Su API Kotlin incluye KeywordS
 - API Kotlin sherpa-onnx v1.13.8: https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.8/sherpa-onnx/kotlin-api/KeywordSpotter.kt
 - Ejemplo oficial Android KWS: https://github.com/k2-fsa/sherpa-onnx/tree/master/android/SherpaOnnxKws
 - Issue de soporte español upstream: https://github.com/k2-fsa/sherpa-onnx/issues/3631
+
+## Metadatos de artefactos verificados parcialmente
+
+La página de historial de Hugging Face identifica la carga completa de los nueve ficheros con la revisión inmutable corta `d4fa6bd` (7 de agosto). Se ha podido verificar además el artefacto `bpe.model`: tamaño publicado aproximado 247 kB y SHA-256 `21661e7892f33bd7495bea5f319f6edf45eed681c1f5afbc0a275b5d30625838`.
+
+Esto **no basta para autorizar el despliegue**: faltan los tamaños y SHA-256 de encoder, decoder, joiner, tokens y keywords en la revisión fijada; además hay que regenerar `keywords.txt` para `orion` con el tokenizer exacto y verificar la salida. No activar descargas automáticas basadas únicamente en el hash parcial de BPE.
