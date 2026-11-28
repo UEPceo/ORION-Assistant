@@ -79,6 +79,14 @@ object BrainLearningPolicy {
         if (candidate.origin == LearningOrigin.USER_CORRECTION && !candidate.userApproved) {
             return LearningDecision.STORE_AS_UNVERIFIED
         }
+        // Provenance is authoritative: a caller cannot promote an unclassified/community
+        // submission merely by attaching an "official" authority label to its metadata.
+        if (candidate.origin in setOf(
+                LearningOrigin.UNCLASSIFIED_SOURCE,
+                LearningOrigin.COMMUNITY_REPORT,
+                LearningOrigin.MODEL_OUTPUT
+            )
+        ) return LearningDecision.STORE_AS_UNVERIFIED
         return when (evidence.authority) {
             EvidenceAuthority.OFFICIAL_PRIMARY,
             EvidenceAuthority.PRIMARY_TECHNICAL,
