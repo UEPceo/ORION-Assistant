@@ -47,7 +47,7 @@ class GitHubCredentialManager(
 
     /** Returns a valid access token, rotating it with the GitHub App refresh token if needed. */
     suspend fun getValidAccessToken(
-        authenticator: GitHubDeviceFlowAuthenticator
+        authenticator: GitHubTokenRefresher
     ): String? = refreshMutex.withLock {
         val stored = readStoredCredential() ?: return@withLock null
         if (stored.accessToken.isNotBlank() && stored.accessExpiresAtMs > nowMs() + TOKEN_EXPIRY_SKEW_MS) return@withLock stored.accessToken
