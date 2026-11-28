@@ -24,9 +24,10 @@ class KnowledgeCorpusRegressionGate(
     suspend fun evaluate(candidate: KnowledgeDocument): KnowledgePublicationCheck {
         require(maxBaselineCases in 1..500)
 
+        // Include the previous version when this is an update. The overlay replaces it
+        // during candidate searches, so old retrieval expectations remain protected.
         val baselineDocuments = corpus.allDocuments()
             .asSequence()
-            .filter { it.evidence.id != candidate.evidence.id }
             .sortedByDescending { it.evidence.retrievedAtMs }
             .take(maxBaselineCases)
             .toList()
