@@ -193,4 +193,33 @@ class PlanningContractsTest {
         assertFalse(PlanValidator.validate(local).valid)
         assertTrue(PlanValidator.validate(local).errors.any { it.contains("confirmación contextual") })
     }
+
+    @Test fun runsReadsFirstAndPausesForResolvedWriteApproval() {
+        val plan = OrionPlan("staged", "read then write", listOf(
+            PlannedStep("read", PlanStepKind.READ, "Read", "", PlanRisk.LOW),
+            PlannedStep("write", PlanStepKind.CREATE_DRAFT, "Draft", "", PlanRisk.HIGH,
+                dependsOn = setOf("read"), connectorArguments = mapOf("content" to "\\${read.output}"))
+        ))
+        val first = runBlocking {
+            PlanExecutionCoordinator().execute(plan, emptySet()) { step, _ ->
+                assertEquals("read", step.id)
+                StepExecution(StepStatus.SUCCEEDED, "Fetched content", "resolved-body")
+            }
+        }
+        assertEquals(PlanStatus.AWAITING_APPROVAL, first.status)
+        assertEquals(StepStatus.SUCCEEDED, first.steps["read"]?.status)
+        assertEquals(StepStatus.BLOCKED, first.steps["write"]?.status)
+
+        var resolved = ""
+        val second = runBlocking {
+            PlanExecutionCoordinator().executeResumable(
+                plan, setOf("write"), PlanStepRunner { step, _ ->
+                    resolved = step.connectorArguments["content"].orEmpty()
+                    StepExecution(StepStatus.SUCCEEDED, "Draft created")
+                }, initialResults = first.steps
+            )
+        }
+        assertEquals("resolved-body", resolved)
+        assertEquals(PlanStatus.COMPLETED, second.status)
+    }
 }
