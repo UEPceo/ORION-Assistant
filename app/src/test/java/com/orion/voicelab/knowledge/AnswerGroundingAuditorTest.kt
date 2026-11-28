@@ -39,7 +39,7 @@ class AnswerGroundingAuditorTest {
         })
         val report=auditor.audit(listOf(claim("source-1")),listOf(evidence("source-1")))
         assertEquals(setOf("invented"),report.unsupportedCitationIds)
-        assertEquals(AnswerGroundingStatus.PARTIALLY_SUPPORTED,report.status)
+        assertEquals(AnswerGroundingStatus.ABSTAIN,report.status)
         assertTrue(report.requiresAbstention)
     }
 
@@ -60,6 +60,22 @@ class AnswerGroundingAuditorTest {
             .audit(listOf(claim("source-1")),listOf(evidence("source-1")))
         assertEquals(ClaimSupportStatus.UNVERIFIABLE,failed.claims.single().status)
         assertEquals(AnswerGroundingStatus.ABSTAIN,failed.status)
+    }
+
+    @Test fun contradictionInUncitedRetrievedEvidenceIsDetected() = runBlocking {
+        val cited=evidence("source-1")
+        val conflicting=evidence("source-2")
+        val auditor=AnswerGroundingAuditor(SemanticEntailmentJudge { _, all ->
+            assertEquals(2,all.size)
+            SemanticJudgeAssessment(
+                ClaimSupportStatus.SUPPORTED,0.99,
+                supportingEvidenceIds=setOf("source-1"),
+                contradictingEvidenceIds=setOf("source-2")
+            )
+        })
+        val report=auditor.audit(listOf(claim("source-1")),listOf(cited,conflicting))
+        assertEquals(ClaimSupportStatus.CONTRADICTED,report.claims.single().status)
+        assertEquals(AnswerGroundingStatus.ABSTAIN,report.status)
     }
 
     @Test fun nonFactualClaimsDoNotBlockFactualAudit() = runBlocking {
