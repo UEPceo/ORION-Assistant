@@ -12,7 +12,8 @@ class ComfyUiImageGenerationProvider(
     private val modelLabel:String="FLUX.1-schnell"
 ):ImageGenerationProvider {
     override val providerId="comfyui-image"
-    override fun capability()=MediaCapabilityStatus.AVAILABLE
+    override fun capability()=if(client.isConnectionVerified() && template.isValid()) MediaCapabilityStatus.AVAILABLE else MediaCapabilityStatus.REQUIRES_PROVIDER_VALIDATION
+    override suspend fun verifyAvailability():Boolean = template.isValid() && client.verifyConnection()
     override suspend fun generate(request:MediaGenerationRequest):GeneratedMedia {
         val uploaded=request.referenceAssets.map { client.uploadReference(it) }
         val workflow=template.build(request,uploaded)
@@ -27,7 +28,8 @@ class ComfyUiVideoGenerationProvider(
     private val modelLabel:String="Wan2.1 T2V"
 ):VideoGenerationProvider {
     override val providerId="comfyui-video"
-    override fun capability()=MediaCapabilityStatus.AVAILABLE
+    override fun capability()=if(client.isConnectionVerified() && template.isValid()) MediaCapabilityStatus.AVAILABLE else MediaCapabilityStatus.REQUIRES_PROVIDER_VALIDATION
+    override suspend fun verifyAvailability():Boolean = template.isValid() && client.verifyConnection()
     override suspend fun generate(request:MediaGenerationRequest):GeneratedMedia {
         val uploaded=request.referenceAssets.map { client.uploadReference(it) }
         val workflow=template.build(request,uploaded)

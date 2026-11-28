@@ -10,7 +10,7 @@ data class CreativeBrandProfile(val id:String,val name:String,val visualDirectio
 enum class CreativeTaskType { BRAND_IDENTITY, SOCIAL_POST, CAROUSEL, THUMBNAIL, POSTER, IMAGE, VIDEO, SCRIPT, CONTENT_CALENDAR }
 enum class CreativeOutputKind { TEXT_BRIEF, DESIGN_SPEC, IMAGE, VIDEO, STORYBOARD }
 enum class MediaProviderKind { LOCAL, REMOTE, EXTERNAL_APP }
-enum class MediaCapabilityStatus { AVAILABLE, REQUIRES_MODEL, REQUIRES_CONFIGURATION, REQUIRES_USER_CONSENT, REQUIRES_NETWORK, UNSUPPORTED }
+enum class MediaCapabilityStatus { AVAILABLE, REQUIRES_MODEL, REQUIRES_CONFIGURATION, REQUIRES_PROVIDER_VALIDATION, REQUIRES_USER_CONSENT, REQUIRES_NETWORK, UNSUPPORTED }
 data class CreativeBrief(val task:CreativeTaskType,val objective:String,val audience:String,val platform:String?=null,val brand:CreativeBrandProfile=CreativeBrandProfile.ORION_DEFAULT,val requiredText:List<String> = emptyList(),val durationSeconds:Int?=null,val aspectRatio:String?=null,val referenceUris:List<Uri> = emptyList())
 data class CreativeDesignSpec(val concept:String,val hook:String?,val layout:String,val palette:List<String>,val typography:String,val scenePlan:List<String>,val copy:List<String>,val accessibilityNotes:List<String>,val verificationNotes:List<String>)
 data class MediaAsset(val uri:Uri,val mimeType:String,val displayName:String?=null,val durationMs:Long?=null,val width:Int?=null,val height:Int?=null,val sizeBytes:Long?=null)
@@ -29,12 +29,14 @@ interface ImageGenerationProvider {
  val providerId:String
  val kind:MediaProviderKind get()=MediaProviderKind.REMOTE
  fun capability():MediaCapabilityStatus
+ suspend fun verifyAvailability():Boolean = false
  suspend fun generate(request:MediaGenerationRequest):GeneratedMedia
 }
 interface VideoGenerationProvider {
  val providerId:String
  val kind:MediaProviderKind get()=MediaProviderKind.REMOTE
  fun capability():MediaCapabilityStatus
+ suspend fun verifyAvailability():Boolean = false
  suspend fun generate(request:MediaGenerationRequest):GeneratedMedia
 }
 object VideoFrameSamplingPolicy {

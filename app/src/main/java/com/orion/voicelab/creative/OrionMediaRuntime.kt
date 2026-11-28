@@ -10,6 +10,10 @@ class OrionMediaRuntime(
  fun videoUnderstandingStatus(policy:MediaRoutingPolicy=MediaRoutingPolicy())=imageUnderstandingStatus("video/mp4",policy)
  fun imageGenerationStatus(policy:MediaRoutingPolicy=MediaRoutingPolicy())=MediaProviderRouter.status(imageProviders,{it.kind},{it.capability()},policy)
  fun videoGenerationStatus(policy:MediaRoutingPolicy=MediaRoutingPolicy())=MediaProviderRouter.status(videoProviders,{it.kind},{it.capability()},policy)
+ suspend fun verifyImageProvider(providerId:String):Boolean =
+  imageProviders.firstOrNull { it.providerId==providerId }?.verifyAvailability() ?: false
+ suspend fun verifyVideoProvider(providerId:String):Boolean =
+  videoProviders.firstOrNull { it.providerId==providerId }?.verifyAvailability() ?: false
  suspend fun understandImage(asset:MediaAsset,policy:MediaRoutingPolicy=MediaRoutingPolicy()):MediaUnderstandingResult {
   require(asset.mimeType.startsWith("image/")){"El archivo seleccionado no es una imagen."}
   val p=MediaProviderRouter.select(understandingProviders,{it.kind},{it.capability(asset.mimeType)},policy)
@@ -43,6 +47,7 @@ private fun MediaCapabilityStatus.message()=when(this) {
  MediaCapabilityStatus.REQUIRES_NETWORK -> "El proveedor remoto está configurado, pero no hay conexión de red."
  MediaCapabilityStatus.REQUIRES_MODEL -> "Falta descargar o preparar el modelo local."
  MediaCapabilityStatus.REQUIRES_CONFIGURATION -> "No hay ningún proveedor multimedia configurado."
+ MediaCapabilityStatus.REQUIRES_PROVIDER_VALIDATION -> "El proveedor está definido, pero aún no ha superado la comprobación de conexión y workflow."
  MediaCapabilityStatus.UNSUPPORTED -> "Ningún proveedor admite este tipo de contenido."
  MediaCapabilityStatus.AVAILABLE -> "La capacidad multimedia está disponible."
 }

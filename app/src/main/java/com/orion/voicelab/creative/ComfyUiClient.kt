@@ -49,6 +49,10 @@ data class ComfyUiWorkflowTemplate(
     val durationInput:String="length",
     val framesPerSecond:Int=16
 ) {
+    fun isValid():Boolean = runCatching {
+        build(MediaGenerationRequest(prompt="ORION provider validation",durationSeconds=2), emptyList())
+    }.isSuccess
+
     fun build(request:MediaGenerationRequest, uploadedReferences:List<String> = emptyList()):JSONObject {
         require(workflowJson.toByteArray(Charsets.UTF_8).size<=2*1024*1024) { "Workflow demasiado grande." }
         val root=JSONObject(workflowJson)
@@ -99,6 +103,22 @@ data class ComfyUiOutput(val localFile:File,val mimeType:String,val remoteFilena
 
 class ComfyUiClient(private val context:Context, private val config:ComfyUiEndpointConfig) {
     private val base=config.normalizedBaseUrl()
+    @Volatile private var lastSuccessfulProbeMs:Long=0L
+    fun isConnectionVerified(nowMs:Long=System.currentTimeMillis()):Boolean =
+        lastSuccessfulProbeMs>0L && nowMs-lastSuccessfulProbeMs in 0..120_000L
+
+    suspend fun verifyConnection():Boolean=withContext(Dispatchers.IO) {
+        try {
+            readResponse(connection("/system_stats"))
+            lastSuccessfulProbeMs=System.currentTimeMillis()
+            true
+        } catch (cancelled:kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_:Exception) {
+            lastSuccessfulProbeMs=0L
+            false
+        }
+    }
     private fun connection(path:String,method:String="GET"):HttpURLConnection {
         val conn=URL(base+path).openConnection() as HttpURLConnection
         conn.requestMethod=method
