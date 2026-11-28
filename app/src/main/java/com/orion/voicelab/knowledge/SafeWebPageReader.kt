@@ -1,6 +1,6 @@
 package com.orion.voicelab.knowledge
 
-import java.net.HttpURLConnection
+import javax.net.ssl.HttpsURLConnection
 import java.net.InetAddress
 import java.net.URI
 import java.net.URL
@@ -23,7 +23,10 @@ internal object SafeWebPageReader {
     fun read(rawUrl: String): Page? {
         var current = normalizePublicHttpsUrl(rawUrl) ?: return null
         repeat(MAX_REDIRECTS + 1) { hop ->
-            val connection = (URL(current).openConnection() as HttpURLConnection).apply {
+            val host = URI(current).host ?: return null
+            val pinnedAddress = resolvePublicAddress(host) ?: return null
+            val connection = (URL(current).openConnection() as HttpsURLConnection).apply {
+                sslSocketFactory = PinnedHttpsSocketFactory(host, pinnedAddress, CONNECT_TIMEOUT_MS)
                 requestMethod = "GET"
                 connectTimeout = CONNECT_TIMEOUT_MS
                 readTimeout = READ_TIMEOUT_MS
@@ -86,11 +89,16 @@ internal object SafeWebPageReader {
             host.endsWith(".local") ||
             host.endsWith(".internal")
         ) return null
-        val addresses = InetAddress.getAllByName(host)
-        if (addresses.isEmpty() || addresses.any(::isNonPublicAddress)) return null
+        if (resolvePublicAddress(host) == null) return null
         URI("https", null, host, -1, uri.path.ifBlank { "/" }, uri.query, null)
             .toASCIIString().takeIf { it.length <= MAX_URL_CHARS }
     }.getOrNull()
+
+    internal fun resolvePublicAddress(host: String): InetAddress? {
+        val addresses = runCatching { InetAddress.getAllByName(host) }.getOrNull() ?: return null
+        if (addresses.isEmpty() || addresses.any(::isNonPublicAddress)) return null
+        return addresses.first()
+    }
 
     private fun isNonPublicAddress(address: InetAddress): Boolean {
         if (address.isAnyLocalAddress || address.isLoopbackAddress ||
