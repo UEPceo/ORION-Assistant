@@ -39,6 +39,7 @@ class GitHubApiClientTest {
 
         val repositories = client.listRepositories().getOrThrow()
 
+        assertTrue(requestedPath.contains("per_page=30"))
         assertTrue(requestedPath.contains("visibility=all"))
         assertTrue(requestedPath.contains("affiliation=owner,collaborator,organization_member"))
         assertEquals("owner/repository", repositories.single().fullName)
