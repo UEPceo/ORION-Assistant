@@ -22,7 +22,7 @@ class PlanProposalParserLocalActionsTest {
 
     @Test fun rejectsOversizedFieldsInsteadOfSilentlyTruncatingThem() {
         val longTitle = "x".repeat(181)
-        val raw = """{"goal":"crear tarea","steps":[{"id":"task","kind":"LOCAL_CREATE_TASK","title":"Tarea","risk":"MEDIUM","connectorArguments":{"title":"$longTitle"}}]}"""
+        val raw = """{"goal":"crear tarea","steps":[{"id":"task","kind":"LOCAL_CREATE_TASK","title":"$longTitle","risk":"MEDIUM","connectorArguments":{"title":"Tarea"}}]}"""
         assertTrue(PlanProposalParser.parse(raw, "long-field") is PlanProposalParseResult.Invalid)
     }
 
