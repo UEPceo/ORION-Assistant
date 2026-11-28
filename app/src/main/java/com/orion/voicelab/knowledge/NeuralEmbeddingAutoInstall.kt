@@ -55,6 +55,9 @@ class NeuralEmbeddingAutoInstallWorker(
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         return try {
+            if (!ModelManager.areCoreModelsInstalled(applicationContext.filesDir)) {
+                return Result.retry()
+            }
             val manager = NeuralEmbeddingModelManager(applicationContext)
             if (manager.isInstalled()) return Result.success()
             val availableBytes = applicationContext.filesDir.usableSpace
