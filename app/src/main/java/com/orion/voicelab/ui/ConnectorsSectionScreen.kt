@@ -343,6 +343,7 @@ fun ConnectorsSectionScreen(
                 onCreatePullRequest = { session, title, body, confirmed ->
                     viewModel.createCodeEngineeringPullRequest(session, title, body, confirmed)
                 },
+                onInspectCi = { session -> viewModel.inspectCodeEngineeringCi(session) },
                 onRevoke = { session -> viewModel.revokeCodeEngineeringSession(session) }
             )
         }
