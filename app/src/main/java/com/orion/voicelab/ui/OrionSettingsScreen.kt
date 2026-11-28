@@ -12,6 +12,8 @@ import com.orion.voicelab.creative.MediaGenerationConsentGate
 import androidx.compose.material3.AlertDialog
 import android.provider.MediaStore
 import android.os.Environment
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.content.Intent
 import android.content.ContentValues
@@ -696,7 +698,7 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
                                 val videos=if(videoWorkflow.isNotBlank()) listOf(ComfyUiVideoGenerationProvider(client,ComfyUiWorkflowTemplate(videoWorkflow,videoNode,negativePromptNodeId=videoNegativeNode.ifBlank { null },dimensionNodeId=videoDimensionNode.ifBlank { null },durationNodeId=videoDurationNode.ifBlank { null },durationInput=videoDurationInput.ifBlank { "length" },framesPerSecond=videoFps.toIntOrNull() ?: 16)) else emptyList()
                                 OrionMediaRuntime(imageProviders=images,videoProviders=videos)
                             }
-                            val executor=MediaGenerationConsentExecutor(runtime,consentGate,{true})
+                            val executor=MediaGenerationConsentExecutor(runtime,consentGate,{ val manager=context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as ConnectivityManager; val active=manager.activeNetwork; manager.getNetworkCapabilities(active)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)==true })
                             val request=MediaGenerationRequest(pending.prompt,pending.negative.ifBlank { null },pending.ratio,pending.duration)
                             val result=executor.execute(pending.id,true,request)
                             generated=result;savedResultUri=null
