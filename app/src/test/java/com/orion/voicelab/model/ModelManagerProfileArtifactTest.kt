@@ -1,9 +1,13 @@
 package com.orion.voicelab.model
 
 import org.junit.Assert.*
+import java.io.File
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 import org.junit.Test
 
 class ModelManagerProfileArtifactTest {
+    @get:Rule val temporaryFolder = TemporaryFolder()
     @Test fun allUpperProfilesHavePinnedHttpsGgufArtifacts() {
         val artifacts = ModelManager.PROFILE_LLM_ARTIFACTS
         assertEquals(setOf("balanced", "powerful", "flagship"), artifacts.keys)
@@ -27,6 +31,14 @@ class ModelManagerProfileArtifactTest {
         assertEquals(4096, powerful.contextTokens)
         assertEquals(2048, flagship.contextTokens)
         assertTrue(flagship.minimumFreeBytes > powerful.minimumFreeBytes)
+    }
+
+    @Test fun incompleteOrCorruptedGgufIsNeverReportedAsInstalled() {
+        val root = temporaryFolder.root
+        val target = ModelManager.profileModelFile(root, "balanced")
+        assertTrue(target.parentFile!!.mkdirs())
+        target.writeBytes("GGUF".toByteArray())
+        assertFalse(ModelManager.isProfileLlmInstalled(root, "balanced"))
     }
 
     @Test fun unknownProfileCannotResolveAnArtifact() {
