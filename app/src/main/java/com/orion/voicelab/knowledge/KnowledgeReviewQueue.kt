@@ -78,6 +78,23 @@ class KnowledgeReviewQueueStore(
             val item = queue[index]
             if (verified && item.decision != LearningDecision.ACCEPT_FOR_REVIEW) return@withLock false
             if (!verified && item.decision == LearningDecision.REJECT_AS_EVIDENCE) return@withLock false
+            if (verified) {
+                val requiresPublishedDate = item.document.evidence.domain in setOf(
+                    KnowledgeDomain.LAW_AND_REGULATION,
+                    KnowledgeDomain.HEALTH_AND_SAFETY,
+                    KnowledgeDomain.MARINE_WEATHER,
+                    KnowledgeDomain.SOCIAL_MEDIA
+                )
+                val verification = KnowledgeVerifier.assess(
+                    evidence = listOf(item.document.evidence),
+                    domain = item.document.evidence.domain,
+                    nowMs = nowMs(),
+                    maxAgeMs = -1L,
+                    conflictDetected = item.document.conflictsWithIds.isNotEmpty(),
+                    requiresPublishedDate = requiresPublishedDate
+                )
+                if (verification.verdict != KnowledgeVerdict.SUPPORTED) return@withLock false
+            }
             val previous = corpus.get(id)
             if (previous != null) appendHistory(id, previous)
             corpus.upsert(item.document)
