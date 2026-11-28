@@ -15,19 +15,17 @@ class GitHubCredentialManager(
     private val nowMs: () -> Long = System::currentTimeMillis
 ) {
     private val refreshMutex = Mutex()
-    suspend fun save(result: GitHubDeviceAuthorizationResult.Authorized) {
+    suspend fun save(result: GitHubDeviceAuthorizationResult.Authorized) = refreshMutex.withLock {
+        persist(result)
+    }
+
+    private suspend fun persist(result: GitHubDeviceAuthorizationResult.Authorized) {
         val now = nowMs()
         val payload = JSONObject()
             .put("access_token", result.accessToken)
             .put("refresh_token", result.refreshToken.orEmpty())
-            .put(
-                "access_expires_at_ms",
-                result.expiresInSeconds?.let { now + it * 1_000L } ?: Long.MAX_VALUE
-            )
-            .put(
-                "refresh_expires_at_ms",
-                result.refreshTokenExpiresInSeconds?.let { now + it * 1_000L } ?: Long.MAX_VALUE
-            )
+            .put("access_expires_at_ms", result.expiresInSeconds?.let { now + it * 1_000L } ?: Long.MAX_VALUE)
+            .put("refresh_expires_at_ms", result.refreshTokenExpiresInSeconds?.let { now + it * 1_000L } ?: Long.MAX_VALUE)
             .toString()
         val bytes = payload.toByteArray(Charsets.UTF_8)
         try {
@@ -56,11 +54,11 @@ class GitHubCredentialManager(
             if (error.message.orEmpty().contains("caducado", ignoreCase = true)) throw ReauthorizationRequiredException()
             throw error
         }
-        save(refreshed)
+        persist(refreshed)
         refreshed.accessToken
     }
 
-    suspend fun disconnect() {
+    suspend fun disconnect() = refreshMutex.withLock {
         credentialStore.delete(ConnectorId.GITHUB)
     }
 
