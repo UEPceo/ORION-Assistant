@@ -155,13 +155,6 @@ class PlanExecutionCoordinator {
         if (!validation.valid) return PlanExecutionReport(plan.id, PlanStatus.FAILED, emptyMap(), validation.errors.joinToString(" "))
         val unknownResults = initialResults.keys - plan.steps.map { it.id }.toSet()
         if (unknownResults.isNotEmpty()) return PlanExecutionReport(plan.id, PlanStatus.FAILED, emptyMap(), "El estado guardado contiene pasos que ya no existen.")
-        val alreadySucceeded = initialResults.filterValues { it.status == StepStatus.SUCCEEDED }.keys
-        val missing = validation.approvalRequiredStepIds - approvedStepIds - alreadySucceeded
-        if (missing.isNotEmpty()) {
-            val report = PlanExecutionReport(plan.id, PlanStatus.AWAITING_APPROVAL, initialResults, "Falta autorización expresa para: ${missing.sorted().joinToString()}.")
-            observer.onProgress(report.status, report.steps, null)
-            return report
-        }
         val results = linkedMapOf<String, StepExecution>().apply { putAll(initialResults) }
         val startedAt = System.nanoTime()
         var activeStepId: String? = null
@@ -190,6 +183,12 @@ class PlanExecutionCoordinator {
                     results[id] = StepExecution(StepStatus.BLOCKED, "Bloqueado por el paso $failedDependency.")
                     observer.onProgress(PlanStatus.RUNNING, results.toMap(), null)
                     continue
+                }
+                if (id in validation.approvalRequiredStepIds && id !in approvedStepIds) {
+                    results[id] = StepExecution(StepStatus.BLOCKED, "Pendiente de confirmación contextual. Revisa las entradas resueltas antes de autorizar.")
+                    val report = PlanExecutionReport(plan.id, PlanStatus.AWAITING_APPROVAL, results.toMap(), "Confirmación pendiente para el paso $id.")
+                    observer.onProgress(report.status, report.steps, null)
+                    return report
                 }
                 val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L
                 val remainingMs = plan.budget.maxDurationMs - elapsedMs
