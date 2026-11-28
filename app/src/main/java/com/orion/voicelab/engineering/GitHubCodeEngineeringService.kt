@@ -3,6 +3,7 @@ package com.orion.voicelab.engineering
 import com.orion.voicelab.connectors.github.GitHubApiClient
 import com.orion.voicelab.connectors.github.GitHubBranchSummary
 import com.orion.voicelab.connectors.github.GitHubCommitResult
+import com.orion.voicelab.connectors.github.GitHubPullRequestSummary
 
 data class CodeEngineeringSession(
     val grant: CodeEngineeringGrant,
@@ -92,6 +93,26 @@ class GitHubCodeEngineeringService(
             "La aprobación del diff ha caducado, se ha consumido o no coincide."
         }
         api.commitChanges(prepared.proposal, prepared.snapshot.headSha).getOrThrow()
+    }
+
+    suspend fun createDraftPullRequest(
+        session: CodeEngineeringSession,
+        title: String,
+        body: String,
+        userConfirmed: Boolean
+    ): Result<GitHubPullRequestSummary> = runCatching {
+        require(userConfirmed) { "La creación del pull request necesita confirmación expresa." }
+        require(authority.isActive(session.grant.id)) { "La sesión de ingeniería ha caducado o se ha revocado." }
+        val head = api.getBranchHead(session.grant.repository, session.grant.workBranch).getOrThrow()
+        require(!head.sha.equals(session.branch.sha, true)) { "La rama no contiene commits nuevos que revisar." }
+        api.createPullRequest(
+            repository = session.grant.repository,
+            title = title.take(256).ifBlank { "Cambios ORION: ${session.grant.workBranch}" },
+            body = body.take(20_000),
+            head = session.grant.workBranch,
+            base = session.baseBranch,
+            draft = true
+        ).getOrThrow()
     }
 
     fun revoke(session: CodeEngineeringSession) = authority.revoke(session.grant.id)
