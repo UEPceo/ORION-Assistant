@@ -96,14 +96,23 @@ internal object OrionDatabaseEncryption {
         database.parentFile?.let { if (!it.exists()) check(it.mkdirs()) }
 
         if (!database.exists() && backup.exists()) {
-            if (temporary.exists() && temporary.length() > 0L) {
+            if (temporary.exists() && isReadableEncryptedDatabase(temporary, passphrase)) {
                 check(temporary.renameTo(database)) { "No se pudo finalizar la conversión cifrada." }
+                check(isReadableEncryptedDatabase(database, passphrase)) { "La base cifrada recuperada no supera la comprobación de integridad." }
                 backup.delete()
             } else {
+                temporary.delete()
                 check(backup.renameTo(database)) { "No se pudo restaurar la base de datos anterior." }
             }
         }
-        if (!database.exists() || !hasPlainSqliteHeader(database)) return
+        if (database.exists() && !hasPlainSqliteHeader(database)) {
+            if (backup.exists()) {
+                check(isReadableEncryptedDatabase(database, passphrase)) { "La base cifrada no se puede abrir; se conserva el respaldo anterior." }
+                check(backup.delete()) { "No se pudo eliminar el respaldo SQLite en claro tras verificar la copia cifrada." }
+            }
+            return
+        }
+        if (!database.exists()) return
 
         if (temporary.exists()) check(temporary.delete()) { "No se pudo limpiar una conversión anterior." }
         val source = CipherDatabase.openDatabase(
@@ -131,19 +140,42 @@ internal object OrionDatabaseEncryption {
         } finally {
             source.close()
         }
-        check(temporary.isFile && temporary.length() > 0L) {
-            "SQLCipher no produjo una base de datos cifrada válida."
+        check(temporary.isFile && temporary.length() > 0L && isReadableEncryptedDatabase(temporary, passphrase)) {
+            "SQLCipher no produjo una base de datos cifrada que pueda abrirse con la clave generada."
         }
         File(database.absolutePath + "-wal").delete()
         File(database.absolutePath + "-shm").delete()
         if (backup.exists()) check(backup.delete()) { "No se pudo limpiar el respaldo anterior." }
         check(database.renameTo(backup)) { "No se pudo conservar la base de datos anterior durante la conversión." }
         if (!temporary.renameTo(database)) {
-            backup.renameTo(database)
+            check(backup.renameTo(database)) { "No se pudo activar la base cifrada ni restaurar la base anterior." }
             error("No se pudo activar la base de datos cifrada; se restauró la anterior.")
         }
-        backup.delete()
+        if (!isReadableEncryptedDatabase(database, passphrase)) {
+            database.delete()
+            check(backup.renameTo(database)) { "La base cifrada no se pudo abrir y tampoco fue posible restaurar el original." }
+            error("La comprobación posterior al cambio falló; se restauró la base anterior.")
+        }
+        check(backup.delete()) { "La base cifrada está activa, pero no se pudo eliminar el respaldo SQLite en claro." }
     }
+
+    private fun isReadableEncryptedDatabase(file: File, passphrase: ByteArray): Boolean = runCatching {
+        if (!file.isFile || file.length() <= 0L) return@runCatching false
+        val encrypted = CipherDatabase.openDatabase(
+            file.absolutePath,
+            passphrase,
+            null,
+            CipherDatabase.OPEN_READWRITE,
+            null
+        )
+        try {
+            encrypted.rawQuery("SELECT count(*) FROM sqlite_master", null).use { cursor ->
+                cursor.moveToFirst()
+            }
+        } finally {
+            encrypted.close()
+        }
+    }.getOrDefault(false)
 
     private fun hasPlainSqliteHeader(file: File): Boolean = runCatching {
         if (file.length() < 16L) return@runCatching false
