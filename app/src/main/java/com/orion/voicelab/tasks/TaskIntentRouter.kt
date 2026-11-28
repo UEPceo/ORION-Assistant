@@ -58,7 +58,7 @@ object TaskIntentRouter {
     )
 
     private val queryOverdueRegex = Regex(
-        """(?:que\s+(?:tareas\s+)?(?:tengo\s+)?(?:atrasad[oa]s|vencid[oa]s|pasad[oa]s)|tareas\s+atrasadas|recordatorios\s+vencidos)"""
+        """(?:que\s+(?:tareas\s+)?(?:tengo\s+)?(?:atrasad[oa]s?|vencid[oa]s?|pasad[oa]s?)|tareas\s+atrasadas|recordatorios\s+vencidos)"""
     )
 
     private val queryRemindersRegex = Regex(
