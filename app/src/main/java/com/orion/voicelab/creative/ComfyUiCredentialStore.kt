@@ -27,7 +27,13 @@ object ComfyUiCredentialStore {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val encrypted = prefs.getString(ENCRYPTED_KEY, null)
         if (encrypted != null) {
-            decrypt(encrypted)
+            val token = decrypt(encrypted)
+            if (prefs.contains(LEGACY_KEY)) {
+                check(prefs.edit().remove(LEGACY_KEY).commit()) {
+                    "No se pudo eliminar la copia antigua del token ComfyUI."
+                }
+            }
+            token
         } else {
             val legacy = prefs.getString(LEGACY_KEY, "").orEmpty()
             validateToken(legacy)
