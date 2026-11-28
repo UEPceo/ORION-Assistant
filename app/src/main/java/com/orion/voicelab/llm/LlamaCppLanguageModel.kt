@@ -218,12 +218,15 @@ class LlamaCppLanguageModel internal constructor(
             withContext(llamaDispatcher) {
                 if (destroyed.get()) error("El motor LLM ya fue cerrado")
                 if (contextIdRef.get() != null) return@withContext 0L
-                val decision = ModelMemoryPolicy.evaluate(
-                    memorySnapshotProvider(),
+                val memorySnapshot = memorySnapshotProvider()
+                val selectedContextTokens = ModelMemoryPolicy.chooseSafeContextTokens(
+                    memorySnapshot,
                     modelFile.length(),
                     contextTokens
                 )
-                check(decision.allowed) { decision.reason }
+                check(selectedContextTokens > 0) {
+                    ModelMemoryPolicy.evaluate(memorySnapshot, modelFile.length(), contextTokens).reason
+                }
 
                 check(isModelInstalled()) {
                     "El modelo LLM local no está instalado o está corrupto."
@@ -237,7 +240,7 @@ class LlamaCppLanguageModel internal constructor(
                     "model_fd" to fd,
                     "use_mmap" to true,
                     "use_mlock" to false,
-                    "n_ctx" to CONTEXT_SIZE,
+                    "n_ctx" to selectedContextTokens,
                     "n_batch" to batchSize,
                     "n_threads" to threadCount,
                     "n_gpu_layers" to 0
