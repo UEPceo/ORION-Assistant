@@ -356,7 +356,7 @@ class LlamaCppLanguageModel internal constructor(
                         "top_k" to 40,
                         "top_p" to TOP_P,
                         "min_p" to 0.05,
-                        "n_threads" to THREADS_LOAD_AND_GEN,
+                        "n_threads" to threadCount,
                         "n_predict" to MAX_PREDICT_TOKENS,
                         "penalty_last_n" to 64,
                         "penalty_repeat" to REPEAT_PENALTY,
