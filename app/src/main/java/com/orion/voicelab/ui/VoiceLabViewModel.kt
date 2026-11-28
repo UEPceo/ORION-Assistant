@@ -540,6 +540,29 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         _codeEngineeringState.value = CodeEngineeringUiState()
     }
 
+    fun createCodeEngineeringPullRequest(
+        session: CodeEngineeringSession,
+        title: String,
+        body: String,
+        userConfirmed: Boolean
+    ): Job = viewModelScope.launch(Dispatchers.IO) {
+        _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = true, error = null)
+        codeEngineeringService.createDraftPullRequest(session, title, body, userConfirmed).fold(
+            onSuccess = { pullRequest ->
+                _codeEngineeringState.value = _codeEngineeringState.value.copy(
+                    isWorking = false,
+                    pullRequestUrl = pullRequest.url
+                )
+            },
+            onFailure = { error ->
+                _codeEngineeringState.value = _codeEngineeringState.value.copy(
+                    isWorking = false,
+                    error = error.message ?: "No se pudo crear el pull request."
+                )
+            }
+        )
+    }
+
     fun refreshKnowledgeReviews(): Job = viewModelScope.launch(Dispatchers.IO) {
         runCatching { brainRuntime.pendingKnowledgeReviews() }
             .onSuccess { _knowledgeReviews.value = it }
