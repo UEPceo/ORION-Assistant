@@ -66,6 +66,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.orion.voicelab.brain.CapabilityBaseline
+import com.orion.voicelab.knowledge.KnowledgeReviewItem
+import com.orion.voicelab.knowledge.LearningDecision
 import com.orion.voicelab.brain.PlanExecutionEntity
 import com.orion.voicelab.brain.PlanExecutionJsonCodec
 import com.orion.voicelab.brain.PlanRisk
@@ -98,7 +100,12 @@ fun OrionSettingsScreen(
     onOpenDiagnostics: () -> Unit,
     planExecutions: List<PlanExecutionEntity> = emptyList(),
     onExecutePlan: (String, Set<String>, Set<String>) -> Unit = { _, _, _ -> },
-    onDeletePlan: (String) -> Unit = {}
+    onDeletePlan: (String) -> Unit = {},
+    knowledgeReviews: List<KnowledgeReviewItem> = emptyList(),
+    knowledgeReviewMessage: String? = null,
+    onApproveKnowledgeReview: (String) -> Unit = {},
+    onPublishKnowledgeUnverified: (String) -> Unit = {},
+    onRejectKnowledgeReview: (String) -> Unit = {}
 ) {
     val identity = state.assistantIdentity
     val capabilityEvaluation = remember { CapabilityBaseline.current() }
@@ -443,6 +450,47 @@ if (result?.status == StepStatus.FAILED) {
                 }
             }
             Text("Los pasos de escritura se detienen hasta que se revisen sus entradas resueltas y se autoricen para esa ejecución. Los pasos no compatibles no se ejecutan.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        SettingsSection(
+            title = "Revisión del conocimiento",
+            subtitle = "Los documentos nuevos permanecen fuera del corpus activo hasta que se revisen. La publicación verificada exige superar la política de evidencia."
+        ) {
+            knowledgeReviewMessage?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+            if (knowledgeReviews.isEmpty()) {
+                Text("No hay candidatos pendientes de revisión.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                knowledgeReviews.forEach { review ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(review.document.evidence.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text("${review.document.evidence.publisherId} · ${review.document.evidence.domain} · ${review.document.evidence.authority}", style = MaterialTheme.typography.labelSmall)
+                            Text(review.document.evidence.canonicalUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                            Text(review.document.excerpt.take(1_200), style = MaterialTheme.typography.bodySmall)
+                            Text("Origen: ${review.origin} · decisión: ${review.decision}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (review.decision == LearningDecision.ACCEPT_FOR_REVIEW) {
+                                    Button(onClick = { onApproveKnowledgeReview(review.id) }) {
+                                        Text("Publicar verificado")
+                                    }
+                                }
+                                OutlinedButton(onClick = { onPublishKnowledgeUnverified(review.id) }) {
+                                    Text("No verificado")
+                                }
+                                TextButton(onClick = { onRejectKnowledgeReview(review.id) }) {
+                                    Text("Rechazar")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Text("El texto generado por ORION nunca se admite como evidencia. Las correcciones personales no se convierten automáticamente en hechos generales.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         SettingsSection(title = "Búsqueda semántica neuronal", subtitle = "Embeddings multilingües ONNX para mejorar la recuperación de conocimiento local.") {
