@@ -25,4 +25,19 @@ class ComfyUiWorkflowTemplateTest {
   val template=ComfyUiWorkflowTemplate("""{"1":{"inputs":{"other":"x"}}}""","9")
   assertThrows(IllegalArgumentException::class.java) { template.build(MediaGenerationRequest("hello")) }
  }
+ @Test fun appliesAspectRatioAndVideoDurationWhenMappingsConfigured() {
+  val workflow="""{"1":{"inputs":{"text":"prompt"}},"2":{"inputs":{"width":512,"height":512}},"3":{"inputs":{"length":81}}}"""
+  val template=ComfyUiWorkflowTemplate(workflow,"1",dimensionNodeId="2",durationNodeId="3",durationInput="length",framesPerSecond=16)
+  val result=template.build(MediaGenerationRequest("motion","", "9:16",5))
+  assertEquals(432,result.getJSONObject("2").getJSONObject("inputs").getInt("width"))
+  assertEquals(768,result.getJSONObject("2").getJSONObject("inputs").getInt("height"))
+  assertEquals(80,result.getJSONObject("3").getJSONObject("inputs").getInt("length"))
+ }
+ @Test fun ignoresAspectAndDurationMappingsWhenNotConfigured() {
+  val workflow="""{"1":{"inputs":{"text":"prompt"}},"2":{"inputs":{"width":512,"height":512}}}"""
+  val result=ComfyUiWorkflowTemplate(workflow,"1").build(MediaGenerationRequest("prompt",null,"16:9",5))
+  assertEquals(512,result.getJSONObject("2").getJSONObject("inputs").getInt("width"))
+  assertEquals(512,result.getJSONObject("2").getJSONObject("inputs").getInt("height"))
+ }
+
 }
