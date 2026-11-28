@@ -64,7 +64,7 @@ object LanguageModelProfileCatalog {
     /** Selects a recommendation from physical device RAM, not momentary free RAM. */
     fun recommendForDevice(totalRamMb: Long): LanguageModelProfile {
         val ramGb = totalRamMb / 1024L
-        return profiles.lastOrNull { ramGb >= it.minimumDeviceRamGb } ?: profiles.first()
+        return profiles.lastOrNull { ramGb >= it.recommendedDeviceRamGb } ?: profiles.first()
     }
 
     fun byId(id: String): LanguageModelProfile? = profiles.firstOrNull { it.id == id }
