@@ -12,8 +12,8 @@ import kotlinx.coroutines.sync.withLock
  */
 class GmailCredentialManager(
     private val credentialStore: ConnectorCredentialStore,
-    private val nowMs: () -> Long = System::currentTimeMillis,
-    private val silentRefresh: (suspend () -> RefreshedToken?)? = null
+    private val silentRefresh: (suspend () -> RefreshedToken?)? = null,
+    private val nowMs: () -> Long = System::currentTimeMillis
 ) {
     private val refreshMutex = Mutex()
 
