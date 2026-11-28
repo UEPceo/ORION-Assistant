@@ -9,6 +9,8 @@ import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.coroutineContext
 
 /**
@@ -20,6 +22,7 @@ class NeuralEmbeddingModelManager(context: Context) {
     val modelFile: File get() = File(directory, MODEL_FILE)
     private val partialFile: File get() = File(directory, "$MODEL_FILE.part")
     @Volatile private var verifiedLength: Long = -1L
+    private val downloadMutex = Mutex()
 
     suspend fun isInstalled(): Boolean = withContext(Dispatchers.IO) {
         if (!modelFile.isFile) return@withContext false
@@ -34,6 +37,7 @@ class NeuralEmbeddingModelManager(context: Context) {
     suspend fun download(
         onProgress: suspend (downloadedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }
     ): File = withContext(Dispatchers.IO) {
+        downloadMutex.withLock {
         if (!directory.exists() && !directory.mkdirs()) {
             error("No se pudo crear el directorio privado del encoder.")
         }
@@ -100,6 +104,7 @@ class NeuralEmbeddingModelManager(context: Context) {
             throw error
         } finally {
             connection.disconnect()
+        }
         }
     }
 
