@@ -30,6 +30,7 @@ interface KnowledgeRepository {
     suspend fun upsert(document: KnowledgeDocument)
     suspend fun remove(documentId: String)
     suspend fun contains(documentId: String): Boolean
+    suspend fun get(documentId: String): KnowledgeDocument? = null
 }
 
 enum class LearningOrigin {
