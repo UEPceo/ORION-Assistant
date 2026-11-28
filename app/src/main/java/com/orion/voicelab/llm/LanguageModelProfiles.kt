@@ -61,17 +61,19 @@ object LanguageModelProfileCatalog {
         )
     )
 
+    /** Android reports binary MiB; 950 MiB per marketed GB leaves a modest OS/runtime reserve. */
+    private const val DEVICE_RAM_MB_PER_GB = 950L
+
     /** Selects a recommendation from physical device RAM, not momentary free RAM. */
-    fun recommendForDevice(totalRamMb: Long): LanguageModelProfile {
-        val ramGb = totalRamMb / 1024L
-        return profiles.lastOrNull { ramGb >= it.recommendedDeviceRamGb } ?: profiles.first()
-    }
+    fun recommendForDevice(totalRamMb: Long): LanguageModelProfile =
+        profiles.lastOrNull { totalRamMb >= it.recommendedDeviceRamGb * DEVICE_RAM_MB_PER_GB } ?: profiles.first()
+
 
     fun byId(id: String): LanguageModelProfile? = profiles.firstOrNull { it.id == id }
 
     fun effectiveProfile(requestedId: String, totalRamMb: Long): LanguageModelProfile {
         val requested = byId(requestedId) ?: recommendForDevice(totalRamMb)
-        if (requested.operational && totalRamMb / 1024L >= requested.minimumDeviceRamGb) return requested
+        if (requested.operational && totalRamMb >= requested.minimumDeviceRamGb * DEVICE_RAM_MB_PER_GB) return requested
         return profiles.first()
     }
 
@@ -85,7 +87,7 @@ object LanguageModelProfileCatalog {
     ): LanguageModelProfile? = available(mode)
         .filter { profile ->
             profile.capabilities.containsAll(required) &&
-                (availableRamMb == null || profile.minimumDeviceRamGb * 1024 <= availableRamMb)
+                (availableRamMb == null || profile.minimumDeviceRamGb * DEVICE_RAM_MB_PER_GB <= availableRamMb)
         }
         .maxByOrNull { it.capabilities.size }
 }
