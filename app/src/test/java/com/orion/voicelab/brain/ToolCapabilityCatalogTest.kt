@@ -20,4 +20,20 @@ class ToolCapabilityCatalogTest {
   assertFalse(github.operations.contains("get_repository"))
   assertEquals(ToolAvailability.PARTIAL,github.availability)
  }
+ @Test fun multimediaIsNotReportedOperationalWithoutAValidatedProvider() {
+  val media=ToolCapabilityCatalog.find("media-generation")!!
+  assertEquals(ToolAvailability.REQUIRES_CONFIGURATION,media.availability)
+  assertTrue(media.limitation.contains("endpoint"))
+ }
+ @Test fun knowledgeLearningIsExplicitAndNotModelTraining() {
+  val learning=ToolCapabilityCatalog.find("knowledge-learning")!!
+  assertEquals(ToolAvailability.PARTIAL,learning.availability)
+  assertTrue(learning.limitation.contains("No reentrena"))
+ }
+ @Test fun autonomousSelfModificationIsExplicitlyUnsupported() {
+  val autonomy=ToolCapabilityCatalog.find("autonomous-self-modification")!!
+  assertEquals(ToolAvailability.NOT_IMPLEMENTED,autonomy.availability)
+  assertTrue(autonomy.limitation.contains("No se reprograma"))
+ }
+
 }
