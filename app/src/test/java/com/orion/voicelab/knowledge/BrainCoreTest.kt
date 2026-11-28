@@ -141,6 +141,45 @@ class BrainCoreTest {
     }
 
     @Test
+    fun provenanceMustMatchEvidenceAuthority() {
+        val evidence = KnowledgeEvidence(
+            id = "mismatch-1",
+            title = "Community post",
+            canonicalUrl = "https://example.org/community",
+            publisherId = "community",
+            domain = KnowledgeDomain.GENERAL,
+            authority = EvidenceAuthority.OFFICIAL_PRIMARY,
+            retrievedAtMs = 1L,
+            content = "Community statement"
+        )
+        val candidate = LearningCandidate(
+            document = KnowledgeDocument(evidence),
+            origin = LearningOrigin.COMMUNITY_REPORT
+        )
+        assertEquals(LearningDecision.STORE_AS_UNVERIFIED, BrainLearningPolicy.decide(candidate))
+    }
+
+    @Test
+    fun approvingAUserCorrectionDoesNotTurnItIntoIndependentEvidence() {
+        val evidence = KnowledgeEvidence(
+            id = "correction-1",
+            title = "Correction",
+            canonicalUrl = "https://example.org/correction",
+            publisherId = "user",
+            domain = KnowledgeDomain.GENERAL,
+            authority = EvidenceAuthority.OFFICIAL_PRIMARY,
+            retrievedAtMs = 1L,
+            content = "User supplied correction"
+        )
+        val candidate = LearningCandidate(
+            document = KnowledgeDocument(evidence),
+            origin = LearningOrigin.USER_CORRECTION,
+            userApproved = true
+        )
+        assertEquals(LearningDecision.STORE_AS_UNVERIFIED, BrainLearningPolicy.decide(candidate))
+    }
+
+    @Test
     fun unknownSourcesKeepUnclassifiedProvenance() {
         assertEquals(LearningOrigin.UNCLASSIFIED_SOURCE, learningOriginForAuthority(EvidenceAuthority.UNKNOWN))
         assertEquals(LearningOrigin.UNCLASSIFIED_SOURCE, learningOriginForAuthority(EvidenceAuthority.USER_SUPPLIED))
