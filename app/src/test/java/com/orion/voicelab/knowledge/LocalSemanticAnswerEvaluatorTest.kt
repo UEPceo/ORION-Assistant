@@ -59,8 +59,9 @@ class LocalSemanticAnswerEvaluatorTest {
         citationNumbers: String = "[1]",
         supportNumbers: String = "[1]",
         contradictionNumbers: String = "[]",
-        confidence: String = "0.99"
-    ) = """{"containsFactualClaims":true,"claims":[{"id":"c1","text":"The documented limit is 25.","factual":true,"citationNumbers":$citationNumbers,"status":"$status","confidence":$confidence,"supportingSourceNumbers":$supportNumbers,"contradictingSourceNumbers":$contradictionNumbers,"explanation":"fixture"}]}"""
+        confidence: String = "0.99",
+        draftSpan: String = "The documented limit is 25."
+    ) = """{"containsFactualClaims":true,"claims":[{"id":"c1","text":"The documented limit is 25.","draftSpan":"$draftSpan","factual":true,"citationNumbers":$citationNumbers,"status":"$status","confidence":$confidence,"supportingSourceNumbers":$supportNumbers,"contradictingSourceNumbers":$contradictionNumbers,"explanation":"fixture"}]}"""
 
     @Test fun semanticallySupportedAnswerIsReleasedOnlyWithValidCitation() = runBlocking {
         val draft = "The documented limit is 25. [1]"
@@ -76,7 +77,7 @@ class LocalSemanticAnswerEvaluatorTest {
 
     @Test fun contradictionProducesAbstentionEvenWhenModelAlsoClaimsSupport() = runBlocking {
         val conflicting = source.copy(id = "source-2", publisherId = "publisher-b", content = "The documented limit is 30.")
-        val json = payload(contradictionNumbers = "[2]")
+        val json = payload(contradictionNumbers = "[2]", draftSpan = "The limit is 25.")
         val result = evaluator(json).verify("What is the limit?", "The limit is 25. [1]", context(listOf(source, conflicting)))
         assertTrue(result.startsWith("No puedo confirmar"))
     }
@@ -137,6 +138,19 @@ class LocalSemanticAnswerEvaluatorTest {
         assertEquals("Hola", greeting.verify("Hola", "Hola", context()))
         val omittedFact = greeting.verify("Question", "The documented limit is 25.", context())
         assertTrue(omittedFact.startsWith("No puedo confirmar"))
+    }
+
+    @Test fun omittedSecondFactualSentenceFailsClosed() = runBlocking {
+        val draft = "The documented limit is 25. The device supports 8 GB of memory. [1]"
+        val result = evaluator(payload()).verify("What is the limit and memory?", draft, context())
+        assertTrue(result.startsWith("No puedo confirmar"))
+    }
+
+    @Test fun inventedDraftSpanFailsClosed() = runBlocking {
+        val draft = "The documented limit is 25. [1]"
+        val result = evaluator(payload(draftSpan = "The limit is 99."))
+            .verify("What is the limit?", draft, context())
+        assertTrue(result.startsWith("No puedo confirmar"))
     }
 
     @Test fun instructionRiskDetectorDoesNotFlagOrdinaryTechnicalText() {
