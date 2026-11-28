@@ -112,11 +112,21 @@ class ComfyUiClient(private val context:Context, private val config:ComfyUiEndpo
         val type=selected.optString("type","output")
         val query="filename=${encodeQuery(filename)}&subfolder=${encodeQuery(subfolder)}&type=${encodeQuery(type)}"
         val download=connection("/view?$query")
-        val bytes=download.inputStream.use { it.readBytes() }
-        require(bytes.isNotEmpty() && bytes.size<=MAX_OUTPUT_BYTES) { "Archivo multimedia vacío o demasiado grande." }
+        val declared=download.getHeaderFieldLong("Content-Length",-1L)
+        require(declared<=MAX_OUTPUT_BYTES) { "La salida supera el límite de descarga." }
         val ext=filename.substringAfterLast('.', "bin").take(8)
         val file=File(context.cacheDir,"orion-media-${UUID.randomUUID()}.$ext")
-        file.writeBytes(bytes)
+        var total=0L
+        download.inputStream.use { input -> file.outputStream().use { output ->
+            val buffer=ByteArray(8192)
+            while(true) {
+                val count=input.read(buffer); if(count<0) break
+                total+=count
+                require(total<=MAX_OUTPUT_BYTES) { "La salida supera el límite de descarga." }
+                output.write(buffer,0,count)
+            }
+        } }
+        require(total>0L) { "Archivo multimedia vacío." }
         ComfyUiOutput(file,mimeForExtension(ext),filename,subfolder)
     }
     suspend fun uploadReference(asset:MediaAsset):String=withContext(Dispatchers.IO) {
@@ -154,7 +164,7 @@ class ComfyUiClient(private val context:Context, private val config:ComfyUiEndpo
         }
         return null
     }
-    private fun encodePath(value:String)=URLEncoder.encode(value,Charsets.UTF_8).replace("+","%20")
+    private fun encodePath(value:String)=URLEncoder.encode(value,"UTF-8").replace("+","%20")
     private fun encodeQuery(value:String)=URLEncoder.encode(value,Charsets.UTF_8)
     private fun mimeForExtension(ext:String)=when(ext.lowercase()) { "png"->"image/png"; "jpg","jpeg"->"image/jpeg"; "webp"->"image/webp"; "mp4"->"video/mp4"; "webm"->"video/webm"; "gif"->"image/gif"; else->"application/octet-stream" }
     companion object { const val MAX_UPLOAD_BYTES=25L*1024*1024; const val MAX_OUTPUT_BYTES=150L*1024*1024 }
