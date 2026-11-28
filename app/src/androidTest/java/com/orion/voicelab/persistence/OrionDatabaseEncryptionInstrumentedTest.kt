@@ -86,7 +86,7 @@ class OrionDatabaseEncryptionInstrumentedTest {
         assertFalse(backupFile.exists())
         assertFalse(temporaryFile.exists())
         val recovered = CipherDatabase.openDatabase(
-            databaseFile.absolutePath, passphrase, null, CipherDatabase.OPENREADWRITE, null
+            databaseFile.absolutePath, passphrase, null, CipherDatabase.OPEN_READWRITE, null
         )
         recovered.use {
             val value = it.rawQuery("SELECT value FROM recovery_sample", null).use { cursor ->
