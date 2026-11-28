@@ -6,7 +6,7 @@ import kotlinx.coroutines.CancellationException
 
 /**
  * Hybrid execution policy: the phone remains the default execution target.
- * Remote execution is possible only after both the remote toggle and context-sharing consent.
+ * Remote execution requires both the remote toggle and explicit context-sharing consent.
  */
 class HybridLanguageModel(
     private val context: Context,
@@ -17,14 +17,29 @@ class HybridLanguageModel(
     override val modelLicense: String get() = local.modelLicense
 
     private fun settings() = RemoteInferenceSettings.read(context)
-    private fun remoteOnly() = settings().let {
+    private fun remoteOnlyRequested() = settings().let {
+        it.enabled && it.mode == RemoteInferenceSettings.MODE_REMOTE_ONLY
+    }
+    private fun remoteOnlyConfigured() = settings().let {
         it.isConfigured && it.mode == RemoteInferenceSettings.MODE_REMOTE_ONLY
     }
 
-    override fun isModelInstalled(): Boolean = remoteOnly() || local.isModelInstalled()
-    override fun isLoaded(): Boolean = remoteOnly() || local.isLoaded()
-    override fun modelSizeMb(): Long = if (remoteOnly()) 0L else local.modelSizeMb()
-    override suspend fun load(): Long = if (remoteOnly()) 0L else local.load()
+    override fun isModelInstalled(): Boolean =
+        if (remoteOnlyRequested()) remoteOnlyConfigured() else local.isModelInstalled()
+
+    override fun isLoaded(): Boolean =
+        if (remoteOnlyRequested()) remoteOnlyConfigured() else local.isLoaded()
+
+    override fun modelSizeMb(): Long = if (remoteOnlyRequested()) 0L else local.modelSizeMb()
+
+    override suspend fun load(): Long {
+        if (!remoteOnlyRequested()) return local.load()
+        check(remoteOnlyConfigured()) {
+            "El modo Solo remoto necesita endpoint, modelo y consentimiento de contexto configurados."
+        }
+        return 0L
+    }
+
     override fun cancelGeneration() = local.cancelGeneration()
     override fun unload() = local.unload()
 
@@ -39,6 +54,9 @@ class HybridLanguageModel(
             mode = config.mode,
             request = history.lastOrNull()?.content.orEmpty()
         )
+        if (config.mode == RemoteInferenceSettings.MODE_REMOTE_ONLY && !remoteAllowed) {
+            error("El modo Solo remoto necesita endpoint, modelo y consentimiento de contexto configurados.")
+        }
         if (remoteAllowed && remotePreferred) {
             try {
                 val result = RemoteInferenceClient(
@@ -52,14 +70,18 @@ class HybridLanguageModel(
                 throw cancelled
             } catch (error: Exception) {
                 if (config.mode == RemoteInferenceSettings.MODE_REMOTE_ONLY) {
-                    throw IllegalStateException("No se pudo usar el motor remoto y el modo está configurado como Solo remoto. No se ha enviado la petición al motor local. " +
-                        (error.message ?: "Error de conexión."), error)
+                    throw IllegalStateException(
+                        "No se pudo usar el motor remoto y el modo está configurado como Solo remoto. No se ha enviado la petición al motor local. " +
+                            (error.message ?: "Error de conexión."),
+                        error
+                    )
                 }
-                // Automatic mode falls back locally; it never changes the privacy setting or sends elsewhere.
+                // Automatic mode falls back locally without changing privacy settings or provider.
             }
         }
-        check(!remoteOnly()) { "El modo remoto requiere un endpoint configurado y autorización para compartir contexto." }
+        check(!remoteOnlyRequested()) {
+            "El modo remoto requiere un endpoint configurado y autorización para compartir contexto."
+        }
         return local.generateReply(systemPrompt, history, onToken)
     }
-
 }
