@@ -20,8 +20,7 @@ object ConnectorActionGate {
         ConnectorId.GMAIL to setOf("search_messages", "get_message", "read_latest_message"),
         ConnectorId.GITHUB to setOf(
             "list_repositories", "list_issues", "get_issue",
-            "list_commits", "list_workflow_runs", "list_files", "get_file",
-            "create_branch", "commit_changes", "create_pull_request"
+            "list_commits", "list_workflow_runs", "list_files", "get_file"
         ),
         ConnectorId.GOOGLE_MAPS to setOf("search_place", "navigate"),
         ConnectorId.PESCAIA to setOf("search_public")
