@@ -102,11 +102,12 @@ class BundledKnowledgePackInstaller(
                         EvidenceAuthority.PEER_REVIEWED -> LearningOrigin.PEER_REVIEWED_SOURCE
                         else -> LearningOrigin.REPUTABLE_SECONDARY
                     }
-                    val decision = ingestion.ingest(
+                    val decision = ingestion.ingestReviewedBundle(
                         LearningCandidate(
                             document = KnowledgeDocument(evidence, excerpt = content),
                             origin = origin
-                        )
+                        ),
+                        repository
                     )
                     require(decision != LearningDecision.REJECT_AS_EVIDENCE) {
                         "El documento no ha superado la validación de ingesta: $title"
