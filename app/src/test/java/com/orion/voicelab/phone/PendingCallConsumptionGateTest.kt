@@ -4,25 +4,24 @@ import com.orion.voicelab.data.PendingCallRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PendingCallConsumptionGateTest {
     @Test fun confirmationRequestCanBeConsumedOnlyOnce() {
-        var pending: PendingCallRequest? = PendingCallRequest(
+        val request = PendingCallRequest(
             requestId = "req-1",
             contactName = "Laura",
             phoneNumber = "+34600123456",
             awaitingConfirmation = true
         )
+        var pending: PendingCallRequest? = request
         var clearCount = 0
 
         val first = PendingCallConsumptionGate.consume(pending) {
             pending = null
             clearCount++
         }
-        assertSame(first, first)
+        assertSame(request, first)
         assertEquals("req-1", first?.requestId)
         assertNull(pending)
 
