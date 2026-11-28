@@ -47,6 +47,17 @@ class ModelMemoryPolicyTest {
         assertEquals(2048, ModelMemoryPolicy.safeContextTokens(2048, 2_000L * mib))
     }
 
+    @Test fun choosesLargestContextThatFitsAndRejectsWhenNoContextFits() {
+        val modelBytes = 1_000L * mib
+        val snapshot = ModelMemorySnapshot(4_000L * mib, 3_400L * mib)
+        val chosen = ModelMemoryPolicy.chooseSafeContextTokens(snapshot, modelBytes, 4096)
+        assertTrue(chosen in setOf(512, 1024, 2048, 4096))
+        assertTrue(ModelMemoryPolicy.evaluate(snapshot, modelBytes, chosen).allowed)
+        assertEquals(0, ModelMemoryPolicy.chooseSafeContextTokens(
+            ModelMemorySnapshot(2_000L * mib, 200L * mib), 1_000L * mib, 4096
+        ))
+    }
+
     @Test fun invalidContextAndModelSizesAreRejected() {
         assertThrows(IllegalArgumentException::class.java) {
             ModelMemoryPolicy.estimateRequiredBytes(0L, 2048)
