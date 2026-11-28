@@ -124,6 +124,10 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
         readAll().any { it.evidence.id == documentId }
     }
 
+    override suspend fun get(documentId: String): KnowledgeDocument? = withContext(Dispatchers.IO) {
+        readAll().firstOrNull { it.evidence.id == documentId }
+    }
+
     override suspend fun remove(documentId: String) {
         withContext(Dispatchers.IO) {
             synchronized(lock) {
