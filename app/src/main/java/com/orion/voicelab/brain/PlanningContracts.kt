@@ -55,6 +55,20 @@ object PlanValidator {
                 if (item.connectorArguments["title"].isNullOrBlank() && item.kind != PlanStepKind.LOCAL_CREATE_NOTE) errors += "El paso local ${item.id} necesita título."
                 if (item.kind == PlanStepKind.LOCAL_CREATE_REMINDER && item.connectorArguments["reminderAtMs"].isNullOrBlank()) errors += "El recordatorio ${item.id} necesita fecha y hora (reminderAtMs)."
                 if (item.kind == PlanStepKind.LOCAL_CREATE_NOTE && item.connectorArguments["content"].isNullOrBlank() && item.connectorArguments["notes"].isNullOrBlank()) errors += "La nota ${item.id} necesita contenido."
+                val dateValue = item.connectorArguments["dueDateEpochDay"]
+                if (dateValue != null && PlanOutputReferences.find(listOf(dateValue)).isEmpty()) {
+                    val epochDay = dateValue.toLongOrNull()
+                    if (epochDay == null || runCatching { java.time.LocalDate.ofEpochDay(epochDay) }.isFailure) {
+                        errors += "La fecha de vencimiento del paso ${item.id} no es válida."
+                    }
+                }
+                val timeValue = item.connectorArguments["dueTimeMinutes"]
+                if (timeValue != null && PlanOutputReferences.find(listOf(timeValue)).isEmpty()) {
+                    val minutes = timeValue.toIntOrNull()
+                    if (minutes == null || minutes !in 0..1439) {
+                        errors += "La hora del paso ${item.id} debe estar entre 0 y 1439 minutos."
+                    }
+                }
                 if (item.kind == PlanStepKind.LOCAL_CREATE_REMINDER) {
                     val rawReminder = item.connectorArguments["reminderAtMs"].orEmpty()
                     val timestamp = rawReminder.toLongOrNull()
