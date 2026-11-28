@@ -8,6 +8,28 @@ import com.orion.voicelab.connectors.ConnectorId
 import org.junit.Test
 
 class PlanningContractsTest {
+    @Test fun dependentStepCannotBeApprovedEvenWithoutExplicitOutputPlaceholderUntilDependencySucceeds() {
+        val step = PlannedStep(
+            id = "write",
+            kind = PlanStepKind.CONNECTOR_WRITE,
+            title = "Create draft",
+            rationale = "",
+            risk = PlanRisk.HIGH,
+            dependsOn = setOf("lookup"),
+            inputSummary = "Create a draft after the lookup."
+        )
+        val pending = PlanStepInputPreviewBuilder.build(step, emptyMap())
+        assertFalse(pending.dependenciesResolved)
+        assertFalse(pending.readyForApproval)
+
+        val resolved = PlanStepInputPreviewBuilder.build(
+            step,
+            mapOf("lookup" to StepExecution(StepStatus.SUCCEEDED, "Lookup completed"))
+        )
+        assertTrue(resolved.dependenciesResolved)
+        assertTrue(resolved.readyForApproval)
+    }
+
     @Test fun protectedStepCannotBeApprovedUntilEveryDependencyInputIsResolved() {
         val step = PlannedStep(
             id = "write",
