@@ -199,7 +199,7 @@ fun OrionSettingsScreen(
             OutlinedTextField(value = remoteApiKey, onValueChange = { remoteApiKey = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Clave API (opcional)") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = remoteShareContext, onCheckedChange = { remoteShareContext = it })
-                Text("Autorizo enviar al servidor el mensaje y el contexto de sistema necesario para responder. No se envía la memoria completa ni el historial íntegro.")
+                Text("Autorizo enviar al endpoint remoto el prompt de sistema y hasta los últimos 12 mensajes de esta conversación (cada mensaje se limita a 8.000 caracteres). El prompt de sistema puede contener instrucciones y contexto que ORION haya preparado para esta consulta. No se transmite el historial completo ni archivos adjuntos.")
             }
             Button(onClick = {
                 com.orion.voicelab.llm.RemoteInferenceSettings.save(
