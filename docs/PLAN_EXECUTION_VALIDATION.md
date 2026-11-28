@@ -38,6 +38,6 @@ No se consideran superadas hasta ejecutarlas en un Android real con los conector
 
 - El generador de planes propone operaciones de lectura de conectores registradas; la disponibilidad real depende de cada conector y de su autenticación.
 - Los handlers locales implementados cubren tareas, notas y recordatorios. No se deben anunciar como disponibles creación de documentos arbitrarios, edición de código ni otras acciones locales sin un handler específico.
-- La persistencia está en almacenamiento privado de la app, pero la base Room no se declara cifrada. No se deben incluir credenciales ni secretos en planes ni resultados.
+- La base Room usa SQLCipher con una clave aleatoria envuelta por Android Keystore; la conversión de bases SQLite antiguas conserva el archivo original hasta activar la copia cifrada. La validación nativa de migración se ejecuta en Android instrumentado. Los planes rechazan credenciales conocidas y los resultados redactan patrones de secretos antes de persistirlos. No es un escáner universal de secretos.
 - La autorización es por paso y por invocación; no debe interpretarse como permiso permanente para futuras ejecuciones.
 - El estado CI y la prueba real en dispositivo deben verificarse por separado; los tests unitarios no demuestran compatibilidad de cada proveedor en un teléfono.

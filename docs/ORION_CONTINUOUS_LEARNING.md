@@ -1,6 +1,6 @@
 # ORION — Aprendizaje continuo y mantenimiento del conocimiento
 
-Estado: ingesta explícita desde URL, clasificación conservadora de fuentes, cuarentena, revisión, publicación verificada/no verificada, versionado, rollback y evaluador determinista implementados. La suite de regresión aún no bloquea publicaciones.
+Estado: captura explícita, cuarentena, revisión humana, publicación versionada con rollback y gate de regresión de recuperación conectados. No existe entrenamiento automático de pesos ni auto-mejora del programa.
 
 ## Qué significa aprender
 No reentrena automáticamente pesos del LLM. Mejora el corpus recuperable, mantiene correcciones, fuentes, versiones y pruebas. Memoria personal, conocimiento general y datos de proyectos permanecen separados.
@@ -20,7 +20,7 @@ No reentrena automáticamente pesos del LLM. Mejora el corpus recuperable, manti
 - No hay entrenamiento de pesos.
 - La suite y el gate de publicación están conectados al recuperador real y bloquean regresiones de recuperación antes de modificar el corpus. Los casos se derivan de documentos activos (máximo 120, ocho por dominio); aún falta un conjunto editorial de consultas y respuestas de referencia independientes, evaluación semántica de respuestas y métricas en dispositivo.
 - La lectura de una URL no convierte su contenido en verdad: páginas no incluidas en el catálogo oficial/técnico se guardan como no verificadas y requieren revisión; las páginas con autoridad reconocida también permanecen en cuarentena hasta aprobación.
-- La evaluación mide condiciones objetivas, no la verdad semántica de la respuesta.
+- La evaluación de recuperación mide condiciones objetivas; el evaluador semántico de respuestas está integrado, pero sus umbrales aún requieren un corpus de referencia etiquetado por humanos y resultados medidos. No equivale a una prueba matemática de verdad.
 
 ## Ciclo objetivo
 Capturar → normalizar/deduplicar → clasificar → cuarentena → verificar autoridad/frescura/conflictos → revisión humana → publicar versionado → evaluar regresión → mantener/retirar con rollback.
