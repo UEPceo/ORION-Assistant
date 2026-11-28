@@ -25,17 +25,18 @@ class OrionMediaRuntime(
    ?:throw MediaCapabilityUnavailableException(videoUnderstandingStatus(policy).message())
   return p.understandVideo(asset,ordered)
  }
- suspend fun generateImage(request:MediaGenerationRequest,policy:MediaRoutingPolicy=MediaRoutingPolicy()):GeneratedMedia {
-  val p=MediaProviderRouter.select(imageProviders,{it.kind},{it.capability()},policy)
+ suspend fun generateImage(request:MediaGenerationRequest,policy:MediaRoutingPolicy=MediaRoutingPolicy(),providerId:String?=null):GeneratedMedia {
+  val selectedProviders=imageProviders.filter { providerId==null || it.providerId==providerId }
+  val p=MediaProviderRouter.select(selectedProviders,{it.kind},{it.capability()},policy)
    ?:throw MediaCapabilityUnavailableException(MediaProviderRouter.status(selectedProviders,{it.kind},{it.capability()},policy).message())
   return p.generate(request)
  }
- suspend fun generateVideo(request:MediaGenerationRequest,policy:MediaRoutingPolicy=MediaRoutingPolicy()):GeneratedMedia {
-  val p=MediaProviderRouter.select(videoProviders,{it.kind},{it.capability()},policy)
+ suspend fun generateVideo(request:MediaGenerationRequest,policy:MediaRoutingPolicy=MediaRoutingPolicy(),providerId:String?=null):GeneratedMedia {
+  val selectedProviders=videoProviders.filter { providerId==null || it.providerId==providerId }
+  val p=MediaProviderRouter.select(selectedProviders,{it.kind},{it.capability()},policy)
    ?:throw MediaCapabilityUnavailableException(MediaProviderRouter.status(selectedProviders,{it.kind},{it.capability()},policy).message())
   return p.generate(request)
- }
- companion object { const val MAX_VIDEO_FRAMES=24 }
+ } companion object { const val MAX_VIDEO_FRAMES=24 }
 }
 private fun MediaCapabilityStatus.message()=when(this) {
  MediaCapabilityStatus.REQUIRES_USER_CONSENT -> "El proveedor disponible requiere autorización expresa para enviar el contenido a la nube."
