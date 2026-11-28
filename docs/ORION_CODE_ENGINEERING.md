@@ -75,15 +75,11 @@ El bucle tiene límite de iteraciones y presupuesto. Si las pruebas fallan o no 
 
 ## Estado actual
 
-- Se ha añadido `CodeChangeValidator` como primera base determinista: valida repositorio y ramas, bloquea escrituras en main/master, normaliza y rechaza rutas peligrosas, exige SHA previo para UPDATE/DELETE, limita tamaño y cantidad de archivos, detecta algunos patrones de credenciales y marca cambios de build/workflows/permisos para revisión reforzada.
-- Tiene pruebas unitarias para rutas, ramas, SHA, secretos, tamaño y revisión reforzada.
-- Este validador todavía no está conectado a un workspace, API GitHub de escritura, pantalla de diff ni runner. Por ello no convierte aún la programación en una función disponible en la app.
+- GitHub App Device Flow sigue usando un Client ID público y tokens cifrados en Android Keystore.
+- `GitHubApiClient` ya incorpora lectura acotada de archivos, creación de ramas, commits atómicos de varios archivos mediante Git Data API y apertura de pull requests draft.
+- Los commits verifican el SHA actual de la rama y el SHA de cada archivo existente contra la propuesta revisada. Las rutas inseguras, árboles truncados, enlaces simbólicos, submódulos y archivos binarios se rechazan.
+- `ConnectorActionGate` mantiene allowlists separadas: las escrituras GitHub no pueden etiquetarse como lectura y siempre requieren confirmación contextual.
+- El router de voz reconoce la creación explícita de ramas y pull requests.
+- Pruebas automatizadas añadidas para ramas, commits atómicos, rechazo de ramas modificadas, intents de voz y autorización de escrituras.
+- Sigue pendiente el workspace de ingeniería que conserve los archivos fuente leídos, el editor/diff UI, la construcción de propuestas multiarchivo desde el LLM, el runner aislado de compilación/pruebas y el bucle de depuración autónoma. Por tanto, las primitivas de escritura existen, pero el agente de programación completo todavía no está disponible en la interfaz.
 
-- GitHub lectura de repositorios/archivos/issues/commits/Actions: implementado parcialmente.
-- Escritura GitHub y pull requests desde ORION: no implementadas.
-- Workspace local de proyectos: no implementado.
-- Patch preview y aplicación controlada: no implementados.
-- Runner aislado de build/test: no implementado.
-- Agente de programación de extremo a extremo: no disponible.
-
-La capacidad se considerará básica y operativa cuando ORION pueda completar al menos un ciclo real de inspección, edición en rama, compilación, pruebas, corrección y pull request, con resultados verificables y sin acceso a secretos.
