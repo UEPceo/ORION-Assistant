@@ -27,10 +27,13 @@ class KnowledgeCorpusRegressionGate(
         // Include the previous version when this is an update. The overlay replaces it
         // during candidate searches, so old retrieval expectations remain protected.
         val baselineDocuments = corpus.allDocuments()
-            .asSequence()
-            .sortedByDescending { it.evidence.retrievedAtMs }
+            .groupBy { it.evidence.domain }
+            .toSortedMap(compareBy { it.name })
+            .values
+            .flatMap { documents ->
+                documents.sortedByDescending { it.evidence.retrievedAtMs }.take(MAX_CASES_PER_DOMAIN)
+            }
             .take(maxBaselineCases)
-            .toList()
 
         val regressions = mutableListOf<String>()
         var baselinePassed = 0
@@ -130,6 +133,7 @@ class KnowledgeCorpusRegressionGate(
     private companion object {
         const val RETRIEVAL_LIMIT = 5
         const val MAX_REPORTED_REGRESSIONS = 20
+        const val MAX_CASES_PER_DOMAIN = 8
         const val SCORE_EPSILON = 0.000001
         val PRIMARY_AUTHORITIES = setOf(
             EvidenceAuthority.OFFICIAL_PRIMARY,
