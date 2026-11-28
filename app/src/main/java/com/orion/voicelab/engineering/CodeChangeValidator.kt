@@ -45,16 +45,6 @@ object CodeChangeValidator {
     private val repositoryPattern = Regex("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}")
     private val shaPattern = Regex("[a-fA-F0-9]{40}")
     private val branchPattern = Regex("[A-Za-z0-9][A-Za-z0-9._/-]{0,119}")
-    private val sensitivePathPatterns = listOf(
-        Regex("""(^|/)\\.env(?:\\.[^/]*)?$""", RegexOption.IGNORE_CASE),
-        Regex("""(^|/)local\\.properties$""", RegexOption.IGNORE_CASE),
-        Regex("""(^|/)\\.npmrc$|(^|/)\\.pypirc$""", RegexOption.IGNORE_CASE),
-        Regex("""(^|/)\\.aws(?:/|$)|(^|/)\\.ssh(?:/|$)""", RegexOption.IGNORE_CASE),
-        Regex("""(^|/)(?:secrets?|credentials?)\\.(?:json|ya?ml|properties|toml|txt)$""", RegexOption.IGNORE_CASE),
-        Regex("""(^|/)(?:client_secret|service-account|firebase-adminsdk)[^/]*\\.json$""", RegexOption.IGNORE_CASE),
-        Regex("""(^|/)(?:id_rsa|id_ed25519|id_ecdsa|id_dsa)(?:\\.pub)?$""", RegexOption.IGNORE_CASE),
-        Regex("""\\.(?:jks|keystore|p12|pfx|pem|key|p8)$""", RegexOption.IGNORE_CASE)
-    )
     private val secretPatterns = listOf(
         Regex("-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
         Regex("\\bgh[pousr]_[A-Za-z0-9]{20,}\\b"),
@@ -134,11 +124,30 @@ object CodeChangeValidator {
 
     fun isSafePath(path: String): Boolean {
         if (path.isBlank() || path.length > 500 || path.startsWith('/') ||
-            path.contains('\\') || path.contains('\u0000') || path.contains(':')
+            path.contains('\\') || path.contains('\u0000') || path.contains(':') ||
+            path.any { it.code < 0x20 || it.code == 0x7f }
         ) return false
         val segments = path.split('/')
         if (segments.any { it.isBlank() || it == "." || it == ".." || it.equals(".git", true) }) return false
+        if (isSensitivePath(path, segments)) return false
         return true
+    }
+
+    private fun isSensitivePath(path: String, segments: List<String>): Boolean {
+        val normalized = path.lowercase()
+        if (normalized.matches(Regex("""(^|/)\.env(?:\.[^/]*)?$"""))) return true
+        val sensitiveNames = setOf(
+            "local.properties", ".npmrc", ".pypirc", ".aws", ".ssh",
+            "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"
+        )
+        if (segments.any { it.lowercase() in sensitiveNames }) return true
+        return segments.any { segment ->
+            val name = segment.lowercase()
+            name.matches(Regex("""(?:secrets?|credentials?)\.(?:json|ya?ml|properties|toml|txt)""")) ||
+                (name.startsWith("client_secret") || name.startsWith("service-account") ||
+                    name.startsWith("firebase-adminsdk")) && name.endsWith(".json") ||
+                listOf(".jks", ".keystore", ".p12", ".pfx", ".pem", ".key", ".p8").any(name::endsWith)
+        }
     }
 
     fun isValidBranch(branch: String): Boolean {

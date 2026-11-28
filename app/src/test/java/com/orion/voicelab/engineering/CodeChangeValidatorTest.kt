@@ -69,8 +69,8 @@ class CodeChangeValidatorTest {
     }
 
     @Test fun rejectsControlCharactersInPaths() {
-        assertFalse(CodeChangeValidator.isSafePath("src/Main.kt\\nInjected"))
-        assertFalse(CodeChangeValidator.isSafePath("src/Main.kt\\tInjected"))
+        assertFalse(CodeChangeValidator.isSafePath("src/Main.kt\nInjected"))
+        assertFalse(CodeChangeValidator.isSafePath("src/Main.kt\tInjected"))
     }
 
     @Test fun rejectsOversizedPatch() {
