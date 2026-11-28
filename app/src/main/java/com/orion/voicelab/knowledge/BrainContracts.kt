@@ -32,6 +32,8 @@ interface KnowledgeRepository {
     suspend fun contains(documentId: String): Boolean
     suspend fun get(documentId: String): KnowledgeDocument? = null
     suspend fun allDocuments(): List<KnowledgeDocument> = emptyList()
+    suspend fun searchForRegression(query: BrainQuery, limit: Int): List<KnowledgeDocument> =
+        search(query, limit)
     suspend fun searchWithCandidate(
         query: BrainQuery,
         limit: Int,
