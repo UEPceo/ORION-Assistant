@@ -301,7 +301,7 @@ class GitHubApiClient(
             proposal.changes.forEach { change ->
                 val currentEntry = existing[change.path]
                 val segments = change.path.split('/')
-                segments.indices.dropLast(1).forEach { index ->
+                (0 until segments.lastIndex).forEach { index ->
                     val ancestor = segments.take(index + 1).joinToString("/")
                     val parent = existing[ancestor]
                     require(parent == null || (parent.type == "tree" && parent.mode == "040000")) {
