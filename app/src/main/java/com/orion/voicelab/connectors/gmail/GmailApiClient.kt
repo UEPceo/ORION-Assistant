@@ -61,9 +61,9 @@ class GmailApiClient(
                 require(messageId.matches(Regex("[A-Za-z0-9_-]{1,200}"))) { "Identificador de correo no válido." }
                 val token = credentials.getValidAccessToken() ?: throw ReauthorizationRequiredException()
                 requestJson(
-                    "https://gmail.googleapis.com/gmail/v1/users/me/messages/${encode(messageId)}?format=full",
+                    "https://gmail.googleapis.com/gmail/v1/users/me/messages/${encode(messageId)}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date",
                     token
-                ).toSummary(includeBody = true)
+                ).toSummary(includeBody = false)
             }
         }
 
