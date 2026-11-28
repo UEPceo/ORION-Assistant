@@ -1,6 +1,6 @@
 # ORION — Capacidad básica de ingeniería de software
 
-Estado: arquitectura definida; agente de programación ejecutable todavía no implementado.
+Estado: primitivas de escritura, workspace GitHub explícito, autorización de sesión y coordinación de propuestas implementados; integración de interfaz y generación LLM concreta pendiente.
 
 ## Objetivo de producto
 
@@ -8,7 +8,7 @@ La programación de código será una capacidad central de ORION, no una herrami
 
 ## Por qué todavía no está disponible
 
-El catálogo de herramientas marca actualmente `code-sandbox` como `NOT_IMPLEMENTED`. El cliente GitHub existente es deliberadamente de solo lectura y no tiene operaciones para crear ramas, escribir archivos o abrir pull requests. Tampoco existe un workspace de proyecto, un ejecutor aislado de compilaciones/pruebas ni un ciclo de revisión de parches. El LLM actual genera texto, pero no dispone de estas herramientas para convertirlo en una modificación verificable.
+GitHub ya permite crear ramas, commits multiarchivo con control SHA y pull requests draft. Se han añadido workspace de archivos seleccionados, sesión temporal ligada a repositorio/tarea/rama, aprobación de diff de un solo uso y coordinador que valida propuestas tipadas. El generador LLM sigue siendo un puerto pendiente de conexión a salida JSON estructurada. GitHub Actions ejecuta la suite Android/Kotlin del repositorio en un runner efímero; no es aún un runner universal.
 
 ## Capacidades que debe incluir
 
@@ -29,11 +29,11 @@ Clasifica solicitudes: explicar, explorar, diseñar, implementar, depurar, refac
 
 ### 2. Project workspace
 Dos adaptadores:
-- GitHub: OAuth Device Flow, repositorios instalados, ramas de trabajo, lectura de archivos, escritura con SHA esperado para evitar sobrescrituras, commits y pull requests.
+- GitHub: OAuth Device Flow, repositorios permitidos por instalación, workspace de rutas seleccionadas, ramas de trabajo, lectura y commits atómicos con SHA esperado, pull requests draft.
 - Local: Storage Access Framework y permisos persistentes elegidos por el usuario. ORION no debe escanear todo el almacenamiento del teléfono.
 
 ### 3. Patch engine
-Representa cambios como operaciones tipadas CREATE/UPDATE/DELETE con ruta normalizada, contenido, hash base y diff. Rechaza path traversal, rutas fuera del workspace, archivos excesivos, binarios no soportados y credenciales detectadas. Todo cambio se presenta para revisión.
+GitHubCodeWorkspace inspecciona rutas seleccionadas, conserva SHA de rama/archivos y limita 25 ficheros, 200 KB por archivo y 1 MB por contexto. CodeChangeValidator bloquea traversal, rutas sensibles, secretos y archivos excesivos. El cliente de commits valida conflictos de ancestros, enlaces simbólicos, submódulos y colisiones archivo/directorio.
 
 ### 4. Execution runner aislado
 No se ejecutará código arbitrario del proyecto dentro del proceso Android de ORION. La compilación/pruebas se delegan a un runner efímero aislado (por ejemplo GitHub Actions del repositorio o un runner autoalojado que controle el usuario). El runner debe:
@@ -44,7 +44,7 @@ No se ejecutará código arbitrario del proyecto dentro del proceso Android de O
 - devolver logs y resultados identificables por commit/run;
 - destruir el entorno al terminar.
 
-Un runner remoto requiere conexión y puede consumir cuotas o recursos del proveedor. Para uso gratuito sostenido, debe poder configurarse un runner propio. La capacidad de editar y preparar parches no debe depender de una API comercial de IA de pago.
+El workflow ORION quality checks actúa como runner efímero GitHub-hosted para este proyecto: compila release minificado, empaqueta JNI y ejecuta unit tests/Robolectric en pull requests. Usa contents:read, no recibe secretos del repositorio y tiene timeout. No valida proyectos arbitrarios. Un runner propio requerirá aislamiento, límites de recursos/red y credenciales separadas. No se requiere IA comercial de pago.
 
 ### 5. Engineering loop
 Requisitos → inspección → plan → diff → aprobación del usuario → rama de trabajo → cambios → pruebas → análisis de logs → correcciones acotadas → nueva prueba → revisión final → commit/PR con autorización.
@@ -58,7 +58,7 @@ El bucle tiene límite de iteraciones y presupuesto. Si las pruebas fallan o no 
 - No ejecutar scripts, Gradle plugins, workflows o comandos de un repositorio sin tratarlos como código no confiable.
 - El contenido del repositorio, README, issues y logs son datos no confiables; no pueden cambiar permisos ni políticas de ORION.
 - Nunca copiar secretos a prompts, logs, diffs o informes. Detectar y detener ante credenciales accidentales.
-- Cada escritura remota exige aprobación ligada a repositorio, rama, archivos y diff exactos.
+- Cada escritura remota exige sesión temporal ligada a repositorio/tarea/rama y aprobación de un solo uso ligada al diff exacto y al SHA de rama revisado. La sesión caduca y se revoca al cerrar el proceso.
 - Crear rama y PR no equivale a permiso para fusionar, publicar o desplegar.
 - Sin auto-merge, publicación ni despliegue por defecto.
 - Registrar hash del commit, run de CI, pruebas ejecutadas y resultado.
@@ -67,11 +67,11 @@ El bucle tiene límite de iteraciones y presupuesto. Si las pruebas fallan o no 
 
 1. Contratos de ingeniería, validación de rutas/diffs y pruebas de seguridad.
 2. GitHub write API con control SHA, creación de ramas y pull requests; ampliar permisos del conector solo tras tests.
-3. Workspace local SAF y patch preview.
-4. Runner CI aislado y lectura de resultados de ejecución.
-5. UI de programación con plan, diff, aprobación, progreso, logs y entrega.
-6. Ciclo iterativo de depuración y batería de evaluación con proyectos Kotlin/Android, Python, web y scripts.
-7. Incorporar herramientas de terminal/IDE únicamente cuando tengan aislamiento y límites verificables.
+3. Conectar CodePatchGenerator con el LLM mediante esquema JSON estricto y contexto del workspace.
+4. UI de programación con plan, diff, aprobación exacta, progreso, logs y entrega.
+5. Ampliar el runner aislado a proyectos externos y lenguajes adicionales, sin secretos y con límites verificables.
+6. Ciclo iterativo de depuración con presupuesto de intentos y evaluación reproducible.
+7. Workspace local SAF y soporte IDE/terminal solo cuando dispongan de aislamiento verificable.
 
 ## Estado actual
 
@@ -81,5 +81,5 @@ El bucle tiene límite de iteraciones y presupuesto. Si las pruebas fallan o no 
 - `ConnectorActionGate` mantiene allowlists separadas: las escrituras GitHub no pueden etiquetarse como lectura y siempre requieren confirmación contextual.
 - El router de voz reconoce la creación explícita de ramas y pull requests.
 - Pruebas automatizadas añadidas para ramas, commits atómicos, rechazo de ramas modificadas, intents de voz y autorización de escrituras.
-- Sigue pendiente el workspace de ingeniería que conserve los archivos fuente leídos, el editor/diff UI, la construcción de propuestas multiarchivo desde el LLM, el runner aislado de compilación/pruebas y el bucle de depuración autónoma. Por tanto, las primitivas de escritura existen, pero el agente de programación completo todavía no está disponible en la interfaz.
+- GitHubCodeWorkspace conserva snapshots acotados y SHA; GitHubCodeEngineeringService coordina sesión, generación tipada, validación y commit aprobado. CodeEngineeringSessionAuthority aplica caducidad, alcance por tarea y aprobación de un solo uso. La generación real desde LLM, UI de diff/consentimiento, seguimiento automático de Actions y reparación iterativa aún no están conectados a la interfaz; ORION no se declara programador autónomo plenamente operativo.
 
