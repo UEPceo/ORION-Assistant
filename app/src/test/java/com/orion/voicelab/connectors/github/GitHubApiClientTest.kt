@@ -25,7 +25,10 @@ class GitHubApiClientTest {
             )
         )
         var requestedPath = ""
-        val client = GitHubApiClient(credentials, GitHubDeviceFlowAuthenticator("test-client")) { path ->
+        val client = GitHubApiClient(
+            credentials,
+            GitHubDeviceFlowAuthenticator("test-client"),
+            requestOverride = { path ->
             requestedPath = path
             JSONArray().put(
                 org.json.JSONObject()
@@ -35,7 +38,8 @@ class GitHubApiClientTest {
                     .put("default_branch", "main")
                     .put("html_url", "https://github.com/owner/repository")
             )
-        }
+            }
+        )
 
         val repositories = client.listRepositories().getOrThrow()
 
@@ -57,10 +61,14 @@ class GitHubApiClientTest {
             )
         )
         var called = false
-        val client = GitHubApiClient(credentials, GitHubDeviceFlowAuthenticator("test-client")) {
-            called = true
-            JSONArray()
-        }
+        val client = GitHubApiClient(
+            credentials,
+            GitHubDeviceFlowAuthenticator("test-client"),
+            requestOverride = {
+                called = true
+                JSONArray()
+            }
+        )
 
         val result = client.listIssues("owner/..")
         assertFalse(result.isSuccess)
