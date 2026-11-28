@@ -145,7 +145,8 @@ object PlanProposalParser {
     }
 
     private fun readText(json: JSONObject, key: String, maxLength: Int): String {
-        val value = json.opt(key) ?: return ""
+        if (!json.has(key) || json.isNull(key)) return ""
+        val value = json.opt(key)
         require(value is String && value.length <= maxLength) {
             "El campo $key debe ser texto y no superar $maxLength caracteres."
         }
