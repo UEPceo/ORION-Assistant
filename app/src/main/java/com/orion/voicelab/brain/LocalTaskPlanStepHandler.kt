@@ -9,6 +9,14 @@ import kotlinx.coroutines.CancellationException
 class LocalTaskPlanStepHandler(private val tasks: TaskRepository) : LocalPlanStepHandler {
     override suspend fun run(step: PlannedStep, budget: ExecutionBudget): StepExecution {
         val args = step.connectorArguments
+        val dueDateEpochDay = args["dueDateEpochDay"]?.toLongOrNull()
+        val dueTimeMinutes = args["dueTimeMinutes"]?.toIntOrNull()
+        if ("dueDateEpochDay" in args && dueDateEpochDay == null) {
+            return StepExecution(StepStatus.FAILED, "La fecha de vencimiento no es válida.")
+        }
+        if ("dueTimeMinutes" in args && (dueTimeMinutes == null || dueTimeMinutes !in 0..1439)) {
+            return StepExecution(StepStatus.FAILED, "La hora debe estar entre 0 y 1439 minutos.")
+        }
         return try {
             when (step.kind) {
                 PlanStepKind.LOCAL_CREATE_TASK -> {
@@ -16,6 +24,8 @@ class LocalTaskPlanStepHandler(private val tasks: TaskRepository) : LocalPlanSte
                         title = args["title"].orEmpty(),
                         description = args["description"].orEmpty(),
                         notes = args["notes"].orEmpty(),
+                        dueDateEpochDay = dueDateEpochDay,
+                        dueTimeMinutes = dueTimeMinutes,
                         category = args["category"].orEmpty().ifBlank { "Plan ORION" },
                         priority = parsePriority(args["priority"])
                     )
@@ -44,8 +54,8 @@ class LocalTaskPlanStepHandler(private val tasks: TaskRepository) : LocalPlanSte
                         notes = args["notes"].orEmpty(),
                         category = args["category"].orEmpty().ifBlank { "Recordatorio" },
                         priority = parsePriority(args["priority"]),
-                        dueDateEpochDay = args["dueDateEpochDay"]?.toLongOrNull() ?: instant.atZone(java.time.ZoneId.systemDefault()).toLocalDate().toEpochDay(),
-                        dueTimeMinutes = args["dueTimeMinutes"]?.toIntOrNull() ?: instant.atZone(java.time.ZoneId.systemDefault()).toLocalTime().let { it.hour * 60 + it.minute },
+                        dueDateEpochDay = dueDateEpochDay ?: instant.atZone(java.time.ZoneId.systemDefault()).toLocalDate().toEpochDay(),
+                        dueTimeMinutes = dueTimeMinutes ?: instant.atZone(java.time.ZoneId.systemDefault()).toLocalTime().let { it.hour * 60 + it.minute },
                         reminderAtMs = reminderAt,
                         reminderActive = true
                     )
