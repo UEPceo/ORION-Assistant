@@ -33,6 +33,28 @@ class GmailCredentialManagerTest {
         assertFalse(manager.isConnected())
     }
 
+
+    @Test
+    fun expiredTokenIsSilentlyRenewedAfterPriorConsent() = runBlocking {
+        var now = 2_000_000L
+        var refreshCount = 0
+        val store = FakeCredentialStore()
+        val manager = GmailCredentialManager(
+            credentialStore = store,
+            silentRefresh = {
+                refreshCount++
+                GmailCredentialManager.RefreshedToken("renewed-token", 3_600)
+            },
+            nowMs = { now }
+        )
+        manager.save("old-token", expiresInSeconds = 60)
+        now += 61_000L
+
+        assertEquals("renewed-token", manager.getValidAccessToken())
+        assertEquals(1, refreshCount)
+        assertTrue(manager.isConnected())
+    }
+
     private class FakeCredentialStore : ConnectorCredentialStore {
         private var value: ByteArray? = null
 
