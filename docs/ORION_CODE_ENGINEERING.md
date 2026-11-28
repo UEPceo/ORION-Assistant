@@ -8,7 +8,7 @@ La programación de código será una capacidad central de ORION, no una herrami
 
 ## Alcance operativo y límites actuales
 
-La pantalla Conectores ya permite seleccionar un repositorio, autorizar una tarea, inspeccionar rutas concretas, generar un parche JSON con el modelo local/híbrido, revisar el contenido actual y propuesto y aprobar un commit en una rama de trabajo. GitHub Actions ejecuta la suite Android/Kotlin de ORION en un runner efímero; todavía falta crear el PR desde este flujo, recuperar automáticamente resultados/logs, iterar reparaciones y soportar runners para proyectos arbitrarios.
+La pantalla Conectores permite seleccionar repositorio y tarea, inspeccionar rutas, generar un parche JSON con el modelo local/híbrido, revisar el contenido actual/propuesto, aprobar un commit y crear un pull request draft. La creación del PR dispara GitHub Actions para validar ORION en runner efímero. Aún falta recuperar automáticamente resultados/logs, iterar reparaciones y soportar runners para proyectos arbitrarios.
 
 ## Capacidades que debe incluir
 
@@ -67,11 +67,10 @@ El bucle tiene límite de iteraciones y presupuesto. Si las pruebas fallan o no 
 
 1. Contratos de ingeniería, validación de rutas/diffs y pruebas de seguridad.
 2. GitHub write API con control SHA, creación de ramas y pull requests; ampliar permisos del conector solo tras tests.
-3. Añadir apertura de pull request draft desde la pantalla de ingeniería y enlazarlo con CI.
-4. Recuperar estados/logs de Actions y añadir un bucle de reparación con presupuesto de intentos y nueva aprobación de cada diff.
-5. Ampliar el runner aislado a proyectos externos y lenguajes adicionales, sin secretos y con límites verificables.
-6. Añadir evaluación reproducible sobre proyectos Kotlin/Android, Python y web.
-7. Workspace local SAF y soporte IDE/terminal solo cuando dispongan de aislamiento verificable.
+3. Recuperar estados/logs de Actions desde la app y añadir un bucle de reparación con presupuesto de intentos y nueva aprobación de cada diff.
+4. Ampliar el runner aislado a proyectos externos y lenguajes adicionales, sin secretos y con límites verificables.
+5. Añadir evaluación reproducible sobre proyectos Kotlin/Android, Python y web.
+6. Workspace local SAF y soporte IDE/terminal solo cuando dispongan de aislamiento verificable.
 
 ## Estado actual
 
