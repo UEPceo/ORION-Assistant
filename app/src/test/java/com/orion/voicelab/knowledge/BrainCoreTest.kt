@@ -120,7 +120,7 @@ class BrainCoreTest {
         assertEquals(KnowledgeDomain.HEALTH_AND_SAFETY, BrainQueryRouter.route("Qué hacer ante una emergencia 112").domain)
     }
 
-}
+
     @Test
     fun unknownSourcesKeepUnclassifiedProvenance() {
         assertEquals(LearningOrigin.UNCLASSIFIED_SOURCE, learningOriginForAuthority(EvidenceAuthority.UNKNOWN))
@@ -128,4 +128,4 @@ class BrainCoreTest {
         assertEquals(LearningOrigin.OFFICIAL_SOURCE, learningOriginForAuthority(EvidenceAuthority.OFFICIAL_PRIMARY))
         assertEquals(LearningOrigin.TECHNICAL_SOURCE, learningOriginForAuthority(EvidenceAuthority.PRIMARY_TECHNICAL))
     }
-
+}
