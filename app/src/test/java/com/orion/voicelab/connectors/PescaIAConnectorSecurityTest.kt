@@ -12,5 +12,6 @@ class PescaIAConnectorSecurityTest {
         assertFalse(isAllowedPescaIaUrl("http://pescaisurfcasting.company/"))
         assertFalse(isAllowedPescaIaUrl("https://pescaisurfcasting.company.attacker.test/"))
         assertFalse(isAllowedPescaIaUrl("https://attacker.test/"))
+        assertFalse(isAllowedPescaIaUrl("https://pescaisurfcasting.company:8443/"))
     }
 }
