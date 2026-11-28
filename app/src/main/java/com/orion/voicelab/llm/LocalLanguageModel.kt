@@ -18,6 +18,7 @@ data class LlmGenerationResult(
 }
 
 interface LocalLanguageModel {
+    val profileId: String get() = "lite"
     val modelDisplayName: String
     val modelLicense: String
 
