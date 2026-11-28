@@ -49,6 +49,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -473,17 +474,17 @@ if (result?.status == StepStatus.FAILED) {
                             Text(review.document.evidence.canonicalUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                             Text(review.document.excerpt.take(1_200), style = MaterialTheme.typography.bodySmall)
                             Text("Origen: ${review.origin} · decisión: ${review.decision}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 if (review.decision == LearningDecision.ACCEPT_FOR_REVIEW) {
-                                    Button(onClick = { onApproveKnowledgeReview(review.id) }) {
+                                    Button(onClick = { onApproveKnowledgeReview(review.id) }, modifier = Modifier.fillMaxWidth()) {
                                         Text("Publicar verificado")
                                     }
                                 }
-                                OutlinedButton(onClick = { onPublishKnowledgeUnverified(review.id) }) {
-                                    Text("No verificado")
+                                OutlinedButton(onClick = { onPublishKnowledgeUnverified(review.id) }, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Publicar como no verificado")
                                 }
-                                TextButton(onClick = { onRejectKnowledgeReview(review.id) }) {
-                                    Text("Rechazar")
+                                TextButton(onClick = { onRejectKnowledgeReview(review.id) }, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Rechazar candidato")
                                 }
                             }
                         }
