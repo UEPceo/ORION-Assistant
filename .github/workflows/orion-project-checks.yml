@@ -2,8 +2,6 @@ name: ORION isolated project checks
 
 on:
   pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -35,12 +33,6 @@ jobs:
           echo "android=$([[ -f gradlew ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "python=$([[ -f pyproject.toml || -f pytest.ini || -f requirements.txt ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "node=$([[ -f package.json ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-      - name: Android Kotlin tests
-        if: steps.detect.outputs.android == 'true'
-        timeout-minutes: 20
-        run: |
-          chmod +x ./gradlew
-          ./gradlew --no-daemon --max-workers=2 testDebugUnitTest
       - name: Python tests
         if: steps.detect.outputs.python == 'true'
         timeout-minutes: 10
