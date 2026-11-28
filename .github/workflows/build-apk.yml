@@ -18,6 +18,12 @@ jobs:
     name: Compile ORION debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      ORION_GITHUB_CLIENT_ID: ${{ secrets.ORION_GITHUB_CLIENT_ID || vars.ORION_GITHUB_CLIENT_ID }}
+      ORION_DEBUG_KEYSTORE_BASE64: ${{ secrets.ORION_DEBUG_KEYSTORE_BASE64 }}
+      ORION_DEBUG_STORE_PASSWORD: ${{ secrets.ORION_DEBUG_STORE_PASSWORD }}
+      ORION_DEBUG_KEY_ALIAS: ${{ secrets.ORION_DEBUG_KEY_ALIAS }}
+      ORION_DEBUG_KEY_PASSWORD: ${{ secrets.ORION_DEBUG_KEY_PASSWORD }}
 
     steps:
       - name: Checkout repository
@@ -28,6 +34,23 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+
+      - name: Configure stable connector credentials and CI signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$ORION_GITHUB_CLIENT_ID" ]]; then
+            echo "::error::Configure ORION_GITHUB_CLIENT_ID as a repository secret or variable."
+            exit 1
+          fi
+          if [[ -z "$ORION_DEBUG_KEYSTORE_BASE64" || -z "$ORION_DEBUG_STORE_PASSWORD" || -z "$ORION_DEBUG_KEY_ALIAS" || -z "$ORION_DEBUG_KEY_PASSWORD" ]]; then
+            echo "::error::Configure the four ORION_DEBUG_* signing secrets. CI must use a stable certificate for Google's Android OAuth client."
+            exit 1
+          fi
+          KEYSTORE_PATH="$RUNNER_TEMP/orion-ci-debug.keystore"
+          printf '%s' "$ORION_DEBUG_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+          echo "ORION_DEBUG_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
 
       - name: Configure Android SDK
         run: |
