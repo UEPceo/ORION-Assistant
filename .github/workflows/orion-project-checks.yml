@@ -22,6 +22,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Set up Java 17
+        if: hashFiles('gradlew') != ''
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Detect project types
         id: detect
         shell: bash
@@ -48,9 +54,9 @@ jobs:
         if: steps.detect.outputs.node == 'true'
         timeout-minutes: 10
         run: |
-          if [[ -f package-lock.json ]]; then npm ci; else npm install --ignore-scripts; fi
+          if [[ -f package-lock.json ]]; then npm ci --ignore-scripts; else npm install --ignore-scripts; fi
           node -e "const p=require('./package.json'); if(p.scripts?.test) process.exit(0); process.exit(2)" || {
             echo "package.json has no test script; skip Node tests."
             exit 0
           }
-          npm test -- --runInBand
+          npm test
