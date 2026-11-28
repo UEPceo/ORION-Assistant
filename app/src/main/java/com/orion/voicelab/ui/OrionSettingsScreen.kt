@@ -255,6 +255,8 @@ fun OrionSettingsScreen(
                                             }
                                             installedModelProfiles = installedModelProfiles + profile.id
                                             profileDownloadStatus = "${profile.displayName} descargado y verificado. Selecciónalo y reinicia ORION para activarlo."
+                                        } catch (cancelled: CancellationException) {
+                                            throw cancelled
                                         } catch (error: Exception) {
                                             profileDownloadStatus = "No se pudo instalar ${profile.displayName}: ${error.message ?: "error desconocido"}"
                                         } finally {
