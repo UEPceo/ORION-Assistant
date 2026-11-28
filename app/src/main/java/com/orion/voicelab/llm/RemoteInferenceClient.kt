@@ -91,6 +91,37 @@ private object ApiKeyVault {
     }
 }
 
+
+internal object RemoteInferencePayload {
+    const val MAX_HISTORY_MESSAGES = 12
+    const val MAX_MESSAGE_CHARS = 8_000
+    const val MAX_SYSTEM_PROMPT_CHARS = 24_000
+
+    fun build(
+        model: String,
+        systemPrompt: String,
+        history: List<com.orion.voicelab.data.ChatMessage>
+    ): JSONObject {
+        val messages = JSONArray().put(
+            JSONObject().put("role", "system")
+                .put("content", systemPrompt.take(MAX_SYSTEM_PROMPT_CHARS))
+        )
+        history.takeLast(MAX_HISTORY_MESSAGES).forEach { msg ->
+            val role = when (msg.role) {
+                com.orion.voicelab.data.ChatRole.USER -> "user"
+                com.orion.voicelab.data.ChatRole.ASSISTANT -> "assistant"
+                com.orion.voicelab.data.ChatRole.SYSTEM -> "system"
+            }
+            messages.put(
+                JSONObject().put("role", role)
+                    .put("content", msg.content.take(MAX_MESSAGE_CHARS))
+            )
+        }
+        return JSONObject().put("model", model).put("messages", messages)
+            .put("temperature", 0.65).put("max_tokens", 1024)
+    }
+}
+
 class RemoteInferenceClient(
     private val endpoint: String,
     private val model: String,
@@ -110,17 +141,7 @@ class RemoteInferenceClient(
             require(model.isNotBlank() && model.length <= 160) { "Identificador de modelo no válido." }
             val completionUrl = when { normalized.endsWith("/chat/completions") -> normalized; normalized.endsWith("/v1") -> "$normalized/chat/completions"; else -> "$normalized/v1/chat/completions" }
             val url = URL(completionUrl)
-            val messages = JSONArray().put(JSONObject().put("role", "system").put("content", systemPrompt.take(24_000)))
-            history.takeLast(12).forEach { msg ->
-                val role = when (msg.role) {
-                    com.orion.voicelab.data.ChatRole.USER -> "user"
-                    com.orion.voicelab.data.ChatRole.ASSISTANT -> "assistant"
-                    com.orion.voicelab.data.ChatRole.SYSTEM -> "system"
-                }
-                messages.put(JSONObject().put("role", role).put("content", msg.content.take(8_000)))
-            }
-            val body = JSONObject().put("model", model).put("messages", messages)
-                .put("temperature", 0.65).put("max_tokens", 1024).toString()
+            val body = RemoteInferencePayload.build(model, systemPrompt, history).toString()
             require(body.toByteArray(Charsets.UTF_8).size <= 96 * 1024) { "El contexto remoto supera el límite de seguridad (96 KiB)." }
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
