@@ -30,7 +30,7 @@ object LanguageModelProfileCatalog {
             contextTokens = 2048, mode = ModelExecutionMode.ON_DEVICE_OFFLINE,
             capabilities = setOf(ModelCapability.GENERAL_CHAT, ModelCapability.CODE),
             operational = true, license = "Apache 2.0 para el modelo actual; verificar cada variante",
-            configurationNote = "Voz en tiempo real y dispositivos modestos. Es el único perfil descargable y ejecutable actualmente."
+            configurationNote = "Modelo base instalado por defecto; voz en tiempo real y dispositivos modestos."
         ),
         LanguageModelProfile(
             id = "balanced", displayName = "Equilibrado", tier = ModelTier.BALANCED,
@@ -71,9 +71,15 @@ object LanguageModelProfileCatalog {
 
     fun byId(id: String): LanguageModelProfile? = profiles.firstOrNull { it.id == id }
 
-    fun effectiveProfile(requestedId: String, totalRamMb: Long): LanguageModelProfile {
+    fun effectiveProfile(
+        requestedId: String,
+        totalRamMb: Long,
+        installedProfileIds: Set<String> = setOf("lite")
+    ): LanguageModelProfile {
         val requested = byId(requestedId) ?: recommendForDevice(totalRamMb)
-        if (requested.operational && totalRamMb >= requested.minimumDeviceRamGb * DEVICE_RAM_MB_PER_GB) return requested
+        if (requested.operational && requested.id in installedProfileIds &&
+            totalRamMb >= requested.minimumDeviceRamGb * DEVICE_RAM_MB_PER_GB
+        ) return requested
         return profiles.first()
     }
 
