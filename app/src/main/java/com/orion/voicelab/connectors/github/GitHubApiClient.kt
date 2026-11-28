@@ -31,7 +31,31 @@ data class GitHubIssueSummary(
 data class GitHubIssueDetail(val number: Int, val title: String, val state: String, val body: String, val author: String, val htmlUrl: String, val updatedAt: String)
 
 data class GitHubCommitSummary(val sha: String, val message: String, val author: String, val committedAt: String, val htmlUrl: String)
-data class GitHubWorkflowRunSummary(val name: String, val status: String, val conclusion: String, val branch: String, val htmlUrl: String, val updatedAt: String)
+data class GitHubWorkflowRunSummary(
+    val name: String,
+    val status: String,
+    val conclusion: String,
+    val branch: String,
+    val htmlUrl: String,
+    val updatedAt: String,
+    val runId: Long = 0L,
+    val headSha: String = "",
+    val event: String = "",
+    val runAttempt: Int = 1
+)
+data class GitHubWorkflowStepSummary(val name: String, val status: String, val conclusion: String, val number: Int)
+data class GitHubWorkflowJobSummary(
+    val jobId: Long,
+    val name: String,
+    val status: String,
+    val conclusion: String,
+    val startedAt: String,
+    val completedAt: String,
+    val steps: List<GitHubWorkflowStepSummary>
+) {
+    val failedSteps: List<GitHubWorkflowStepSummary>
+        get() = steps.filter { it.conclusion == "failure" }
+}
 data class GitHubFileSummary(val name: String, val path: String, val type: String, val htmlUrl: String)
 data class GitHubFileContent(val name: String, val path: String, val content: String, val sha: String, val sizeBytes: Int, val htmlUrl: String)
 data class GitHubBranchSummary(val name: String, val sha: String)
@@ -157,6 +181,46 @@ class GitHubApiClient(
                             branch = item.optString("head_branch").take(120),
                             htmlUrl = item.optString("html_url"),
                             updatedAt = item.optString("updated_at")
+                        ))
+                    }
+                }
+            }
+        }
+
+    /**
+     * Returns bounded, structured job/step metadata for one Actions run.
+     * This endpoint does not download logs or execute project code.
+     */
+    suspend fun listWorkflowRunJobs(repository: String, runId: Long): Result<List<GitHubWorkflowJobSummary>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                require(isValidRepository(repository)) { "Indica un repositorio válido." }
+                require(runId > 0L) { "Identificador de ejecución no válido." }
+                val root = requestObject("/repos/$repository/actions/runs/$runId/jobs?per_page=100")
+                val jobs = root.optJSONArray("jobs") ?: JSONArray()
+                buildList {
+                    for (index in 0 until minOf(jobs.length(), MAX_WORKFLOW_JOBS)) {
+                        val item = jobs.optJSONObject(index) ?: continue
+                        val rawSteps = item.optJSONArray("steps") ?: JSONArray()
+                        val steps = buildList {
+                            for (stepIndex in 0 until minOf(rawSteps.length(), MAX_WORKFLOW_STEPS)) {
+                                val step = rawSteps.optJSONObject(stepIndex) ?: continue
+                                add(GitHubWorkflowStepSummary(
+                                    name = step.optString("name").take(160),
+                                    status = step.optString("status").take(32),
+                                    conclusion = step.optString("conclusion").take(32),
+                                    number = step.optInt("number")
+                                ))
+                            }
+                        }
+                        add(GitHubWorkflowJobSummary(
+                            jobId = item.optLong("id"),
+                            name = item.optString("name").take(160),
+                            status = item.optString("status").take(32),
+                            conclusion = item.optString("conclusion").take(32),
+                            startedAt = item.optString("started_at").take(40),
+                            completedAt = item.optString("completed_at").take(40),
+                            steps = steps
                         ))
                     }
                 }
@@ -514,7 +578,7 @@ class GitHubApiClient(
         const val API_VERSION = "2022-11-28"
         const val MAX_PAGE = 100
         const val MAX_PER_PAGE = 100
-        const val MAX_RESPONSE_BYTES = 1_000_000
+        const val MAX_RESPONSE_BYTES = 1_000_000\n        const val MAX_WORKFLOW_JOBS = 100\n        const val MAX_WORKFLOW_STEPS = 100
         const val MAX_FILE_CONTENT_BYTES = 512 * 1024
         const val MAX_FILE_CONTENT_BASE64 = MAX_FILE_CONTENT_BYTES * 2
         const val MAX_DESCRIPTION_LENGTH = 500
