@@ -14,7 +14,8 @@ object CodeRepairBudget {
             !inspection.failureLogs.isNullOrBlank()
 
     fun summarizeLogs(rawLogs: String): String {
-        val lines = rawLogs.lineSequence()
+        val selected = java.util.ArrayDeque<String>()
+        rawLogs.lineSequence()
             .map { it.take(500) }
             .filter { line ->
                 line.containsAny(
@@ -23,9 +24,12 @@ object CodeRepairBudget {
                     "compilation", "test failed", "assertion"
                 )
             }
-            .toList()
-        val selected = if (lines.isNotEmpty()) lines.takeLast(18) else rawLogs.lineSequence().toList().takeLast(8)
-        return selected.joinToString("\n").takeLast(MAX_DIAGNOSTIC_CHARS)
+            .forEach { line ->
+                selected.addLast(line)
+                if (selected.size > 18) selected.removeFirst()
+            }
+        val summary = if (selected.isNotEmpty()) selected.joinToString("\\n") else rawLogs.takeLast(1_200)
+        return summary.takeLast(MAX_DIAGNOSTIC_CHARS)
     }
 
     private fun String.containsAny(vararg values: String): Boolean =
