@@ -64,6 +64,14 @@ Aprender significa actualizar el corpus recuperable, registrar correcciones y me
 - No usar conversaciones privadas, correos, notas ni datos de conectores para entrenar o ampliar conocimiento general sin consentimiento específico.
 - Revisión periódica y retirada lógica de documentos obsoletos, conservando trazabilidad.
 
+
+
+## Líneas prioritarias de evolución (28/11/2026)
+
+- La aceleración GPU/NPU se desarrollará como backend alternativo LiteRT-LM, conservando llama.cpp GGUF CPU como fallback. No se dará por compatible una NPU hasta verificar el SoC concreto y ejecutar una inferencia real. Diseño: `docs/ORION_ACCELERATED_INFERENCE_BACKEND.md`.
+- La capacidad de ingeniería de software será una función básica. El cliente GitHub actual es de solo lectura y todavía no existe un runner aislado de compilación/pruebas. Diseño: `docs/ORION_CODE_ENGINEERING.md`.
+- El aprendizaje continuo se organizará como captura, cuarentena, verificación, revisión, publicación, versionado y evaluación de regresiones. No implica autoentrenar pesos del LLM. Estado y brechas: `docs/ORION_CONTINUOUS_LEARNING.md`.
+
 ## Capacidad de programación y autonomía
 
 El flujo de programación debe poder inspeccionar repositorios y documentación autorizados; identificar requisitos, dependencias, versiones y riesgos; diseñar cambios pequeños; modificar código en un entorno controlado; ejecutar compilación, análisis estático y pruebas; revisar diffs, errores y regresiones; y proponer commits, PR o despliegues.
