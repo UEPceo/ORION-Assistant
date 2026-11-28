@@ -9,7 +9,7 @@ Setup required outside the repository:
 1. Create a GitHub App under the intended GitHub account or organization.
 2. Enable **Device Flow** in that GitHub App's settings.
 3. Configure its public Client ID as `ORION_GITHUB_CLIENT_ID` (Gradle property or environment variable). The Client ID is not a secret; never add a client secret to the APK or repository.
-4. For GitHub Actions, set repository variable or secret `ORION_GITHUB_CLIENT_ID`; `build-apk.yml` passes it into Gradle. CI stops early if it is missing, rather than producing an APK with a broken connector.
+4. For GitHub Actions, set repository variable or secret `ORION_GITHUB_CLIENT_ID`; `build-apk.yml` passes it into Gradle when present. A missing ID no longer blocks compilation, but the GitHub connector reports that it is not configured and cannot authorize users until the value is supplied.
 5. Build and install the app.
 
 Configure fine-grained GitHub App repository permissions and select only the repositories ORION should access during installation. The read-only integration requires repository metadata read, Issues read, Contents read and Actions read (for CI/workflow status). The Device Flow requests `offline_access` only to receive expiring user access and refresh tokens; GitHub App permissions, not OAuth scopes, determine repository access. Do not grant write permissions in this phase.
@@ -26,7 +26,7 @@ Required setup outside the repository:
 
 1. Create/select a Google Cloud project and enable the Gmail API.
 2. Configure the OAuth consent screen and add the required test users while the app is in testing.
-3. Create an Android OAuth client matching package `com.aistudio.orionvoicelab.kxrqmw` and the SHA-1 signing certificate used by the installed build. For CI, configure the same stable debug keystore for every run using repository secrets `ORION_DEBUG_KEYSTORE_BASE64`, `ORION_DEBUG_STORE_PASSWORD`, `ORION_DEBUG_KEY_ALIAS` and `ORION_DEBUG_KEY_PASSWORD`. The workflow decodes this keystore and prints its certificate fingerprint with `keytool`; register that SHA-1 in Google Cloud. Do not use the ephemeral runner-generated debug key.
+3. Create an Android OAuth client matching package `com.aistudio.orionvoicelab.kxrqmw` and the SHA-1 signing certificate used by the installed build. For CI, configure the same stable debug keystore for every run using repository secrets `ORION_DEBUG_KEYSTORE_BASE64`, `ORION_DEBUG_STORE_PASSWORD`, `ORION_DEBUG_KEY_ALIAS` and `ORION_DEBUG_KEY_PASSWORD`. The workflow decodes this keystore and prints its certificate fingerprint with `keytool`; register that SHA-1 in Google Cloud. If these secrets are absent, CI still builds a debug APK using Gradle's runner-generated key, but Gmail OAuth will not work in that artifact because its SHA-1 is not stable. Do not distribute that fallback APK as a Gmail-enabled test build.
 4. Complete Google's verification process before public use. `gmail.readonly` is a restricted Gmail scope and is subject to Google's additional verification requirements.
 
 No Google client secret is embedded in the APK. No refresh token is stored; the Android client obtains short-lived access tokens and must request authorization again when a token expires. Gmail draft/send scopes are not requested in this phase.
@@ -47,10 +47,10 @@ Gmail API integration supports bounded message search and metadata-only lookup (
 
 ## CI secrets and stable debug certificate
 
-The debug APK workflow requires:
-- `ORION_GITHUB_CLIENT_ID` as a repository variable or secret.
+The debug APK workflow accepts these optional configuration values:
+- `ORION_GITHUB_CLIENT_ID` as a repository variable or secret. Without it, compilation succeeds but GitHub Device Flow remains disabled.
 - `ORION_DEBUG_KEYSTORE_BASE64` containing the base64-encoded stable debug keystore.
-- `ORION_DEBUG_STORE_PASSWORD`, `ORION_DEBUG_KEY_ALIAS` and `ORION_DEBUG_KEY_PASSWORD`.
+- `ORION_DEBUG_STORE_PASSWORD`, `ORION_DEBUG_KEY_ALIAS` and `ORION_DEBUG_KEY_PASSWORD`. Supply all four signing secrets together or leave all four empty. When empty, Gradle generates its normal CI debug key and Gmail OAuth is unavailable in that artifact.
 
 The keystore is used only to sign CI debug APKs. Keep it private in GitHub Actions secrets. The package name and SHA-1 fingerprint must match the Android OAuth client registered in Google Cloud. Release signing remains a separate certificate and needs its own Google Android OAuth client fingerprint if Gmail is enabled in release builds.
 
@@ -61,3 +61,6 @@ The keystore is used only to sign CI debug APKs. Keep it private in GitHub Actio
 - Google Maps navigation uses the documented `https://www.google.com/maps/dir/?api=1` URL and `travelmode=transit` for public transport.
 - PescaIA redirects are followed manually, limited to five hops, HTTPS-only, standard HTTPS port, and exact apex/www host allowlist. The lightweight reader does not execute JavaScript; if static HTML yields almost no text it returns no result instead of inventing content.
 - Automated regression tests cover Gmail silent renewal and metadata-only API results, GitHub refresh concurrency/error classification and repository validation, Maps URL modes and phrase parsing, PescaIA URL allowlisting, and AES-GCM credential persistence/tamper rejection. The Keystore test injects a test AES key to verify the encryption envelope; AndroidKeyStore hardware/provider behavior still requires device-level validation.
+
+
+The repository's GitHub App Device Flow Client ID and Google Cloud Android OAuth client/certificate registration are owner-controlled provider configuration. GitHub Actions cannot safely create these app registrations or change Google Cloud OAuth clients on the repository owner's behalf. The workflow therefore treats absent values as connector-configuration warnings rather than compile failures.
