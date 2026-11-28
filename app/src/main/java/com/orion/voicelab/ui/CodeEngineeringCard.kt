@@ -68,11 +68,10 @@ fun CodeEngineeringCard(
                     onClick = {
                         onCreatePullRequest(
                             session,
-                            task.trim().take(256).ifBlank { "Cambios ORION" },
-                            """Cambios preparados por ORION para la tarea:
-$task
-
-Commit: ${state.lastCommitSha}""",
+                            "Cambios ORION",
+                            """Cambios preparados por ORION.
+Commit: ${state.lastCommitSha}
+Revisa el diff y los resultados de CI antes de fusionar.""",
                             true
                         )
                     },
