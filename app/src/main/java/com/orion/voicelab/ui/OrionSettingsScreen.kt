@@ -56,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.orion.voicelab.brain.CapabilityBaseline
 import com.orion.voicelab.brain.PlanExecutionEntity
@@ -535,6 +536,7 @@ private fun SettingsSection(
 private fun ComfyUiConfigurationSection(context: android.content.Context) {
     val prefs=context.getSharedPreferences("orion_media_settings",0)
     var endpoint by remember { mutableStateOf(prefs.getString("endpoint","").orEmpty()) }
+    var bearerToken by remember { mutableStateOf(prefs.getString("bearer_token","").orEmpty()) }
     var imageWorkflow by remember { mutableStateOf(prefs.getString("image_workflow","").orEmpty()) }
     var imageNode by remember { mutableStateOf(prefs.getString("image_prompt_node","").orEmpty()) }
     var imageNegativeNode by remember { mutableStateOf(prefs.getString("image_negative_node","").orEmpty()) }
@@ -564,7 +566,8 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
     }
     SettingsSection(title="Motores multimedia autoalojados",subtitle="Conecta ComfyUI en un PC/servidor GPU. No se descargan modelos al teléfono.") {
         OutlinedTextField(endpoint,onValueChange={endpoint=it},label={Text("URL de ComfyUI")},placeholder={Text("https://… o http://192.168.1.x:8188")},modifier=Modifier.fillMaxWidth(),singleLine=true)
-        Text("Solo HTTPS para hosts públicos. HTTP se admite en localhost/LAN privada. No incluyas tokens ni credenciales en la URL.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(bearerToken,onValueChange={bearerToken=it},label={Text("Token Bearer (opcional)")},modifier=Modifier.fillMaxWidth(),singleLine=true,visualTransformation=PasswordVisualTransformation())
+        Text("Solo HTTPS para hosts públicos. HTTP se admite en localhost/LAN privada. El token se guarda localmente en preferencias privadas.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         Text("Imagen · FLUX / SD",fontWeight=FontWeight.SemiBold)
         Row(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.fillMaxWidth()) {
             OutlinedTextField(imageNode,onValueChange={imageNode=it},label={Text("Nodo prompt positivo")},modifier=Modifier.weight(1f),singleLine=true)
@@ -593,7 +596,7 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
                 if(endpoint.isNotBlank()) ComfyUiEndpointConfig(endpoint).normalizedBaseUrl()
                 if(imageWorkflow.isNotBlank()) ComfyUiWorkflowTemplate(imageWorkflow,imageNode,negativePromptNodeId=imageNegativeNode.ifBlank { null },dimensionNodeId=imageDimensionNode.ifBlank { null }).build(MediaGenerationRequest("ORION validation prompt","", "1:1"))
                 if(videoWorkflow.isNotBlank()) ComfyUiWorkflowTemplate(videoWorkflow,videoNode,negativePromptNodeId=videoNegativeNode.ifBlank { null },dimensionNodeId=videoDimensionNode.ifBlank { null },durationNodeId=videoDurationNode.ifBlank { null },durationInput=videoDurationInput.ifBlank { "length" },framesPerSecond=videoFps.toIntOrNull() ?: 16).build(MediaGenerationRequest("ORION validation prompt","", "16:9",5))
-                prefs.edit().putString("endpoint",endpoint.trim()).putString("image_workflow",imageWorkflow)
+                prefs.edit().putString("endpoint",endpoint.trim()).putString("bearer_token",bearerToken.trim()).putString("image_workflow",imageWorkflow)
                     .putString("image_prompt_node",imageNode.trim()).putString("image_negative_node",imageNegativeNode.trim()).putString("image_dimension_node",imageDimensionNode.trim())
                     .putString("video_workflow",videoWorkflow).putString("video_prompt_node",videoNode.trim())
                     .putString("video_negative_node",videoNegativeNode.trim()).putString("video_dimension_node",videoDimensionNode.trim()).putString("video_duration_node",videoDurationNode.trim()).putString("video_duration_input",videoDurationInput.trim()).putString("video_fps",videoFps.trim()).apply()
@@ -688,7 +691,7 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
                     generateScope.launch {
                         runCatching {
                             val runtime=run {
-                                val client=ComfyUiClient(context,ComfyUiEndpointConfig(endpoint))
+                                val client=ComfyUiClient(context,ComfyUiEndpointConfig(endpoint,bearerToken.ifBlank { null }))
                                 val images=if(imageWorkflow.isNotBlank()) listOf(ComfyUiImageGenerationProvider(client,ComfyUiWorkflowTemplate(imageWorkflow,imageNode,negativePromptNodeId=imageNegativeNode.ifBlank { null },dimensionNodeId=imageDimensionNode.ifBlank { null })) else emptyList()
                                 val videos=if(videoWorkflow.isNotBlank()) listOf(ComfyUiVideoGenerationProvider(client,ComfyUiWorkflowTemplate(videoWorkflow,videoNode,negativePromptNodeId=videoNegativeNode.ifBlank { null },dimensionNodeId=videoDimensionNode.ifBlank { null },durationNodeId=videoDurationNode.ifBlank { null },durationInput=videoDurationInput.ifBlank { "length" },framesPerSecond=videoFps.toIntOrNull() ?: 16)) else emptyList()
                                 OrionMediaRuntime(imageProviders=images,videoProviders=videos)
