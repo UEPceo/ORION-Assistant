@@ -73,17 +73,16 @@ class AnswerGroundingAuditor(
             if (!claim.isFactual) continue
             unsupportedCitations += claim.citedEvidenceIds - evidenceById.keys
             if (claim.citedEvidenceIds.isEmpty()) uncited += claim.id
-            val citedEvidence = claim.citedEvidenceIds.mapNotNull(evidenceById::get)
-            if (citedEvidence.isEmpty()) {
+            if (evidence.isEmpty()) {
                 claimResults += ClaimGroundingResult(
                     claim.id, ClaimSupportStatus.INSUFFICIENT, 0.0, emptySet(), emptySet(),
-                    "La afirmación factual no tiene evidencia citada disponible."
+                    "No hay evidencia recuperada para evaluar la afirmación."
                 )
                 continue
             }
 
             val assessment = try {
-                judge.assess(claim, citedEvidence)
+                judge.assess(claim, evidence)
             } catch (error: Exception) {
                 claimResults += ClaimGroundingResult(
                     claim.id, ClaimSupportStatus.UNVERIFIABLE, 0.0, emptySet(), emptySet(),
@@ -92,14 +91,16 @@ class AnswerGroundingAuditor(
                 continue
             }
 
-            val suppliedIds = citedEvidence.map { it.id }.toSet()
-            val validSupport = assessment.supportingEvidenceIds.intersect(suppliedIds)
+            val suppliedIds = evidenceById.keys
+            val validSupport = assessment.supportingEvidenceIds
+                .intersect(suppliedIds)
+                .intersect(claim.citedEvidenceIds)
             val validContradictions = assessment.contradictingEvidenceIds.intersect(suppliedIds)
             val invalidJudgeIds = (assessment.supportingEvidenceIds + assessment.contradictingEvidenceIds) - suppliedIds
             unsupportedCitations += invalidJudgeIds
             val confidence = assessment.confidence.takeIf { it.isFinite() }?.coerceIn(0.0, 1.0) ?: 0.0
             val status = when {
-                validContradictions.isNotEmpty() || assessment.status == ClaimSupportStatus.CONTRADICTED ->
+                validContradictions.isNotEmpty() ->
                     ClaimSupportStatus.CONTRADICTED
                 assessment.status == ClaimSupportStatus.SUPPORTED &&
                     confidence >= minimumConfidence && validSupport.isNotEmpty() ->

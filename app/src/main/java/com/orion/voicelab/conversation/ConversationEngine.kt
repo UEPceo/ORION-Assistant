@@ -50,6 +50,7 @@ class ConversationEngine internal constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val turnContextResolver: (suspend (userText: String, recentHistory: List<ChatMessage>) -> TurnContext)? = null,
     private val directTurnResponder: (suspend (userText: String) -> String?)? = null,
+    private val responseVerifier: (suspend (userText: String, draft: String) -> String)? = null,
     inputFactory: (() -> VoiceInputController)? = null
 ) {
     constructor(
@@ -62,7 +63,8 @@ class ConversationEngine internal constructor(
         vadFactory: () -> VoiceActivityDetector = { SileroVoiceActivityDetector(assets) },
         sampleRate: Int = SileroVoiceActivityDetector.SAMPLE_RATE,
         turnContextResolver: (suspend (userText: String, recentHistory: List<ChatMessage>) -> TurnContext)? = null,
-        directTurnResponder: (suspend (userText: String) -> String?)? = null
+        directTurnResponder: (suspend (userText: String) -> String?)? = null,
+        responseVerifier: (suspend (userText: String, draft: String) -> String)? = null
     ) : this(
         speechRecognizer = speechRecognizer,
         languageModel = languageModel,
@@ -73,7 +75,8 @@ class ConversationEngine internal constructor(
         sampleRate = sampleRate,
         clockMs = { SystemClock.elapsedRealtime() },
         turnContextResolver = turnContextResolver,
-        directTurnResponder = directTurnResponder
+        directTurnResponder = directTurnResponder,
+        responseVerifier = responseVerifier
     )
 
     companion object {
@@ -520,10 +523,6 @@ class ConversationEngine internal constructor(
                 val llmResult = try {
                     val directReply = directTurnResponder?.invoke(userText)?.trim()?.takeIf { it.isNotEmpty() }
                     if (directReply != null) {
-                        callbacks?.onStreamingText(directReply)
-                        sentenceChannel.trySend(directReply)
-                        sentenceChannel.close()
-                        ttsConsumer.await()
                         com.orion.voicelab.llm.LlmGenerationResult(
                             text = directReply,
                             firstTokenMs = 0L,
@@ -533,7 +532,7 @@ class ConversationEngine internal constructor(
                         )
                     } else {
                         val resolvedContext = turnContextResolver?.invoke(userText, session.historySnapshot())
-                        val result = languageModel.generateReply(
+                        languageModel.generateReply(
                             systemPrompt = resolvedContext?.systemPrompt ?: session.systemPrompt,
                             history = resolvedContext?.recentHistory ?: session.historySnapshot()
                         ) { token ->
@@ -544,35 +543,39 @@ class ConversationEngine internal constructor(
                                 return@generateReply
                             }
                             streamedDisplay.append(token)
-                            callbacks?.onStreamingText(streamedDisplay.toString())
-                            val readySentences = chunker.appendToken(token)
-                            for (s in readySentences) {
-                                sentenceChannel.trySend(s)
-                            }
                         }
-
-                        if (!result.cancelled &&
-                            callActive.get() &&
-                            callSessionEpoch.get() == sessionEpoch &&
-                            turnGeneration.get() == myGeneration
-                        ) {
-                            val trailing = chunker.flush()
-                            if (trailing != null) {
-                                sentenceChannel.trySend(trailing)
-                            } else if (streamedDisplay.isEmpty() && result.text.isNotBlank()) {
-                                sentenceChannel.trySend(result.text)
-                            }
-                        }
-                        sentenceChannel.close()
-                        ttsConsumer.await()
-                        result
                     }
-                } finally {
+                } catch (error: Exception) {
                     sentenceChannel.close()
-                    if (!ttsConsumer.isCompleted) {
-                        ttsConsumer.cancel()
+                    if (!ttsConsumer.isCompleted) ttsConsumer.cancel()
+                    throw error
+                }
+
+                if (!callActive.get() ||
+                    callSessionEpoch.get() != sessionEpoch ||
+                    turnGeneration.get() != myGeneration ||
+                    llmResult.cancelled
+                ) {
+                    sentenceChannel.close()
+                    ttsConsumer.cancel()
+                    return@launch
+                }
+
+                val draftReply = llmResult.text.ifBlank { streamedDisplay.toString().trim() }
+                val verifiedReply = if (draftReply.isBlank()) {
+                    ""
+                } else {
+                    responseVerifier?.invoke(userText, draftReply)?.trim().orEmpty().ifBlank {
+                        "No puedo ofrecer esa respuesta como fiable porque no he podido completar su verificación."
                     }
                 }
+                if (verifiedReply.isNotBlank()) {
+                    callbacks?.onStreamingText(verifiedReply)
+                    sentenceChannel.trySend(verifiedReply)
+                }
+                sentenceChannel.close()
+                ttsConsumer.await()
+
 
                 if (!callActive.get() ||
                     callSessionEpoch.get() != sessionEpoch ||

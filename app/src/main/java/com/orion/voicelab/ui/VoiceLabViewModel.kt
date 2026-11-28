@@ -365,6 +365,17 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 } else {
                     null
                 }
+        },
+        responseVerifier = { userText, draft ->
+            withContext(Dispatchers.IO) {
+                try {
+                    brainRuntime.verifyGeneratedAnswer(userText, draft, languageModel)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    "No puedo presentar esa respuesta como verificada: ha fallado la comprobación semántica de sus fuentes."
+                }
+            }
         }
     )
 
