@@ -558,7 +558,7 @@ object ModelManager {
                 ModelIntegrityManifest.verifySingleLargeFile(integrityRoot, LLM_SHA256)
             }.getOrDefault(false)
         }
-        return ModelIntegrityManifest.verifySingleLargeFile(integrityRoot)
+        return ModelIntegrityManifest.verifySingleLargeFile(integrityRoot, LLM_SHA256)
     }
 
     fun isTtsInstalled(filesDir: File): Boolean {
@@ -639,7 +639,7 @@ object ModelManager {
             }
             try {
                 ModelIntegrityManifest.createSingleFileManifest(targetDir, targetFile, expectedSha256 ?: LLM_SHA256)
-                check(ModelIntegrityManifest.verifySingleLargeFile(targetDir)) { "La verificación del LLM instalado ha fallado." }
+                check(ModelIntegrityManifest.verifySingleLargeFile(targetDir, expectedSha256 ?: LLM_SHA256)) { "La verificación del LLM instalado ha fallado." }
             } catch (error: Exception) {
                 targetFile.delete()
                 if (hadTarget && backupFile.exists()) backupFile.renameTo(targetFile)
