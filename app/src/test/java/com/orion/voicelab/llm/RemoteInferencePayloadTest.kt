@@ -48,6 +48,19 @@ class RemoteInferencePayloadTest {
             messages.getJSONObject(1).getString("content").length)
     }
 
+    @Test fun excludesSystemRoleFromConversationHistory() {
+        val payload=RemoteInferencePayload.build("model","trusted system prompt",listOf(
+            ChatMessage(ChatRole.SYSTEM,"historic hidden instructions"),
+            ChatMessage(ChatRole.USER,"user text")
+        ))
+        val messages=payload.getJSONArray("messages")
+        assertEquals(2,messages.length())
+        assertEquals("system",messages.getJSONObject(0).getString("role"))
+        assertEquals("trusted system prompt",messages.getJSONObject(0).getString("content"))
+        assertEquals("user",messages.getJSONObject(1).getString("role"))
+        assertEquals("user text",messages.getJSONObject(1).getString("content"))
+    }
+
     @Test fun mapsConversationRolesToOpenAiRoles() {
         val payload = RemoteInferencePayload.build(
             "model", "system",
