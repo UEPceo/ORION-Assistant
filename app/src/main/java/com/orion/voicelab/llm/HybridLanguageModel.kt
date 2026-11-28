@@ -13,6 +13,7 @@ class HybridLanguageModel(
     private val local: LocalLanguageModel
 ) : LocalLanguageModel {
     override val profileId: String get() = local.profileId
+    override val contextWindowTokens: Int get() = local.contextWindowTokens
     override val modelDisplayName: String get() = local.modelDisplayName
     override val modelLicense: String get() = local.modelLicense
 
