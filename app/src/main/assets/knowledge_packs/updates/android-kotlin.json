@@ -1,6 +1,6 @@
 {
   "id": "android-kotlin",
-  "version": 2,
+  "version": 3,
   "title": "Android y Kotlin: fundamentos prácticos",
   "documents": [
     {
@@ -42,6 +42,36 @@
       "authority": "PRIMARY_TECHNICAL",
       "jurisdiction": null,
       "content": "Las coroutines permiten suspender una operación sin bloquear el hilo que la ejecuta. La concurrencia estructurada vincula las tareas hijas a un CoroutineScope: el ciclo de vida del ámbito define cuándo se cancelan sus operaciones y evita dejar trabajo huérfano. Una función suspend puede suspenderse y reanudarse; no implica por sí sola que se ejecute en un hilo de fondo. Para trabajo de entrada/salida bloqueante se utiliza Dispatchers.IO; para cálculo intensivo, Dispatchers.Default; la interfaz Android debe actualizarse desde el contexto principal. La cancelación es cooperativa: las operaciones suspendibles de kotlinx.coroutines suelen comprobarla, pero un bucle de CPU debe comprobar explícitamente isActive, yield o ensureActive. No se debe capturar CancellationException como si fuera un error ordinario; hay que propagarla después de liberar recursos. SupervisorJob y supervisorScope permiten aislar fallos entre tareas hermanas cuando ese comportamiento es deliberado, pero no deben ocultar errores. withTimeout impone un presupuesto temporal y cancela el bloque cuando vence. Los recursos como streams y conexiones deben cerrarse con use o finally. En Android, evita GlobalScope para trabajo ligado a pantallas; usa scopes ligados a lifecycle o ViewModel. El resultado correcto depende de estructurar el ámbito, manejar cancelación y elegir el dispatcher según la naturaleza del trabajo."
+    },
+    {
+      "id": "compose-state-and-events",
+      "title": "Jetpack Compose: estado, eventos y recomposición",
+      "url": "https://developer.android.com/develop/ui/compose/state",
+      "publisher": "Android Developers",
+      "domain": "PROGRAMMING",
+      "authority": "PRIMARY_TECHNICAL",
+      "jurisdiction": null,
+      "content": "En Compose, la UI debe representar el estado y reaccionar a eventos; evita que componentes visuales muten datos de negocio directamente. Hoisting de estado permite que el estado sobreviva a recomposición y facilita pruebas. Mantén unidireccional el flujo de datos: el estado baja, eventos suben. Usa remember para estado local de composición y rememberSaveable para valores simples que deban restaurarse ante recreación; el estado de pantalla y lógica de negocio suele pertenecer a ViewModel. Collect flows con APIs conscientes del ciclo de vida. Revisa claves de remember y efectos para evitar trabajo repetido, efectos secundarios durante composición y fugas."
+    },
+    {
+      "id": "android-workmanager",
+      "title": "WorkManager: trabajo persistente diferible",
+      "url": "https://developer.android.com/topic/libraries/architecture/workmanager",
+      "publisher": "Android Developers",
+      "domain": "PROGRAMMING",
+      "authority": "PRIMARY_TECHNICAL",
+      "jurisdiction": null,
+      "content": "WorkManager es la API recomendada para trabajo persistente que debe ejecutarse aunque el proceso o la pantalla desaparezcan. Define constraints de red, batería y almacenamiento; usa trabajo único para evitar duplicados, backoff para fallos recuperables y workers idempotentes. No es un cronómetro exacto: el sistema puede diferir ejecución por ahorro de batería y restricciones. Para tareas a hora exacta, usa alarmas apropiadas y comprueba el permiso de alarmas exactas cuando corresponda. Persistir progreso y diseñar reintentos seguros evita repetir escrituras externas."
+    },
+    {
+      "id": "kotlin-flow",
+      "title": "Kotlin Flow: cancelación, operadores y backpressure",
+      "url": "https://kotlinlang.org/docs/flow.html",
+      "publisher": "Kotlin Documentation",
+      "domain": "PROGRAMMING",
+      "authority": "PRIMARY_TECHNICAL",
+      "jurisdiction": null,
+      "content": "Flow representa una secuencia asíncrona que puede cancelarse y componerse. Los operadores map, filter, combine, flatMapLatest y catch deben elegirse por su semántica; flatMapLatest cancela la transformación anterior cuando llega un nuevo valor. catch no debe ocultar errores de programación ni capturar CancellationException. Usa flowOn para cambiar el contexto de emisión, y límites como buffer o conflate cuando el productor sea más rápido que el consumidor y la política de pérdida sea aceptable. En Android, recoge flujos con lifecycle-aware APIs y evita colecciones repetidas."
     }
   ]
 }
