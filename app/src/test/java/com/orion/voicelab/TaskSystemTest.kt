@@ -46,7 +46,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35])
+@Config(sdk = [35], application = Application::class)
 class TaskSystemTest {
 
     private lateinit var app: Application

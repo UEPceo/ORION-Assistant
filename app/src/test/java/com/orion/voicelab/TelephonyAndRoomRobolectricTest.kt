@@ -32,7 +32,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.fakes.RoboCursor
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35])
+@Config(sdk = [35], application = Application::class)
 class TelephonyAndRoomRobolectricTest {
 
     private lateinit var app: Application

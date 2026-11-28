@@ -2301,6 +2301,12 @@ class VoiceLabUnitTest {
         val pendingQuery = CallIntentRouter.route("¿Qué tenía pendiente hablar con María?", null) as CallIntentAction.QueryCallHistory
         assertEquals(HistoryQueryType.PENDING_WITH, pendingQuery.queryType)
         assertEquals("María", pendingQuery.contactQuery)
+        val pendingQueryWithoutPreposition = CallIntentRouter.route("¿Qué tengo pendiente hablar con María?", null) as CallIntentAction.QueryCallHistory
+        assertEquals(HistoryQueryType.PENDING_WITH, pendingQueryWithoutPreposition.queryType)
+        assertEquals("María", pendingQueryWithoutPreposition.contactQuery)
+        val pendingQueryWithPreposition = CallIntentRouter.route("¿Qué tengo pendiente de hablar con María?", null) as CallIntentAction.QueryCallHistory
+        assertEquals(HistoryQueryType.PENDING_WITH, pendingQueryWithPreposition.queryType)
+        assertEquals("María", pendingQueryWithPreposition.contactQuery)
 
         val callbackQuery = CallIntentRouter.route("¿A quién tengo que devolver la llamada?", null) as CallIntentAction.QueryCallHistory
         assertEquals(HistoryQueryType.CALLBACKS, callbackQuery.queryType)
