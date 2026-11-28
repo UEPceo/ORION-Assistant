@@ -12,7 +12,7 @@ import kotlin.math.sqrt
  * It combines normalized terms, character n-grams and a curated multilingual concept map.
  * It is intentionally transparent and requires no embedding model or network access.
  */
-class KnowledgeSemanticIndex(context: Context) {\n    private val indexSchema = 2
+class KnowledgeSemanticIndex(context: Context) {
     private val file = AtomicFile(File(context.applicationContext.filesDir, "orion-semantic-index.json"))
     private val lock = Any()
     private var vectors: MutableMap<String, Map<String, Double>>? = null
@@ -57,7 +57,7 @@ class KnowledgeSemanticIndex(context: Context) {\n    private val indexSchema = 
         runCatching {
             val raw = file.openRead().bufferedReader(Charsets.UTF_8).use { it.readText() }
             val root = JSONObject(raw)
-            if (root.optInt("schema") != INDEX_SCHEMA) return@runCatching
+            if (root.optInt("schema") != 2) return@runCatching
             val items = root.optJSONArray("vectors") ?: JSONArray()
             for (i in 0 until items.length()) {
                 val item = items.getJSONObject(i)
@@ -81,7 +81,7 @@ class KnowledgeSemanticIndex(context: Context) {\n    private val indexSchema = 
         }
         val output = file.startWrite()
         try {
-            output.write(JSONObject().put("schema", INDEX_SCHEMA).put("vectors", array).toString().toByteArray(Charsets.UTF_8))
+            output.write(JSONObject().put("schema", 2).put("vectors", array).toString().toByteArray(Charsets.UTF_8))
             file.finishWrite(output)
         } catch (error: Exception) {
             file.failWrite(output)
