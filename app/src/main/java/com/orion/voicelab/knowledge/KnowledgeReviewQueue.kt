@@ -76,6 +76,12 @@ class KnowledgeReviewQueueStore(
             val index = queue.indexOfFirst { it.id == id && it.status == KnowledgeReviewStatus.PENDING }
             if (index < 0) return@withLock false
             val item = queue[index]
+            val evidence = item.document.evidence
+            if (evidence.content.isBlank() ||
+                !evidence.canonicalUrl.startsWith("https://", ignoreCase = true) ||
+                evidence.contentHash.isNullOrBlank() ||
+                !evidence.contentHash.equals(sha256(evidence.content), ignoreCase = true)
+            ) return@withLock false
             if (verified && item.decision != LearningDecision.ACCEPT_FOR_REVIEW) return@withLock false
             if (!verified && item.decision == LearningDecision.REJECT_AS_EVIDENCE) return@withLock false
             if (verified) {
@@ -142,6 +148,11 @@ class KnowledgeReviewQueueStore(
             true
         }
     }
+
+    private fun sha256(value: String): String =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
 
     private fun appendHistory(id: String, document: KnowledgeDocument) {
         val history = readHistory().toMutableMap()
