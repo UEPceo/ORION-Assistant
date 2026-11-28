@@ -57,7 +57,8 @@ class AnswerGroundingAuditor(
 
     suspend fun audit(
         claims: List<AtomicAnswerClaim>,
-        evidence: List<KnowledgeEvidence>
+        evidence: List<KnowledgeEvidence>,
+        evidenceDisallowedForSupport: Set<String> = emptySet()
     ): AnswerGroundingReport {
         val evidenceById = evidence.associateBy { it.id }
         val claimResults = mutableListOf<ClaimGroundingResult>()
@@ -99,6 +100,7 @@ class AnswerGroundingAuditor(
             val validSupport = assessment.supportingEvidenceIds
                 .intersect(suppliedIds)
                 .intersect(claim.citedEvidenceIds)
+                .minus(evidenceDisallowedForSupport)
             val validContradictions = assessment.contradictingEvidenceIds.intersect(suppliedIds)
             val invalidJudgeIds = (assessment.supportingEvidenceIds + assessment.contradictingEvidenceIds) - suppliedIds
             unsupportedCitations += invalidJudgeIds
