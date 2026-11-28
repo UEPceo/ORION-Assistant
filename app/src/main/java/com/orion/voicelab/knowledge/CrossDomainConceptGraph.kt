@@ -18,7 +18,7 @@ object CrossDomainConceptGraph {
         "business" to setOf("empresa","negocio","emprendimiento","pyme","ventas","marketing","cliente","mercado","productividad"),
         "communication" to setOf("comunicacion","redaccion","escritura","oratoria","argumentacion","presentacion","narrativa","accesibilidad"),
         "creativity" to setOf("creatividad","diseno","tipografia","composicion","prototipo","licencia","autor"),
-        "weather" to setOf("meteorologia","tiempo","clima","viento","oleaje","lluvia","temperatura","presion"),
+        "weather" to setOf("meteorologia","tiempo","clima","viento","wind","oleaje","lluvia","temperatura","presion"),
         "geography" to setOf("geografia","cartografia","mapa","ubicacion","coordenadas","territorio","localidad"),
         "data" to setOf("datos","dataset","base","estadistica","analitica","medicion","metricas"),
         "energy" to setOf("energia","electricidad","potencia","bateria","consumo","voltaje","corriente"),
