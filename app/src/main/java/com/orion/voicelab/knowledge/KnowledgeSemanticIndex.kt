@@ -12,7 +12,7 @@ import kotlin.math.sqrt
  * It combines normalized terms, character n-grams and a curated multilingual concept map.
  * It is intentionally transparent and requires no embedding model or network access.
  */
-class KnowledgeSemanticIndex(context: Context) {
+class KnowledgeSemanticIndex(context: Context) {\n    private val indexSchema = 2
     private val file = AtomicFile(File(context.applicationContext.filesDir, "orion-semantic-index.json"))
     private val lock = Any()
     private var vectors: MutableMap<String, Map<String, Double>>? = null
