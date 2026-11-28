@@ -42,7 +42,7 @@ class KnowledgeCorpusRegressionGate(
 
         for (document in baselineDocuments) {
             val test = regressionCase(document)
-            val baselineObservation = observe(test, corpus.search(queryFor(test), RETRIEVAL_LIMIT))
+            val baselineObservation = observe(test, corpus.searchForRegression(queryFor(test), RETRIEVAL_LIMIT))
             val baselineResult = KnowledgeRegressionEvaluator.evaluate(test, baselineObservation, nowMs())
             if (baselineResult.passed) baselinePassed++
 
