@@ -129,6 +129,7 @@ class LlamaCppLanguageModel internal constructor(
     private val contextTokens: Int = 2048,
     private val batchSize: Int = 256,
     private val threadCount: Int = 4,
+    override val profileId: String = "lite",
     override val modelDisplayName: String = "Qwen2.5-1.5B-Instruct (Q4_K_M)",
     override val modelLicense: String = "Apache 2.0 (Modelo y llama.cpp / llamacpp-kotlin)"
 ) : LocalLanguageModel {
@@ -175,6 +176,7 @@ class LlamaCppLanguageModel internal constructor(
                 contextTokens = artifact.contextTokens,
                 batchSize = 128,
                 threadCount = minOf(4, Runtime.getRuntime().availableProcessors().coerceAtLeast(1)),
+                profileId = artifact.profileId,
                 modelDisplayName = artifact.modelId,
                 modelLicense = artifact.license
             )
