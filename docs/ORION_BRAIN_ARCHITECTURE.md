@@ -412,3 +412,20 @@ La validación de integridad completa se realiza fuera del hilo principal. La ve
 Pruebas añadidas: bandas de RAM física, RAM libre real, snapshots incoherentes, estimación creciente con modelo/contexto, reducción escalonada de contexto, catálogo de artefactos, SHA-256, URLs HTTPS y prompt correspondiente al perfil activo.
 
 La presencia del artefacto y la compatibilidad del código no sustituyen un benchmark real en cada dispositivo. Quedan por medir en hardware: latencia de primer token, tokens/segundo, pico de RAM nativa, temperatura, consumo y estabilidad prolongada. El perfil Flagship puede no ser utilizable en móviles de 16 GB si el sistema no deja suficiente RAM libre; en ese caso el fallback a Ligero es intencionado.
+
+
+## Inferencia híbrida gratuita y sin carga de modelos grandes en el móvil
+
+Se incorpora una capa de ejecución híbrida con tres modos configurables:
+
+- **Automático**: el modelo local ligero atiende peticiones sencillas; una política determinista deriva tareas complejas (programación, auditoría, arquitectura, investigación, análisis y planificación) a un endpoint remoto compatible con OpenAI.
+- **Solo local**: no transmite mensajes ni contexto a un servidor remoto.
+- **Solo remoto**: evita inicializar el LLM local. Si el servidor no responde, la petición falla de forma explícita y no se deriva silenciosamente a otro motor.
+
+El cliente remoto no requiere SDK ni proveedor comercial: utiliza HTTP JSON compatible con `/v1/chat/completions`, por lo que puede conectarse a un servidor autoalojado como llama.cpp server o vLLM. El software de estos motores es libre; ejecutar el servidor requiere hardware y puede implicar coste eléctrico o de alojamiento. Los servicios externos de pago no son obligatorios.
+
+**Privacidad y seguridad**: el uso remoto exige activar el motor y aceptar expresamente el envío del mensaje y del contexto de sistema necesario. No se envía la memoria completa ni el historial íntegro. Las claves API se cifran con Android Keystore. Se exige HTTPS para hosts externos y solo se permite HTTP en localhost o rangos privados. Las solicitudes tienen límites de contexto y tamaño, timeout y máximo de salida. El modo automático vuelve al modelo local si falla el servidor; nunca cambia de proveedor ni comparte datos adicionales.
+
+Al activar el modo automático o solo remoto, ORION selecciona el perfil local Ligero como respaldo y no carga los perfiles 3B/7B/14B en el móvil. Los perfiles avanzados siguen disponibles para ejecución local cuando el usuario elige Solo local y el dispositivo supera las comprobaciones de memoria. El enrutamiento remoto es por capacidad lógica, no una promesa de rendimiento: depende del modelo y recursos del servidor configurado.
+
+**Estado de esta fase**: cliente HTTP compatible, almacenamiento cifrado de clave, controles de modo/consentimiento, enrutamiento por complejidad e integración con el motor conversacional añadidos. Pendiente: ejecutar CI, probar interoperabilidad real contra llama.cpp/vLLM, cancelar conexiones remotas en curso y verificar la experiencia en dispositivo. No se considera validado en producción hasta superar esas pruebas.
