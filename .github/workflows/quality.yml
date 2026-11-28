@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: orion-quality-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   unit-and-robolectric:
