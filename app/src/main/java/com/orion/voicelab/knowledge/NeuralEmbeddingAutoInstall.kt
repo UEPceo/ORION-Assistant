@@ -71,7 +71,17 @@ class NeuralEmbeddingAutoInstallWorker(
                     .putString("status", "Descargando encoder ONNX")
                     .build())
             }
-            setProgress(Data.Builder().putInt("progress", 100).putString("status", "Encoder instalado y verificado").build())
+            val encoder = OnnxMultilingualEmbeddingEncoder(applicationContext)
+            val inferencePassed = try {
+                encoder.isAvailable()
+            } finally {
+                encoder.close()
+            }
+            if (!inferencePassed) {
+                manager.delete()
+                error("El archivo ONNX pasó SHA-256, pero falló la prueba real de inferencia. Se ha retirado.")
+            }
+            setProgress(Data.Builder().putInt("progress", 100).putString("status", "Encoder instalado y prueba de inferencia superada").build())
             Result.success()
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
