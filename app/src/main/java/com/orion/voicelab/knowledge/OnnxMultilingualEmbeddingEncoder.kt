@@ -19,7 +19,12 @@ class OnnxMultilingualEmbeddingEncoder(context: Context) : Closeable {
     private var session: OrtSession? = null
     private val environment: OrtEnvironment by lazy { OrtEnvironment.getEnvironment() }
 
-    suspend fun isAvailable(): Boolean = manager.isInstalled()
+    suspend fun isAvailable(): Boolean {
+        if (!manager.isInstalled()) return false
+        val vector = encode("ORION local embedding encoder health check.") ?: return false
+        val norm = kotlin.math.sqrt(vector.sumOf { it.toDouble() * it.toDouble() })
+        return vector.size == 512 && norm.isFinite() && kotlin.math.abs(norm - 1.0) < 0.02
+    }
 
     suspend fun encode(text: String): FloatArray? = withContext(Dispatchers.Default) {
         if (text.isBlank() || !manager.isInstalled()) return@withContext null
