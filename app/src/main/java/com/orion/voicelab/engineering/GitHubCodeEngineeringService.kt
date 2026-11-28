@@ -9,6 +9,7 @@ import kotlinx.coroutines.CancellationException
 
 data class CodeEngineeringSession(
     val grant: CodeEngineeringGrant,
+    val task: String,
     val baseBranch: String,
     val branch: GitHubBranchSummary
 )
@@ -55,7 +56,7 @@ class GitHubCodeEngineeringService(
             authority.revoke(grant.id)
             throw error
         }
-        CodeEngineeringSession(grant, baseBranch, branch)
+        CodeEngineeringSession(grant, task, baseBranch, branch)
     }
 
     suspend fun prepare(
@@ -97,7 +98,7 @@ class GitHubCodeEngineeringService(
             "La reparación requiere una ejecución fallida del SHA actual, logs disponibles y presupuesto de intentos."
         }
         require(attempt in 1..CodeRepairBudget.MAX_ATTEMPTS) { "Se ha agotado el presupuesto de reparación." }
-        require(authority.isTaskAuthorized(session.grant.id, session.grant.task)) {
+        require(authority.isTaskAuthorized(session.grant.id, session.task)) {
             "La sesión de ingeniería ya no autoriza esta tarea."
         }
         val failedRun = inspection.run ?: error("No existe una ejecución CI asociada.")
