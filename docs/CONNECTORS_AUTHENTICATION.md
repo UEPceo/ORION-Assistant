@@ -50,7 +50,7 @@ Gmail API integration supports bounded message search and metadata-only lookup (
 The debug APK workflow accepts these optional configuration values:
 - `ORION_GITHUB_CLIENT_ID` as a repository variable or secret. Without it, compilation succeeds but GitHub Device Flow remains disabled.
 - `ORION_DEBUG_KEYSTORE_BASE64` containing the base64-encoded stable debug keystore.
-- `ORION_DEBUG_STORE_PASSWORD`, `ORION_DEBUG_KEY_ALIAS` and `ORION_DEBUG_KEY_PASSWORD`. Supply all four signing secrets together or leave all four empty. When empty, Gradle generates its normal CI debug key and Gmail OAuth is unavailable in that artifact.
+- `ORION_DEBUG_STORE_PASSWORD`, `ORION_DEBUG_KEY_ALIAS` and `ORION_DEBUG_KEY_PASSWORD`. Supply all four signing secrets together or leave all four empty. When empty, incomplete, malformed or unusable, the workflow warns and Gradle generates its normal CI debug key; Gmail OAuth is unavailable in that artifact.
 
 The keystore is used only to sign CI debug APKs. Keep it private in GitHub Actions secrets. The package name and SHA-1 fingerprint must match the Android OAuth client registered in Google Cloud. Release signing remains a separate certificate and needs its own Google Android OAuth client fingerprint if Gmail is enabled in release builds.
 
