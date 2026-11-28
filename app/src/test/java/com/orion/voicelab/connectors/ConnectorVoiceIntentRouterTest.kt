@@ -151,4 +151,28 @@ class ConnectorVoiceIntentRouterTest {
     fun unrelatedTextDoesNotTriggerExternalConnector() {
         assertNull(ConnectorVoiceIntentRouter.route("¿Qué tiempo hace hoy?"))
     }
+
+    @Test
+    fun createBranchVoiceIntentIsTypedAsConfirmedWrite() {
+        val routed = ConnectorVoiceIntentRouter.route(
+            "Crea una rama orion/mejora desde main en owner/repo"
+        ) ?: error("Expected a GitHub branch action")
+        assertEquals(ConnectorId.GITHUB, routed.action.connectorId)
+        assertEquals("create_branch", routed.action.operation)
+        assertEquals("owner/repo", routed.action.arguments["repository"])
+        assertEquals("orion/mejora", routed.action.arguments["branch"])
+        assertEquals(ConnectorRisk.REVERSIBLE_WRITE, routed.action.risk)
+    }
+
+    @Test
+    fun pullRequestVoiceIntentDefaultsToDraftAndWorkBranch() {
+        val routed = ConnectorVoiceIntentRouter.route(
+            "Crea un pull request desde orion/mejora hacia main en owner/repo"
+        ) ?: error("Expected a GitHub pull request action")
+        assertEquals("create_pull_request", routed.action.operation)
+        assertEquals("orion/mejora", routed.action.arguments["head"])
+        assertEquals("main", routed.action.arguments["base"])
+        assertEquals("true", routed.action.arguments["draft"])
+        assertEquals(ConnectorRisk.REVERSIBLE_WRITE, routed.action.risk)
+    }
 }
