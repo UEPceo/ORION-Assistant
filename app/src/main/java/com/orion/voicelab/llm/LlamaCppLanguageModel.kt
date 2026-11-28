@@ -8,6 +8,7 @@ import android.os.SystemClock
 import com.orion.voicelab.data.ChatMessage
 import com.orion.voicelab.data.ChatRole
 import com.orion.voicelab.model.ModelManager
+import com.orion.voicelab.model.ProfileModelArtifact
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -124,7 +125,12 @@ class LlamaCppLanguageModel internal constructor(
     private val clockMs: () -> Long = { SystemClock.elapsedRealtime() },
     private val memorySnapshotProvider: () -> ModelMemorySnapshot = {
         ModelMemorySnapshot(Long.MAX_VALUE, Long.MAX_VALUE)
-    }
+    },
+    private val contextTokens: Int = 2048,
+    private val batchSize: Int = 256,
+    private val threadCount: Int = 4,
+    override val modelDisplayName: String = "Qwen2.5-1.5B-Instruct (Q4_K_M)",
+    override val modelLicense: String = "Apache 2.0 (Modelo y llama.cpp / llamacpp-kotlin)"
 ) : LocalLanguageModel {
 
     constructor(
@@ -147,17 +153,31 @@ class LlamaCppLanguageModel internal constructor(
     )
 
     companion object {
-        private const val CONTEXT_SIZE = 2048
-        private const val BATCH_SIZE = 256
-        private const val THREADS_LOAD_AND_GEN = 4
+        fun forProfile(context: Context, filesDir: File, artifact: ProfileModelArtifact): LlamaCppLanguageModel {
+            val appContext = context.applicationContext
+            val memoryProvider = {
+                val manager = appContext.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                val info = ActivityManager.MemoryInfo()
+                manager.getMemoryInfo(info)
+                ModelMemorySnapshot(info.totalMem, info.availMem)
+            }
+            return LlamaCppLanguageModel(
+                modelFile = ModelManager.profileModelFile(filesDir, artifact.profileId),
+                bridge = AndroidLlamaRuntimeBridge(appContext.contentResolver),
+                modelInstalledCheck = { ModelManager.isProfileLlmInstalled(filesDir, artifact.profileId) },
+                memorySnapshotProvider = memoryProvider,
+                contextTokens = artifact.contextTokens,
+                batchSize = 128,
+                threadCount = minOf(4, Runtime.getRuntime().availableProcessors().coerceAtLeast(1)),
+                modelDisplayName = artifact.modelId,
+                modelLicense = artifact.license
+            )
+        }
         private const val MAX_PREDICT_TOKENS = 180
         private const val TEMPERATURE = 0.65
         private const val TOP_P = 0.90
         private const val REPEAT_PENALTY = 1.12
     }
-
-    override val modelDisplayName: String = "Qwen2.5-1.5B-Instruct (Q4_K_M)"
-    override val modelLicense: String = "Apache 2.0 (Modelo y llama.cpp / llamacpp-kotlin)"
 
     private val llamaExecutor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "OrionLlamaCpp").apply { isDaemon = true }
@@ -197,7 +217,7 @@ class LlamaCppLanguageModel internal constructor(
                 val decision = ModelMemoryPolicy.evaluate(
                     memorySnapshotProvider(),
                     modelFile.length(),
-                    CONTEXT_SIZE
+                    contextTokens
                 )
                 check(decision.allowed) { decision.reason }
 
@@ -210,8 +230,8 @@ class LlamaCppLanguageModel internal constructor(
                     "use_mmap" to true,
                     "use_mlock" to false,
                     "n_ctx" to CONTEXT_SIZE,
-                    "n_batch" to BATCH_SIZE,
-                    "n_threads" to THREADS_LOAD_AND_GEN,
+                    "n_batch" to batchSize,
+                    "n_threads" to threadCount,
                     "n_gpu_layers" to 0
                 )
 
