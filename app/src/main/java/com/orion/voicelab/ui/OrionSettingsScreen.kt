@@ -4,6 +4,7 @@ import android.os.Build
 import android.app.ActivityManager
 import com.orion.voicelab.llm.LanguageModelProfileCatalog
 import com.orion.voicelab.llm.ModelTier
+import com.orion.voicelab.model.ModelManager
 import com.orion.voicelab.creative.ComfyUiVideoGenerationProvider
 import com.orion.voicelab.creative.ComfyUiImageGenerationProvider
 import com.orion.voicelab.creative.ComfyUiClient
@@ -184,10 +185,21 @@ fun OrionSettingsScreen(
         var selectedModelProfileId by remember { mutableStateOf(modelPreferences.getString("selected_profile", "lite") ?: "lite") }
         val recommendedModelProfile = remember(totalDeviceRamMb) { LanguageModelProfileCatalog.recommendForDevice(totalDeviceRamMb) }
         val selectedModelProfile = remember(selectedModelProfileId) { LanguageModelProfileCatalog.byId(selectedModelProfileId) ?: LanguageModelProfileCatalog.profiles.first() }
-        val effectiveModelProfile = remember(selectedModelProfileId, automaticModelProfile, totalDeviceRamMb) {
-            val requestedId = if (automaticModelProfile) recommendedModelProfile.id else selectedModelProfileId
-            LanguageModelProfileCatalog.effectiveProfile(requestedId, totalDeviceRamMb)
+        var installedModelProfiles by remember { mutableStateOf(setOf("lite")) }
+        var profileDownloadId by remember { mutableStateOf<String?>(null) }
+        var profileDownloadProgress by remember { mutableStateOf(0) }
+        var profileDownloadStatus by remember { mutableStateOf("Los modelos superiores se descargan solo cuando los eliges.") }
+        LaunchedEffect(context) {
+            installedModelProfiles = withContext(Dispatchers.IO) {
+                setOf("lite") + ModelManager.PROFILE_LLM_ARTIFACTS.keys.filter {
+                    ModelManager.isProfileLlmInstalled(context.filesDir, it)
+                }
+            }
         }
+        val requestedModelProfileId = if (automaticModelProfile) recommendedModelProfile.id else selectedModelProfileId
+        val effectiveModelProfile = LanguageModelProfileCatalog.byId(requestedModelProfileId)
+            ?.takeIf { it.id == "lite" || it.id in installedModelProfiles }
+            ?: LanguageModelProfileCatalog.profiles.first()
         SettingsSection(title = "Perfiles del modelo neuronal", subtitle = "Selección manual o recomendación automática según la RAM física del dispositivo") {
             Text("RAM total detectada: ${totalDeviceRamMb / 1024} GB", style = MaterialTheme.typography.bodyMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -225,12 +237,54 @@ fun OrionSettingsScreen(
                                 modelPreferences.edit().putString("selected_profile", profile.id).apply()
                             }) { Text(if (selectedModelProfileId == profile.id) "Seleccionado" else "Elegir perfil") }
                         }
+                        val artifact = ModelManager.profileArtifact(profile.id)
+                        if (artifact != null) {
+                            val installed = profile.id in installedModelProfiles
+                            Button(
+                                enabled = profileDownloadId == null && !installed,
+                                onClick = {
+                                    profileDownloadId = profile.id
+                                    profileDownloadProgress = 0
+                                    profileDownloadStatus = "Preparando ${profile.displayName}…"
+                                    scope.launch {
+                                        try {
+                                            withContext(Dispatchers.IO) {
+                                                ModelManager.downloadAndInstallProfileLlm(context.filesDir, profile.id) { percent, _, _ ->
+                                                    scope.launch { profileDownloadProgress = percent }
+                                                }
+                                            }
+                                            installedModelProfiles = installedModelProfiles + profile.id
+                                            profileDownloadStatus = "${profile.displayName} descargado y verificado. Selecciónalo y reinicia ORION para activarlo."
+                                        } catch (error: Exception) {
+                                            profileDownloadStatus = "No se pudo instalar ${profile.displayName}: ${error.message ?: "error desconocido"}"
+                                        } finally {
+                                            profileDownloadId = null
+                                        }
+                                    }
+                                }
+                            ) {
+                                Text(
+                                    when {
+                                        profileDownloadId == profile.id -> "Descargando $profileDownloadProgress%"
+                                        installed -> "Modelo verificado"
+                                        else -> "Descargar e instalar"
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
+            Text(profileDownloadStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
-                if (effectiveModelProfile.id == "lite") "Motor activo: Qwen2.5-1.5B Q4_K_M. Los perfiles superiores quedan registrados como preferencia, pero no se activarán hasta integrar sus archivos GGUF, licencias, verificaciones y pruebas de memoria. ORION no simula que están instalados."
-                else "El perfil solicitado todavía no está operativo. El motor seguirá usando Ligero hasta que el modelo correspondiente esté instalado y validado.",
+                when {
+                    effectiveModelProfile.id == "lite" && requestedModelProfileId != "lite" ->
+                        "Motor activo: Ligero. El perfil solicitado no está instalado; ORION no cambia de motor hasta verificar su descarga."
+                    effectiveModelProfile.id == "lite" ->
+                        "Motor activo: Qwen2.5-1.5B Q4_K_M."
+                    else ->
+                        "Perfil ${effectiveModelProfile.displayName} verificado. Se aplicará al iniciar de nuevo ORION. La carga comprobará además la RAM libre real antes de abrir llama.cpp."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
