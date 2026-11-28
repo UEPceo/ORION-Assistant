@@ -3,6 +3,7 @@ package com.orion.voicelab.brain
 import com.orion.voicelab.tasks.TaskRepository
 import com.orion.voicelab.data.TaskPriority
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
 
 /** Local-only plan actions. The coordinator requires contextual approval before these writes. */
 class LocalTaskPlanStepHandler(private val tasks: TaskRepository) : LocalPlanStepHandler {
@@ -52,6 +53,8 @@ class LocalTaskPlanStepHandler(private val tasks: TaskRepository) : LocalPlanSte
                 }
                 else -> StepExecution(StepStatus.FAILED, "Tipo de acción local no soportado.")
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (error: Exception) {
             StepExecution(StepStatus.FAILED, "No se pudo guardar localmente: ${error.message?.take(180) ?: error.javaClass.simpleName}.")
         }
