@@ -48,7 +48,25 @@ object PlanValidator {
             if (item.id in item.dependsOn) errors += "Un paso no puede depender de sí mismo: ${item.id}."
             if (item.kind in EXTERNAL_KINDS && (item.connectorId == null || item.connectorOperation.isNullOrBlank())) errors += "El paso externo ${item.id} necesita conector y operación explícitos."
             (item.dependsOn - ids).forEach { errors += "Dependencia inexistente: $it." }
-            if (item.kind in WRITE_KINDS && !item.requiresApproval) errors += "La acción externa ${item.id} debe requerir confirmación."
+            if (item.kind in WRITE_KINDS && !item.requiresApproval) errors += "La acción ${item.id} debe requerir confirmación contextual."
+            if (item.kind in LOCAL_WRITE_KINDS) {
+                if (!item.requiresApproval || item.risk < PlanRisk.MEDIUM) errors += "La escritura local ${item.id} requiere confirmación contextual y riesgo MEDIUM o superior."
+                if (item.connectorId != null || !item.connectorOperation.isNullOrBlank()) errors += "El paso local ${item.id} no puede declarar un conector."
+                if (item.connectorArguments["title"].isNullOrBlank() && item.kind != PlanStepKind.LOCAL_CREATE_NOTE) errors += "El paso local ${item.id} necesita título."
+                if (item.kind == PlanStepKind.LOCAL_CREATE_REMINDER && item.connectorArguments["reminderAtMs"].isNullOrBlank()) errors += "El recordatorio ${item.id} necesita fecha y hora (reminderAtMs)."
+                val allowed = when (item.kind) {
+                    PlanStepKind.LOCAL_CREATE_TASK -> setOf("title", "description", "notes", "category", "priority", "dueDateEpochDay", "dueTimeMinutes")
+                    PlanStepKind.LOCAL_CREATE_NOTE -> setOf("title", "content", "notes", "category")
+                    PlanStepKind.LOCAL_CREATE_REMINDER -> setOf("title", "description", "notes", "category", "priority", "dueDateEpochDay", "dueTimeMinutes", "reminderAtMs")
+                    else -> emptySet()
+                }
+                val unknown = item.connectorArguments.keys - allowed
+                if (unknown.isNotEmpty()) errors += "El paso local ${item.id} contiene campos no permitidos: ${unknown.joinToString()}."
+            }
+            PlanOutputReferences.find(item.connectorArguments.values + item.inputSummary).forEach { ref ->
+                if (ref.stepId !in ids) errors += "Referencia de salida inexistente: ${ref.stepId}."
+                if (ref.stepId !in item.dependsOn) errors += "El paso ${item.id} debe declarar dependencia de ${ref.stepId} para usar su salida."
+            }
             val secretKeyMarkers = listOf("password", "passwd", "secret", "token", "authorization", "api_key", "apikey", "credential")
             if (item.connectorArguments.keys.any { key ->
                     val normalized = key.lowercase().replace("-", "_")
@@ -62,7 +80,8 @@ object PlanValidator {
     }
 
     private val EXTERNAL_KINDS = setOf(PlanStepKind.CONNECTOR_READ, PlanStepKind.CONNECTOR_WRITE, PlanStepKind.SEND_MESSAGE, PlanStepKind.PLACE_CALL, PlanStepKind.DELETE_DATA, PlanStepKind.PURCHASE)
-    private val WRITE_KINDS = setOf(PlanStepKind.CONNECTOR_WRITE, PlanStepKind.SEND_MESSAGE, PlanStepKind.PLACE_CALL, PlanStepKind.DELETE_DATA, PlanStepKind.PURCHASE)
+    private val WRITE_KINDS = setOf(PlanStepKind.CONNECTOR_WRITE, PlanStepKind.SEND_MESSAGE, PlanStepKind.PLACE_CALL, PlanStepKind.DELETE_DATA, PlanStepKind.PURCHASE, PlanStepKind.LOCAL_CREATE_TASK, PlanStepKind.LOCAL_CREATE_NOTE, PlanStepKind.LOCAL_CREATE_REMINDER)
+    private val LOCAL_WRITE_KINDS = setOf(PlanStepKind.LOCAL_CREATE_TASK, PlanStepKind.LOCAL_CREATE_NOTE, PlanStepKind.LOCAL_CREATE_REMINDER)
 
     private fun topologicalOrder(steps: List<PlannedStep>): List<String> {
         val remaining = steps.associate { it.id to it.dependsOn.toMutableSet() }.toMutableMap()
@@ -82,6 +101,29 @@ object PlanValidator {
 }
 
 data class StepExecution(val status: StepStatus, val summary: String, val outputReference: String? = null)
+data class PlanOutputReference(val stepId: String, val field: String)
+object PlanOutputReferences {
+    private val token = Regex("\\$\\{([A-Za-z0-9_-]{1,80})\\.(output|summary)}")
+    fun find(values: Iterable<String>): List<PlanOutputReference> = values.flatMap { value ->
+        token.findAll(value).map { PlanOutputReference(it.groupValues[1], it.groupValues[2]) }.toList()
+    }
+    fun resolve(value: String, results: Map<String, StepExecution>): String? {
+        var unresolved = false
+        val resolved = token.replace(value) { match ->
+            val execution = results[match.groupValues[1]]
+            val replacement = when (match.groupValues[2]) {
+                "output" -> execution?.outputReference
+                "summary" -> execution?.summary
+                else -> null
+            }
+            if (execution?.status != StepStatus.SUCCEEDED || replacement == null) {
+                unresolved = true
+                ""
+            } else replacement.take(1_200)
+        }
+        return if (unresolved || Regex("\\$\\{[^}]+}").containsMatchIn(resolved)) null else resolved.take(1_200)
+    }
+}
 fun interface PlanStepRunner { suspend fun run(step: PlannedStep, budget: ExecutionBudget): StepExecution }
 data class PlanExecutionReport(val planId: String, val status: PlanStatus, val steps: Map<String, StepExecution>, val blockedReason: String? = null)
 
