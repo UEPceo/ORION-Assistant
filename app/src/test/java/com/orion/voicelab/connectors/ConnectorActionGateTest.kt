@@ -69,7 +69,7 @@ class ConnectorActionGateTest {
         )
 
         assertEquals(
-            ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION,
+            ConnectorAuthorizationDecision.DENY,
             ConnectorActionGate.evaluate(action, userRequestedExactAction = true, connectorConnected = true)
         )
     }
@@ -78,7 +78,7 @@ class ConnectorActionGateTest {
     fun unknownListOrGetPrefixedOperationsCannotBypassReadOnlyGate() {
         listOf("list_and_delete", "get_then_delete", "search_and_send").forEach { operation ->
             assertEquals(
-                ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION,
+                ConnectorAuthorizationDecision.DENY,
                 ConnectorActionGate.evaluate(
                     ConnectorAction(ConnectorId.GITHUB, operation, risk = ConnectorRisk.READ_ONLY),
                     userRequestedExactAction = true,
