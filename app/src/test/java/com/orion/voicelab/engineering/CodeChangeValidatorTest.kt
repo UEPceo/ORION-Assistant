@@ -1,0 +1,68 @@
+package com.orion.voicelab.engineering
+
+import org.junit.Assert.*
+import org.junit.Test
+
+class CodeChangeValidatorTest {
+    private fun proposal(
+        workBranch: String = "orion/feature",
+        changes: List<CodeFileChange> = listOf(
+            CodeFileChange("src/Main.kt", CodeFileOperation.CREATE, "class Main")
+        )
+    ) = CodeChangeProposal(
+        repository = "owner/project",
+        baseBranch = "main",
+        workBranch = workBranch,
+        title = "Add feature",
+        summary = "Implement the requested feature.",
+        changes = changes
+    )
+
+    @Test fun acceptsSafeNewFileOnDedicatedBranch() {
+        val result = CodeChangeValidator.validate(proposal())
+        assertTrue(result.valid)
+        assertTrue(result.approvalRequired)
+        assertFalse(result.requiresElevatedReview)
+    }
+
+    @Test fun rejectsMainAsWorkBranch() {
+        assertFalse(CodeChangeValidator.validate(proposal(workBranch = "main")).valid)
+    }
+
+    @Test fun rejectsPathTraversalAndGitMetadata() {
+        listOf("../secrets.txt", "src/../../secret", ".git/config", "/etc/passwd", "src\\Main.kt")
+            .forEach { path -> assertFalse(path, CodeChangeValidator.isSafePath(path)) }
+    }
+
+    @Test fun updateAndDeleteRequireExpectedBlobSha() {
+        val update = CodeFileChange("src/A.kt", CodeFileOperation.UPDATE, "new", null)
+        val delete = CodeFileChange("src/B.kt", CodeFileOperation.DELETE, null, null)
+        assertFalse(CodeChangeValidator.validate(proposal(changes = listOf(update))).valid)
+        assertFalse(CodeChangeValidator.validate(proposal(changes = listOf(delete))).valid)
+    }
+
+    @Test fun rejectsPossibleCredentials() {
+        val content = "val token = \"ghp_abcdefghijklmnopqrstuvwxyz1234567890\""
+        val result = CodeChangeValidator.validate(
+            proposal(changes = listOf(CodeFileChange("src/Config.kt", CodeFileOperation.CREATE, content)))
+        )
+        assertFalse(result.valid)
+        assertTrue(result.errors.any { it.contains("secreto") })
+    }
+
+    @Test fun flagsBuildAndWorkflowChangesForElevatedReview() {
+        val result = CodeChangeValidator.validate(
+            proposal(changes = listOf(CodeFileChange("app/build.gradle.kts", CodeFileOperation.CREATE, "plugins {}")))
+        )
+        assertTrue(result.valid)
+        assertTrue(result.requiresElevatedReview)
+    }
+
+    @Test fun rejectsOversizedPatch() {
+        val huge = "x".repeat(CodeChangeValidator.MAX_FILE_BYTES + 1)
+        val result = CodeChangeValidator.validate(
+            proposal(changes = listOf(CodeFileChange("src/Large.kt", CodeFileOperation.CREATE, huge)))
+        )
+        assertFalse(result.valid)
+    }
+}
