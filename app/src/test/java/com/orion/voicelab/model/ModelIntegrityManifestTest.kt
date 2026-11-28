@@ -38,7 +38,7 @@ class ModelIntegrityManifestTest {
             .digest(model.readBytes()).joinToString("") { "%02x".format(it) }
 
         ModelIntegrityManifest.createSingleFileManifest(root, model, digest)
-        assertTrue(ModelIntegrityManifest.verifySingleLargeFile(root))
+        assertTrue(ModelIntegrityManifest.verifySingleLargeFile(root, digest))
 
         model.appendText("-tampered")
         assertFalse(ModelIntegrityManifest.verifySingleLargeFile(root))
