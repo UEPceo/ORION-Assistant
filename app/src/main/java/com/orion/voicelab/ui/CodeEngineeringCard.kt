@@ -21,6 +21,7 @@ fun CodeEngineeringCard(
     onPrepare: (CodeEngineeringSession,String,List<String>)->Unit,
     onCommit: (CodeEngineeringSession,String,Boolean)->Unit,
     onCreatePullRequest: (CodeEngineeringSession,String,String,Boolean)->Unit,
+    onInspectCi: (CodeEngineeringSession)->Unit,
     onRevoke: (CodeEngineeringSession)->Unit
 ) {
     var repository by remember { mutableStateOf("") }
@@ -68,6 +69,31 @@ fun CodeEngineeringCard(
             state.error?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
             state.lastCommitSha?.let { Text("Commit creado: $it",color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.bodySmall) }
             state.pullRequestUrl?.let { Text("Pull request draft creado: $it",color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.bodySmall) }
+            if (session != null && state.lastCommitSha != null) {
+                Button(
+                    onClick = { onInspectCi(session) },
+                    enabled = !state.isWorking,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Consultar CI y recuperar logs") }
+            }
+            state.ciError?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
+            state.ciInspection?.let { inspection ->
+                val run = inspection.run
+                if (run == null) {
+                    Text("No se ha encontrado una ejecución de CI para el SHA exacto de este commit.",style=MaterialTheme.typography.bodySmall)
+                } else {
+                    Text("CI · ${run.status} · ${run.conclusion ?: "sin conclusión"} · SHA ${run.headSha.take(8)}",style=MaterialTheme.typography.bodySmall,fontWeight=FontWeight.SemiBold)
+                    inspection.jobs.forEach { job ->
+                        Text("${job.name}: ${job.status}/${job.conclusion ?: "—"}",style=MaterialTheme.typography.bodySmall)
+                    }
+                    inspection.failureLogs?.let { logs ->
+                        Text("Logs recuperados (secretos conocidos redactados)",style=MaterialTheme.typography.labelMedium,fontWeight=FontWeight.SemiBold)
+                        Column(Modifier.fillMaxWidth().heightIn(max=260.dp).verticalScroll(rememberScrollState())) {
+                            Text(logs.take(8_000),style=MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
             if (session != null && state.lastCommitSha != null && state.pullRequestUrl == null) {
                 Button(
                     onClick = {
