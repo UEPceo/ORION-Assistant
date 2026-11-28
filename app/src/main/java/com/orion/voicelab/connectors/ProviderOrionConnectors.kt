@@ -4,6 +4,11 @@ import com.orion.voicelab.connectors.gmail.GmailApiClient
 import com.orion.voicelab.connectors.gmail.GmailCredentialManager
 import com.orion.voicelab.connectors.github.GitHubApiClient
 import com.orion.voicelab.connectors.github.GitHubCredentialManager
+import com.orion.voicelab.engineering.CodeChangeProposal
+import com.orion.voicelab.engineering.CodeFileChange
+import com.orion.voicelab.engineering.CodeFileOperation
+import org.json.JSONArray
+import org.json.JSONObject
 
 /** Provider implementations exposed only through ConnectorDispatcher. */
 class GmailOrionConnector(
@@ -96,8 +101,11 @@ class GitHubOrionConnector(
     override val descriptor = ConnectorDescriptor(
         id = ConnectorId.GITHUB,
         displayName = "GitHub",
-        description = "Consulta de repositorios, incidencias, commits, archivos y estado de CI.",
-        capabilities = setOf(ConnectorCapability.SEARCH, ConnectorCapability.READ),
+        description = "Inspección y programación de repositorios: ramas, cambios atómicos y pull requests.",
+        capabilities = setOf(
+            ConnectorCapability.SEARCH, ConnectorCapability.READ,
+            ConnectorCapability.CREATE, ConnectorCapability.UPDATE, ConnectorCapability.COMMENT
+        ),
         isImplemented = true
     )
 
@@ -110,6 +118,43 @@ class GitHubOrionConnector(
             return ConnectorResult.Failure("Operación de GitHub no disponible.", false)
         }
         return when (action.operation) {
+            "create_branch" -> {
+                val repository = action.arguments["repository"].orEmpty()
+                val branch = action.arguments["branch"].orEmpty()
+                val base = action.arguments["base_branch"].orEmpty()
+                if (repository.isBlank() || branch.isBlank() || base.isBlank()) {
+                    return ConnectorResult.NeedsUserInput("Indica repositorio, nombre de rama y rama base.")
+                }
+                api.createBranch(repository, branch, base).fold(
+                    onSuccess = { ConnectorResult.Success("Rama creada: ${it.name}.", it.sha) },
+                    onFailure = { githubFailure(it) }
+                )
+            }
+            "commit_changes" -> {
+                val raw = action.arguments["proposal_json"].orEmpty()
+                val expectedHead = action.arguments["expected_head_sha"].orEmpty()
+                val proposal = parseCodeChangeProposal(raw)
+                    ?: return ConnectorResult.Failure("La propuesta de cambios no tiene un formato válido.", false)
+                api.commitChanges(proposal, expectedHead).fold(
+                    onSuccess = { ConnectorResult.Success("Cambios aplicados en ${it.branch}. Commit: ${it.commitSha}.", it.commitSha) },
+                    onFailure = { githubFailure(it) }
+                )
+            }
+            "create_pull_request" -> {
+                val repository = action.arguments["repository"].orEmpty()
+                val title = action.arguments["title"].orEmpty()
+                val body = action.arguments["body"].orEmpty()
+                val head = action.arguments["head"].orEmpty()
+                val base = action.arguments["base"].orEmpty()
+                val draft = action.arguments["draft"]?.toBooleanStrictOrNull() ?: true
+                if (repository.isBlank() || title.isBlank() || head.isBlank() || base.isBlank()) {
+                    return ConnectorResult.NeedsUserInput("Indica repositorio, título, rama de trabajo y rama destino.")
+                }
+                api.createPullRequest(repository, title, body, head, base, draft).fold(
+                    onSuccess = { ConnectorResult.Success("Pull request ${if (it.draft) "de borrador " else ""}#${it.number} creado: ${it.url}", it.number.toString()) },
+                    onFailure = { githubFailure(it) }
+                )
+            }
             "list_repositories" -> api.listRepositories(
                 page = action.arguments["page"]?.toIntOrNull() ?: 1,
                 perPage = action.arguments["limit"]?.toIntOrNull() ?: 30
@@ -197,6 +242,39 @@ class GitHubOrionConnector(
             else -> ConnectorResult.Failure("Operación de GitHub no disponible.", false)
         }
     }
+
+    private fun parseCodeChangeProposal(raw: String): CodeChangeProposal? = runCatching {
+        require(raw.isNotBlank() && raw.length <= 1_100_000)
+        val root = JSONObject(raw)
+        val items = root.optJSONArray("changes") ?: JSONArray()
+        val changes = buildList {
+            for (index in 0 until items.length()) {
+                val item = items.optJSONObject(index) ?: continue
+                val operation = when (item.optString("operation").uppercase()) {
+                    "CREATE" -> CodeFileOperation.CREATE
+                    "UPDATE" -> CodeFileOperation.UPDATE
+                    "DELETE" -> CodeFileOperation.DELETE
+                    else -> error("Operación de archivo no permitida.")
+                }
+                add(
+                    CodeFileChange(
+                        path = item.optString("path"),
+                        operation = operation,
+                        content = if (item.isNull("content")) null else item.optString("content"),
+                        expectedBlobSha = item.optString("expectedBlobSha").takeIf { it.isNotBlank() && it != "null" }
+                    )
+                )
+            }
+        }
+        CodeChangeProposal(
+            repository = root.optString("repository"),
+            baseBranch = root.optString("baseBranch"),
+            workBranch = root.optString("workBranch"),
+            title = root.optString("title"),
+            summary = root.optString("summary"),
+            changes = changes
+        )
+    }.getOrNull()
 
     private fun githubFailure(error: Throwable): ConnectorResult.Failure =
         ConnectorResult.Failure(
