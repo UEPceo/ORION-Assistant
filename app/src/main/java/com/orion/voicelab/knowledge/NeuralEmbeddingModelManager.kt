@@ -22,7 +22,7 @@ class NeuralEmbeddingModelManager(context: Context) {
     val modelFile: File get() = File(directory, MODEL_FILE)
     private val partialFile: File get() = File(directory, "$MODEL_FILE.part")
     @Volatile private var verifiedLength: Long = -1L
-    private val downloadMutex = Mutex()
+    private val downloadMutex = DOWNLOAD_MUTEX
 
     suspend fun isInstalled(): Boolean = withContext(Dispatchers.IO) {
         if (!modelFile.isFile) return@withContext false
