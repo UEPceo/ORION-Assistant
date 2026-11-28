@@ -100,7 +100,7 @@ fun CodeEngineeringCard(
                                 onClick = {
                                     onPrepareRepair(
                                         session,
-                                        selectedPaths.split(',', '\\n').map { it.trim() }.filter { it.isNotBlank() }
+                                        selectedPaths.split(',', '\n').map { it.trim() }.filter { it.isNotBlank() }
                                     )
                                 },
                                 enabled = !state.isWorking && selectedPaths.isNotBlank(),
