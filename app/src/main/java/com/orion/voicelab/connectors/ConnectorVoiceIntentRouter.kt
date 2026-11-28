@@ -7,7 +7,7 @@ object ConnectorVoiceIntentRouter {
         val userRequestedExactAction: Boolean = true
     )
 
-    private val repositoryPattern = Regex("""([A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100})""")
+    private val repositoryPattern = Regex("""([A-Za-z0-9][A-Za-z0-9_.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99})""")
 
     fun route(text: String, lastRepository: String? = null): RoutedAction? {
         val normalized = text.trim().lowercase()
