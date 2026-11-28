@@ -76,17 +76,23 @@ object BrainLearningPolicy {
         if (candidate.origin == LearningOrigin.MODEL_OUTPUT) {
             return LearningDecision.REJECT_AS_EVIDENCE
         }
-        if (candidate.origin == LearningOrigin.USER_CORRECTION && !candidate.userApproved) {
+        // A correction is useful feedback, but it is not an independent source.
+        // It remains unverified even when the user explicitly approves storing it.
+        if (candidate.origin == LearningOrigin.USER_CORRECTION) {
             return LearningDecision.STORE_AS_UNVERIFIED
         }
-        // Provenance is authoritative: a caller cannot promote an unclassified/community
-        // submission merely by attaching an "official" authority label to its metadata.
-        if (candidate.origin in setOf(
-                LearningOrigin.UNCLASSIFIED_SOURCE,
-                LearningOrigin.COMMUNITY_REPORT,
-                LearningOrigin.MODEL_OUTPUT
-            )
-        ) return LearningDecision.STORE_AS_UNVERIFIED
+        // Provenance and authority must agree. Metadata supplied by a caller cannot
+        // promote an unknown/community source into an official or technical source.
+        val provenanceMatchesAuthority = when (candidate.origin) {
+            LearningOrigin.OFFICIAL_SOURCE -> evidence.authority == EvidenceAuthority.OFFICIAL_PRIMARY
+            LearningOrigin.TECHNICAL_SOURCE -> evidence.authority == EvidenceAuthority.PRIMARY_TECHNICAL
+            LearningOrigin.PEER_REVIEWED_SOURCE -> evidence.authority == EvidenceAuthority.PEER_REVIEWED
+            LearningOrigin.REPUTABLE_SECONDARY -> evidence.authority == EvidenceAuthority.REPUTABLE_SECONDARY
+            LearningOrigin.COMMUNITY_REPORT -> evidence.authority == EvidenceAuthority.COMMUNITY
+            LearningOrigin.UNCLASSIFIED_SOURCE -> false
+            LearningOrigin.USER_CORRECTION, LearningOrigin.MODEL_OUTPUT -> false
+        }
+        if (!provenanceMatchesAuthority) return LearningDecision.STORE_AS_UNVERIFIED
         return when (evidence.authority) {
             EvidenceAuthority.OFFICIAL_PRIMARY,
             EvidenceAuthority.PRIMARY_TECHNICAL,
