@@ -34,30 +34,30 @@ object LanguageModelProfileCatalog {
         ),
         LanguageModelProfile(
             id = "balanced", displayName = "Equilibrado", tier = ModelTier.BALANCED,
-            recommendedModels = listOf("Qwen2.5-3B Q4_K_M", "Qwen3.5-2B / 4B Q4_K_M"),
-            approximateDownloadMb = 2_700, minimumDeviceRamGb = 8, recommendedDeviceRamGb = 8,
+            recommendedModels = listOf("Qwen2.5-3B-Instruct Q4_K_M (GGUF verificado)"),
+            approximateDownloadMb = 2_100, minimumDeviceRamGb = 8, recommendedDeviceRamGb = 8,
             contextTokens = 4096, mode = ModelExecutionMode.ON_DEVICE_OFFLINE,
             capabilities = setOf(ModelCapability.GENERAL_CHAT, ModelCapability.MULTI_STEP_REASONING, ModelCapability.CODE),
-            operational = false, license = "Pendiente de verificar por artefacto",
-            configurationNote = "Mejor razonamiento manteniendo una latencia moderada. Falta integrar y validar el GGUF."
+            operational = true, license = "Apache 2.0",
+            configurationNote = "Descargable: Qwen2.5-3B Q4_K_M. SHA-256 fijado; la carga se valida contra RAM libre y contexto."
         ),
         LanguageModelProfile(
             id = "powerful", displayName = "Potente", tier = ModelTier.POWERFUL,
-            recommendedModels = listOf("Qwen3.5-4B", "Phi-4-mini", "Gemma 4 E4B"),
-            approximateDownloadMb = 3_600, minimumDeviceRamGb = 8, recommendedDeviceRamGb = 12,
-            contextTokens = 8192, mode = ModelExecutionMode.ON_DEVICE_OFFLINE,
+            recommendedModels = listOf("Qwen2.5-7B-Instruct Q4_K_M (GGUF verificado)"),
+            approximateDownloadMb = 4_680, minimumDeviceRamGb = 12, recommendedDeviceRamGb = 12,
+            contextTokens = 4096, mode = ModelExecutionMode.ON_DEVICE_OFFLINE,
             capabilities = setOf(ModelCapability.GENERAL_CHAT, ModelCapability.MULTI_STEP_REASONING, ModelCapability.CODE, ModelCapability.LONG_CONTEXT),
-            operational = false, license = "Pendiente de verificar por artefacto",
-            configurationNote = "Planificación, código y tareas complejas. Cada variante necesita conversión GGUF, licencia y benchmark propios."
+            operational = true, license = "Apache 2.0",
+            configurationNote = "Descargable: Qwen2.5-7B Q4_K_M. Mayor capacidad; requiere margen amplio de RAM libre."
         ),
         LanguageModelProfile(
             id = "flagship", displayName = "Flagship", tier = ModelTier.FLAGSHIP,
-            recommendedModels = listOf("Qwen3.5-9B Q4", "Modelos Q4 de 7–8B"),
-            approximateDownloadMb = 6_000, minimumDeviceRamGb = 12, recommendedDeviceRamGb = 16,
-            contextTokens = 8192, mode = ModelExecutionMode.ON_DEVICE_OFFLINE,
+            recommendedModels = listOf("Qwen2.5-14B-Instruct Q3_K_M (GGUF verificado)"),
+            approximateDownloadMb = 7_340, minimumDeviceRamGb = 16, recommendedDeviceRamGb = 16,
+            contextTokens = 2048, mode = ModelExecutionMode.ON_DEVICE_OFFLINE,
             capabilities = setOf(ModelCapability.GENERAL_CHAT, ModelCapability.MULTI_STEP_REASONING, ModelCapability.CODE, ModelCapability.LONG_CONTEXT),
-            operational = false, license = "Pendiente de verificar por artefacto",
-            configurationNote = "Máxima calidad offline; requiere más memoria y tendrá mayor latencia y consumo."
+            operational = true, license = "Apache 2.0 (modelo base Qwen2.5)",
+            configurationNote = "Descargable: Qwen2.5-14B Q3_K_M. Perfil experimental; solo se carga con RAM libre suficiente."
         )
     )
 
