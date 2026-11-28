@@ -106,6 +106,7 @@ class ConnectorVoiceIntentRouterTest {
         assertEquals(ConnectorId.GOOGLE_MAPS, routed?.action?.connectorId)
         assertEquals("navigate", routed?.action?.operation)
         assertEquals("walking", routed?.action?.arguments?.get("mode"))
+        assertEquals("Zahara de los Atunes", routed?.action?.arguments?.get("destination"))
     }
 
     @Test
@@ -114,6 +115,27 @@ class ConnectorVoiceIntentRouterTest {
         assertEquals(ConnectorId.PESCAIA, routed?.action?.connectorId)
         assertEquals("search_public", routed?.action?.operation)
         assertEquals("mareas de Cádiz", routed?.action?.arguments?.get("query"))
+    }
+
+
+    @Test
+    fun mapsDestinationBeforeMapsPhraseIsPreserved() {
+        val routed = ConnectorVoiceIntentRouter.route("Llévame a Tarifa en Google Maps")
+        assertEquals("navigate", routed?.action?.operation)
+        assertEquals("Tarifa", routed?.action?.arguments?.get("destination"))
+    }
+
+    @Test
+    fun mapsRouteAfterMapsPhraseDoesNotLeakRouteWordIntoDestination() {
+        val routed = ConnectorVoiceIntentRouter.route("Abre Maps ruta a Cádiz")
+        assertEquals("navigate", routed?.action?.operation)
+        assertEquals("Cádiz", routed?.action?.arguments?.get("destination"))
+    }
+
+    @Test
+    fun pescaiaQueryBeforeBrandIsPreserved() {
+        val routed = ConnectorVoiceIntentRouter.route("Busca mareas de Tarifa en PescaIA")
+        assertEquals("mareas de Tarifa", routed?.action?.arguments?.get("query"))
     }
 
     @Test
