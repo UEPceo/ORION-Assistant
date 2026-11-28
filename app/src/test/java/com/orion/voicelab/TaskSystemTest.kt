@@ -312,7 +312,7 @@ class TaskSystemTest {
             // 3. Complete task -> alarm removed & notification cleared
             AndroidTaskReminderScheduler.showReminderNotification(app, t1)
             assertEquals(1, shadowNm.allNotifications.size)
-            val reminderNotification = shadowNm.allNotifications.single().notification
+            val reminderNotification = shadowNm.allNotifications.single()
             assertEquals(android.app.Notification.VISIBILITY_PRIVATE, reminderNotification.visibility)
             assertEquals("Tienes una tarea pendiente", reminderNotification.publicVersion.contentText)
 
