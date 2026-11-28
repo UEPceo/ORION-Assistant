@@ -262,16 +262,21 @@ class TelephonyAndRoomRobolectricTest {
             ContactsContract.CommonDataKinds.Phone.LABEL,
             ContactsContract.CommonDataKinds.Phone.STARRED
         )
-        val contactsCursor = RoboCursor().apply {
-            setColumnNames(cols.toList())
-            setResults(
-                arrayOf(
-                    arrayOf(101L, "María López", "+34 600 11 22 33", ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE, null, 1),
-                    arrayOf(102L, "Ángel Pérez", "611-222-333", ContactsContract.CommonDataKinds.Phone.TYPE_WORK, null, 0)
+        fun registerFreshContactsCursor() {
+            // Robolectric's shadow returns the registered cursor instance repeatedly; real
+            // ContentResolver queries return a fresh cursor for each call.
+            val contactsCursor = RoboCursor().apply {
+                setColumnNames(cols.toList())
+                setResults(
+                    arrayOf(
+                        arrayOf(101L, "María López", "+34 600 11 22 33", ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE, null, 1),
+                        arrayOf(102L, "Ángel Pérez", "611-222-333", ContactsContract.CommonDataKinds.Phone.TYPE_WORK, null, 0)
+                    )
                 )
-            )
+            }
+            shadowResolver.setCursor(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, contactsCursor)
         }
-        shadowResolver.setCursor(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, contactsCursor)
+        registerFreshContactsCursor()
 
         val pickedUri = Uri.parse("content://com.android.contacts/data/555")
         val pickedCursor = RoboCursor().apply {
@@ -305,10 +310,12 @@ class TelephonyAndRoomRobolectricTest {
             assertTrue(mariaHits.single().isFavorite)
 
             // Unformatted digit query matches "+34 600 11 22 33" and "611-222-333"
+            registerFreshContactsCursor()
             val digitHits = repo.queryNativeContacts("600112233")
             assertEquals(1, digitHits.size)
             assertEquals("María López", digitHits.single().displayName)
 
+            registerFreshContactsCursor()
             val angelHits = repo.queryNativeContacts("Angel")
             assertEquals("Ángel Pérez", angelHits.single().displayName)
 
