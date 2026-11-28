@@ -78,6 +78,7 @@ import com.orion.voicelab.knowledge.BrainPromptComposer
 import com.orion.voicelab.memory.ContextPromptBuilder
 import com.orion.voicelab.memory.MemoryCandidateExtractor
 import com.orion.voicelab.model.ModelManager
+import com.orion.voicelab.model.DownloadCancellationGuard
 import com.orion.voicelab.persistence.ContactRepository
 import com.orion.voicelab.persistence.ConversationRepository
 import com.orion.voicelab.persistence.IdentityRepository
@@ -922,7 +923,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 MoonshineModelManager.downloadAndInstall(
                     filesDir = appContext.filesDir,
                     cacheDir = appContext.cacheDir,
-                    shouldCancel = { downloadJob?.isActive != true },
+                    shouldCancel = { DownloadCancellationGuard(downloadJob).shouldCancel() },
                     onProgress = { percent ->
                         _uiState.update {
                             it.copy(modelState = ModelInstallState.Downloading(percent))
