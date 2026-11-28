@@ -180,7 +180,11 @@ class GitHubApiClient(
                             conclusion = item.optString("conclusion"),
                             branch = item.optString("head_branch").take(120),
                             htmlUrl = item.optString("html_url"),
-                            updatedAt = item.optString("updated_at")
+                            updatedAt = item.optString("updated_at"),
+                            runId = item.optLong("id"),
+                            headSha = item.optString("head_sha").take(40),
+                            event = item.optString("event").take(40),
+                            runAttempt = item.optInt("run_attempt", 1).coerceAtLeast(1)
                         ))
                     }
                 }
