@@ -122,6 +122,9 @@ object CodeChangeValidator {
         return CodeChangeValidation(errors.distinct(), warnings.toList(), totalBytes)
     }
 
+    fun containsPotentialSecret(content: String): Boolean =
+        secretPatterns.any { it.containsMatchIn(content) }
+
     fun isSafePath(path: String): Boolean {
         if (path.isBlank() || path.length > 500 || path.startsWith('/') ||
             path.contains('\\') || path.contains('\u0000') || path.contains(':') ||
