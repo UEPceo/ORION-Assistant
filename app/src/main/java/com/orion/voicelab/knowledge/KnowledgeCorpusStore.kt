@@ -23,11 +23,28 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
     private val neuralIndex = NeuralEmbeddingIndex(context)
 
     override suspend fun search(query: BrainQuery, limit: Int): List<KnowledgeDocument> =
-        withContext(Dispatchers.IO) {
+        searchInternal(query, limit, additionalDocument = null)
+
+    override suspend fun allDocuments(): List<KnowledgeDocument> =
+        withContext(Dispatchers.IO) { readAll() }
+
+    override suspend fun searchWithCandidate(
+        query: BrainQuery,
+        limit: Int,
+        candidate: KnowledgeDocument
+    ): List<KnowledgeDocument> = searchInternal(query, limit, candidate)
+
+    private suspend fun searchInternal(
+        query: BrainQuery,
+        limit: Int,
+        additionalDocument: KnowledgeDocument?
+    ): List<KnowledgeDocument> = withContext(Dispatchers.IO) {
             if (limit <= 0) return@withContext emptyList()
             val queryTerms = tokens(query.normalizedText)
             if (queryTerms.isEmpty()) return@withContext emptyList()
-            val documents = readAll().filter {
+            val documents = (readAll() + listOfNotNull(additionalDocument))
+                .distinctBy { it.evidence.id }
+                .filter {
                 it.evidence.domain == query.domain &&
                     (query.jurisdiction.isNullOrBlank() ||
                         it.evidence.jurisdiction.equals(query.jurisdiction, ignoreCase = true))
