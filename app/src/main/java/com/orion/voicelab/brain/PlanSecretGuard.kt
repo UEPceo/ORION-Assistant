@@ -27,8 +27,8 @@ object PlanSecretGuard {
         return sensitiveKeyMarkers.any(normalized::contains)
     }
 
-    fun redact(value: String): String {
-        var safe = value.take(6_000)
+    fun redact(value: String, maxChars: Int = 6_000): String {
+        var safe = value.take(maxChars.coerceIn(0, 1_500_000))
         secretPatterns.forEach { pattern -> safe = pattern.replace(safe, "[REDACTED]") }
         return safe
     }
