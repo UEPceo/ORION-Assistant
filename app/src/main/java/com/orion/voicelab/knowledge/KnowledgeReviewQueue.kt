@@ -91,11 +91,18 @@ class KnowledgeReviewQueueStore(
                     KnowledgeDomain.MARINE_WEATHER,
                     KnowledgeDomain.SOCIAL_MEDIA
                 )
+                val maxAgeMs = when (item.document.evidence.domain) {
+                    KnowledgeDomain.MARINE_WEATHER -> 24L * 60L * 60L * 1000L
+                    KnowledgeDomain.SOCIAL_MEDIA -> 30L * 24L * 60L * 60L * 1000L
+                    KnowledgeDomain.HEALTH_AND_SAFETY -> 180L * 24L * 60L * 60L * 1000L
+                    KnowledgeDomain.LAW_AND_REGULATION -> 365L * 24L * 60L * 60L * 1000L
+                    else -> -1L
+                }
                 val verification = KnowledgeVerifier.assess(
                     evidence = listOf(item.document.evidence),
                     domain = item.document.evidence.domain,
                     nowMs = nowMs(),
-                    maxAgeMs = -1L,
+                    maxAgeMs = maxAgeMs,
                     conflictDetected = item.document.conflictsWithIds.isNotEmpty(),
                     requiresPublishedDate = requiresPublishedDate
                 )
