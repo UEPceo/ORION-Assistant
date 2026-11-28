@@ -239,12 +239,15 @@ class GitHubApiClient(
             val baseTreeSha = commit.optJSONObject("tree")?.optString("sha").orEmpty()
             require(baseTreeSha.matches(Regex("[a-fA-F0-9]{40}"))) { "No se pudo leer el árbol base." }
             val baseTree = requestObject("/repos/${proposal.repository}/git/trees/$baseTreeSha?recursive=1")
-            val existing = mutableMapOf<String, String>()
+            require(!baseTree.optBoolean("truncated")) {
+                "El árbol del repositorio supera el límite de inspección; no se aplicarán cambios parciales."
+            }
+            val existing = mutableMapOf<String, Pair<String, String>>()
             val treeItems = baseTree.optJSONArray("tree") ?: JSONArray()
             for (index in 0 until treeItems.length()) {
                 val item = treeItems.optJSONObject(index) ?: continue
                 if (item.optString("type") == "blob") {
-                    existing[item.optString("path")] = item.optString("sha")
+                    existing[item.optString("path")] = item.optString("sha") to item.optString("mode")
                 }
             }
 
@@ -255,14 +258,19 @@ class GitHubApiClient(
                     CodeFileOperation.CREATE -> require(currentBlob == null) {
                         "El archivo ya existe y no puede crearse encima: ${change.path}."
                     }
-                    CodeFileOperation.UPDATE, CodeFileOperation.DELETE -> require(
-                        currentBlob != null && currentBlob.equals(change.expectedBlobSha, ignoreCase = true)
-                    ) { "El archivo cambió desde la revisión: ${change.path}." }
+                    CodeFileOperation.UPDATE, CodeFileOperation.DELETE -> {
+                        require(currentBlob != null && currentBlob.first.equals(change.expectedBlobSha, ignoreCase = true)) {
+                            "El archivo cambió desde la revisión: ${change.path}."
+                        }
+                        require(currentBlob.second == "100644" || currentBlob.second == "100755") {
+                            "ORION solo modifica archivos regulares; se rechaza enlace simbólico o submódulo: ${change.path}."
+                        }
+                    }
                 }
 
                 val entry = JSONObject()
                     .put("path", change.path)
-                    .put("mode", "100644")
+                    .put("mode", currentBlob?.second ?: "100644")
                     .put("type", "blob")
                 if (change.operation == CodeFileOperation.DELETE) {
                     entry.put("sha", JSONObject.NULL)
