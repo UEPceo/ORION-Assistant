@@ -14,6 +14,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicBoolean
 
 data class RemoteInferenceSettings(
     val enabled: Boolean = false,
@@ -98,10 +99,12 @@ class RemoteInferenceClient(
     private val readTimeoutMs: Int = 90_000
 ) {
     private val activeConnection = AtomicReference<HttpURLConnection?>(null)
-    fun cancel() { activeConnection.getAndSet(null)?.disconnect() }
+    private val cancelRequested = AtomicBoolean(false)
+    fun cancel() { cancelRequested.set(true); activeConnection.getAndSet(null)?.disconnect() }
 
     suspend fun generate(systemPrompt: String, history: List<com.orion.voicelab.data.ChatMessage>): LlmGenerationResult =
         withContext(Dispatchers.IO) {
+            cancelRequested.set(false)
             val normalized = endpoint.trim().trimEnd('/')
             require(isSafeEndpoint(normalized)) { "El endpoint debe usar HTTPS o una dirección HTTP local/de red privada." }
             require(model.isNotBlank() && model.length <= 160) { "Identificador de modelo no válido." }
@@ -150,6 +153,9 @@ class RemoteInferenceClient(
                 check(content.isNotBlank()) { "El servidor remoto devolvió una respuesta vacía." }
                 val elapsed = (System.nanoTime() - started) / 1_000_000L
                 LlmGenerationResult(content, elapsed, elapsed, content.split(Regex("\\s+")).size, false)
+            } catch (error: Exception) {
+                if (cancelRequested.get()) throw kotlinx.coroutines.CancellationException("Solicitud remota cancelada")
+                throw error
             } finally {
                 activeConnection.compareAndSet(connection, null)
                 connection.disconnect()
