@@ -28,7 +28,7 @@ class BrainRetrievalEngine(
                 )
             }
         }
-        val candidates = retrieved.filter { document ->
+        val rankedCandidates = retrieved.filter { document ->
             document.evidence.domain == query.domain &&
                 document.evidence.canonicalUrl.startsWith("https://") &&
                 document.evidence.content.isNotBlank()
@@ -49,10 +49,15 @@ class BrainRetrievalEngine(
             )
             .take(maxDocuments)
             .map { it.copy(excerpt = it.excerpt.take(maxExcerptChars)) }
+        val detectedConflicts = KnowledgeConflictDetector.detect(rankedCandidates)
+        val candidates = rankedCandidates.map { document ->
+            val related = detectedConflicts.filter { document.evidence.id in it }.flatMap { it.toList() }.filter { it != document.evidence.id }.toSet()
+            document.copy(conflictsWithIds = document.conflictsWithIds + related)
+        }
 
         val maxAge = freshnessWindowMs(query.domain)
         val candidateIds = candidates.map { it.evidence.id }.toSet()
-        val conflictDetected = candidates.any { document ->
+        val conflictDetected = detectedConflicts.isNotEmpty() || candidates.any { document ->
             document.conflictsWithIds.any { it in candidateIds }
         }
         val verification = KnowledgeVerifier.assess(
