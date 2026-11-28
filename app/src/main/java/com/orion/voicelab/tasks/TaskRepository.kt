@@ -192,6 +192,8 @@ class TaskRepository(
         newReminderAtMs: Long?
     ): TaskItem? {
         val existing = taskDao.getTaskById(id)?.toDomain() ?: return null
+        // A completed or cancelled task must never regain an active reminder.
+        if (existing.status != TaskStatus.PENDING) return existing
         val now = clockMs()
         val effectiveDate = newDueDateEpochDay ?: existing.dueDateEpochDay
         val effectiveTime = newDueTimeMinutes ?: existing.dueTimeMinutes
