@@ -11,6 +11,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
+fun interface GitHubTokenRefresher {
+    suspend fun refreshAccessToken(refreshToken: String): Result<GitHubDeviceAuthorizationResult.Authorized>
+}
+
 data class GitHubDeviceAuthorization(
     val userCode: String,
     val verificationUri: String,
@@ -42,7 +46,7 @@ sealed interface GitHubDeviceAuthorizationResult {
  */
 class GitHubDeviceFlowAuthenticator(
     private val clientId: String = BuildConfig.ORION_GITHUB_CLIENT_ID
-) {
+) : GitHubTokenRefresher {
     fun isConfigured(): Boolean = clientId.isNotBlank()
 
     suspend fun requestAuthorization(): Result<GitHubDeviceAuthorization> = withContext(Dispatchers.IO) {
@@ -82,7 +86,7 @@ class GitHubDeviceFlowAuthenticator(
     }
 
     /** Refreshes a GitHub App user token. Device-flow public clients do not send a client secret. */
-    suspend fun refreshAccessToken(refreshToken: String): Result<GitHubDeviceAuthorizationResult.Authorized> =
+    override suspend fun refreshAccessToken(refreshToken: String): Result<GitHubDeviceAuthorizationResult.Authorized> =
         withContext(Dispatchers.IO) {
             if (!isConfigured()) {
                 return@withContext Result.failure(
@@ -161,6 +165,8 @@ class GitHubDeviceFlowAuthenticator(
     }
 
     private fun parseAuthorizedResponse(json: JSONObject): GitHubDeviceAuthorizationResult.Authorized {
+        val error = json.optString("error")
+        if (error.isNotBlank()) throw IllegalStateException(safeErrorMessage(error))
         val token = json.optString("access_token")
         require(token.isNotBlank()) { "GitHub no devolvió un token de acceso." }
         return GitHubDeviceAuthorizationResult.Authorized(
