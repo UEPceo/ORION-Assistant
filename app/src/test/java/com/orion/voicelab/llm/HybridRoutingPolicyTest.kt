@@ -1,25 +1,31 @@
 package com.orion.voicelab.llm
 
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class HybridRoutingPolicyTest {
-    @Test fun localModeNeverRoutesRemotely() {
-        assertFalse(HybridRoutingPolicy.shouldUseRemote(RemoteInferenceSettings.MODE_LOCAL, "auditoría de código"))
+    @Test fun quickRequestsAlwaysStayLocal() {
+        assertEquals(InferenceRoute.LOCAL, InferenceRoutingPolicy.decide("lite", "¿Qué hora es?", true).route)
+        assertEquals(InferenceRoute.LOCAL, InferenceRoutingPolicy.decide("lite", "Recuérdame comprar leche", true).route)
     }
 
-    @Test fun autoModeRoutesComplexRequests() {
-        assertTrue(HybridRoutingPolicy.shouldUseRemote(RemoteInferenceSettings.MODE_AUTO, "Analiza la arquitectura y depura este proyecto"))
-        assertTrue(HybridRoutingPolicy.shouldUseRemote(RemoteInferenceSettings.MODE_AUTO, "x".repeat(900)))
+    @Test fun balancedAndPowerfulProfilesHandleCodeLocally() {
+        assertEquals(InferenceRoute.LOCAL, InferenceRoutingPolicy.decide("balanced", "Depura esta función Kotlin", true).route)
+        assertEquals(InferenceRoute.LOCAL, InferenceRoutingPolicy.decide("powerful", "Diseña una arquitectura Android", true).route)
     }
 
-    @Test fun autoModeKeepsSimpleRequestsLocal() {
-        assertFalse(HybridRoutingPolicy.shouldUseRemote(RemoteInferenceSettings.MODE_AUTO, "¿Qué hora es?"))
-        assertFalse(HybridRoutingPolicy.shouldUseRemote(RemoteInferenceSettings.MODE_AUTO, "Recuérdame comprar leche"))
+    @Test fun liteCanDelegateCodeWhenConsented() {
+        assertEquals(InferenceRoute.REMOTE, InferenceRoutingPolicy.decide("lite", "Depura esta función Kotlin", true).route)
+        assertEquals(InferenceRoute.LOCAL, InferenceRoutingPolicy.decide("lite", "Depura esta función Kotlin", false).route)
     }
 
-    @Test fun remoteOnlyRoutesEveryRequest() {
-        assertTrue(HybridRoutingPolicy.shouldUseRemote(RemoteInferenceSettings.MODE_REMOTE_ONLY, "Hola"))
+    @Test fun deepResearchAndLongPlansUseRemoteOnlyWithConsent() {
+        assertEquals(InferenceRoute.REMOTE, InferenceRoutingPolicy.decide("powerful", "Haz una investigación profunda sobre el tema y contrasta fuentes", true).route)
+        assertEquals(InferenceRoute.LOCAL, InferenceRoutingPolicy.decide("powerful", "Haz una investigación profunda sobre el tema y contrasta fuentes", false).route)
+        assertEquals(InferenceRoute.REMOTE, InferenceRoutingPolicy.decide("flagship", "Diseña un plan de 90 días con todas las fases", true).route)
+    }
+
+    @Test fun expertAnalysisUsesRemoteWhenConfigured() {
+        assertEquals(InferenceRoute.REMOTE, InferenceRoutingPolicy.decide("powerful", "Realiza una auditoría exhaustiva de seguridad", true).route)
     }
 }
