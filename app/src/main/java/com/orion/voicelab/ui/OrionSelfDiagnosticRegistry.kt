@@ -16,7 +16,7 @@ import com.orion.voicelab.data.VoiceLabUiState
  * unless the diagnostic log contains matching evidence.
  */
 object OrionSelfDiagnosticRegistry {
-    const val REGISTRY_VERSION = "1.3"
+    const val REGISTRY_VERSION = "1.4"
 
     private data class ModuleProfile(
         val id: String,
@@ -81,7 +81,7 @@ object OrionSelfDiagnosticRegistry {
             "Conocimiento y recuperación local",
             "OrionBrainRuntime y repositorio de conocimiento",
             "corpus local; índice léxico y semántico disperso; encoder neuronal ONNX opcional (ONNX Runtime Android 1.28.0 y Extensions 0.13.0)",
-            "fuentes registradas, fragmentación documental, estado del encoder opcional e inferencia local",
+            "fuentes registradas, fragmentación documental, smoke test real ONNX, dimensión/norma del vector y fallback léxico si falla",
             "si ONNX falla, conservar la recuperación léxica y dispersa; comprobar archivo, SHA-256, ABI y bibliotecas nativas antes de reinstalar"
         ),
         ModuleProfile(
@@ -89,16 +89,32 @@ object OrionSelfDiagnosticRegistry {
             "Diseño y multimedia",
             "CreativeSkillRouter, OrionMediaRuntime, MediaUploadCoordinator",
             "proveedor ComfyUI remoto/local aún por configurar",
-            "proveedor registrado, endpoint, consentimiento puntual y conectividad",
+            "endpoint ComfyUI, workflow validado, prueba reciente de /system_stats, consentimiento puntual y conectividad",
             "configurar proveedor compatible; obtener consentimiento específico antes de transmitir archivos"
         ),
         ModuleProfile(
             "PLANNING",
             "Planificación y ejecución multipaso",
             "PlanningContracts, PlanExecutionPersistence, ConnectorPlanStepRunner, VoiceLabViewModel",
-            "Room plan_executions; migración 4→5; ConnectorDispatcher y puerta de confirmación",
+            "Room cifrado con SQLCipher; Android Keystore; migración Room 4→5; ConnectorDispatcher y puerta de confirmación",
             "validación del grafo, estado de checkpoints, pasos RUNNING interrumpidos, autorizaciones pendientes y referencias de resultado",
             "revisar pasos fallidos con resultado incierto; no repetir escrituras externas sin verificar; reautorizar cada paso protegido al reanudar"
+        ),
+        ModuleProfile(
+            "DATABASE",
+            "Persistencia privada cifrada",
+            "OrionDatabase, OrionDatabaseEncryption, PlanExecutionRepository",
+            "Room 2.8.4; SQLCipher Android 4.6.1; Android Keystore AES-GCM",
+            "PRAGMA cipher_version, cabecera no SQLite, clave envuelta disponible y migración sin pérdida",
+            "no regenerar una clave si falta la anterior; conservar/restaurar la base antigua ante una conversión fallida; exportación de recuperación aún no disponible"
+        ),
+        ModuleProfile(
+            "AUTONOMY",
+            "Límites de aprendizaje y autonomía",
+            "ExplicitKnowledgeLearningIntent, KnowledgeReviewQueue, ToolCapabilityCatalog",
+            "orden explícita, cuarentena, revisión humana y gate de regresión",
+            "origen explícito, aprobación humana, resultado del gate y ausencia de entrenamiento/modificación autónoma",
+            "no presentar captura de conocimiento como entrenamiento; no modificar código, pesos ni políticas por iniciativa propia"
         ),
         ModuleProfile(
             "DIAGNOSTICS",
