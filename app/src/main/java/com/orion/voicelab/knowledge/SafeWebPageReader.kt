@@ -127,8 +127,9 @@ internal object SafeWebPageReader {
             if (!isGlobalUnicast) return true
             val isIetfProtocolAssignment = bytes[0] == 0x20 &&
                 bytes[1] == 0x01 && (bytes[2] == 0x00 || bytes[2] == 0x01)
-            val isDocumentation = bytes[0] == 0x3f && bytes[1] == 0xff &&
-                (bytes[2] and 0xf0) == 0x00 // 3fff::/20
+            val isDocumentation = (bytes[0] == 0x3f && bytes[1] == 0xff &&
+                (bytes[2] and 0xf0) == 0x00) || // 3fff::/20
+                (bytes[0] == 0x20 && bytes[1] == 0x01 && bytes[2] == 0x0d && bytes[3] == 0xb8) // 2001:db8::/32
             val isSixToFour = bytes[0] == 0x20 && bytes[1] == 0x02 // 2002::/16
             val isWellKnownNat64 = bytes[0] == 0x00 && bytes[1] == 0x64 &&
                 bytes[2] == 0xff && bytes[3] == 0x9b &&
