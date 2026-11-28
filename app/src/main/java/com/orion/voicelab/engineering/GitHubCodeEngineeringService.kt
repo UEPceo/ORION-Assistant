@@ -62,8 +62,10 @@ class GitHubCodeEngineeringService(
     suspend fun prepare(
         session: CodeEngineeringSession,
         task: String,
-        selectedPaths: List<String>
+        selectedPaths: List<String>,
+        userConfirmedSourceContext: Boolean
     ): Result<PreparedCodeChange> = runCatching {
+        require(userConfirmedSourceContext) { "Debes autorizar expresamente el envío del contexto de código al modelo." }
         require(authority.isTaskAuthorized(session.grant.id, task)) {
             "La tarea no coincide con la autorización de esta sesión."
         }
