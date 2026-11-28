@@ -56,7 +56,7 @@ The keystore is used only to sign CI debug APKs. Keep it private in GitHub Actio
 
 ## Connector hardening and test coverage
 
-- GitHub repository names and file paths reject traversal segments, encoded separators and ambiguous path components. The action gate no longer marks unimplemented repository/file/PR operations as safe read operations. Repository listing requests explicit owner, collaborator and organization-member affiliations; actual visibility still follows GitHub App installation and granted metadata permissions.
+- GitHub repository names and file paths reject traversal segments, encoded separators and ambiguous path components. The action gate uses an exact allowlist per provider and denies unsupported operations, including unimplemented repository/file/PR actions; generic placeholders such as `get` or `fetch` are not trusted. Repository listing requests explicit owner, collaborator and organization-member affiliations; actual visibility still follows GitHub App installation and granted metadata permissions.
 - GitHub refresh-token rotation is serialized. A transient network failure remains a retryable service failure; only an invalid/expired refresh grant maps to reauthorization.
 - Google Maps navigation uses the documented `https://www.google.com/maps/dir/?api=1` URL and `travelmode=transit` for public transport.
 - PescaIA redirects are followed manually, limited to five hops, HTTPS-only, standard HTTPS port, and exact apex/www host allowlist. The lightweight reader does not execute JavaScript; if static HTML yields almost no text it returns no result instead of inventing content.
