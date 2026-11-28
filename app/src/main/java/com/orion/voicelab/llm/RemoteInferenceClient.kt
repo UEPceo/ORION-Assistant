@@ -106,11 +106,12 @@ internal object RemoteInferencePayload {
             JSONObject().put("role", "system")
                 .put("content", systemPrompt.take(MAX_SYSTEM_PROMPT_CHARS))
         )
-        history.takeLast(MAX_HISTORY_MESSAGES).forEach { msg ->
+        history.filter { it.role != com.orion.voicelab.data.ChatRole.SYSTEM }
+            .takeLast(MAX_HISTORY_MESSAGES).forEach { msg ->
             val role = when (msg.role) {
                 com.orion.voicelab.data.ChatRole.USER -> "user"
                 com.orion.voicelab.data.ChatRole.ASSISTANT -> "assistant"
-                com.orion.voicelab.data.ChatRole.SYSTEM -> "system"
+                com.orion.voicelab.data.ChatRole.SYSTEM -> error("System history is excluded.")
             }
             messages.put(
                 JSONObject().put("role", role)
