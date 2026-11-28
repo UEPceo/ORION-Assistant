@@ -96,11 +96,13 @@ class KnowledgeSemanticIndex(context: Context) {
             token.windowed(3, 1, partialWindows = false).forEach { gram ->
                 weights["c:$gram"] = (weights["c:$gram"] ?: 0.0) + 0.12
             }
-            CONCEPTS.forEach { (concept, aliases) ->
-                if (token in aliases || token == concept) {
-                    weights["s:$concept"] = (weights["s:$concept"] ?: 0.0) + 1.5
-                }
+            CrossDomainConceptGraph.directConcepts(token).forEach { concept ->
+                weights["s:$concept"] = (weights["s:$concept"] ?: 0.0) + 1.5
             }
+        }
+        val seedConcepts = weights.keys.filter { it.startsWith("s:") }.map { it.removePrefix("s:") }.toSet()
+        CrossDomainConceptGraph.associatedConcepts(seedConcepts).forEach { (concept, activation) ->
+            weights["s:$concept"] = (weights["s:$concept"] ?: 0.0) + activation
         }
         return weights
     }
@@ -119,23 +121,4 @@ class KnowledgeSemanticIndex(context: Context) {
         return if (leftNorm == 0.0 || rightNorm == 0.0) 0.0 else (dot / (leftNorm * rightNorm)).coerceIn(0.0, 1.0)
     }
 
-    private companion object {
-        val CONCEPTS = mapOf(
-            "authentication" to setOf("login", "signin", "credential", "password", "contrasena", "contrasenas", "autenticacion", "identidad", "clave", "acceso", "credencial", "credenciales", "pin"),
-            "security" to setOf("seguridad", "proteccion", "proteger", "defensa", "vulnerabilidad", "amenaza", "ataque", "ciberseguridad"),
-            "emergency" to setOf("emergencia", "urgencia", "auxilio", "112", "socorro", "accidente"),
-            "law" to setOf("ley", "normativa", "legislacion", "reglamento", "decreto", "legal", "juridico"),
-            "fishing" to setOf("pesca", "pescador", "captura", "anzuelo", "cebo", "surfcasting", "licencia"),
-            "programming" to setOf("programacion", "codigo", "desarrollo", "software", "algoritmo", "kotlin", "python"),
-            "web" to setOf("internet", "http", "https", "servidor", "navegador", "api", "web"),
-            "concurrency" to setOf("coroutine", "coroutines", "concurrencia", "paralelo", "asincrono", "suspend"),
-            "finance" to setOf("finanzas", "dinero", "inversion", "presupuesto", "coste", "ingresos", "gastos", "ahorro", "credito", "hipoteca", "tae", "acciones", "bonos", "interes"),
-            "mathematics" to setOf("matematicas", "algebra", "calculo", "derivada", "integral", "ecuacion", "geometria", "estadistica", "probabilidad", "teorema"),
-            "science" to setOf("ciencia", "cientifico", "fisica", "quimica", "biologia", "astronomia", "experimento", "hipotesis", "investigacion"),
-            "engineering" to setOf("ingenieria", "mecanica", "electronica", "termodinamica", "metrologia", "materiales", "sistemas"),
-            "business" to setOf("empresa", "negocio", "emprendimiento", "pyme", "ventas", "marketing", "cliente", "mercado", "productividad"),
-            "communication" to setOf("comunicacion", "redaccion", "escritura", "oratoria", "argumentacion", "presentacion", "narrativa", "accesibilidad"),
-            "creativity" to setOf("creatividad", "diseno", "tipografia", "composicion", "prototipo", "licencia", "autor")
-        )
-    }
-}
+    private companion object {\n    }\n}\n
