@@ -3,6 +3,7 @@ package com.orion.voicelab.model
 import java.io.File
 import java.security.MessageDigest
 import java.util.Base64
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Records the cryptographic identity of files extracted from an archive whose
@@ -15,6 +16,7 @@ import java.util.Base64
 internal object ModelIntegrityManifest {
     private const val FILE_NAME = ".orion-integrity-v1"
     private const val HEADER = "ORION-MODEL-INTEGRITY-V1"
+    private val verifiedLargeFiles = ConcurrentHashMap<String, VerifiedSnapshot>()
 
     fun createDirectoryManifest(root: File) {
         require(root.isDirectory) { "Directorio de modelo inexistente: ${root.path}" }
@@ -38,13 +40,16 @@ internal object ModelIntegrityManifest {
             "SHA-256 del archivo instalado no coincide con el artefacto fijado"
         }
         write(root, listOf(Entry(file.relativeTo(root).invariantSeparatorsPath, file.length(), file.lastModified(), actual)))
+        verifiedLargeFiles[file.canonicalPath] = VerifiedSnapshot(file.length(), file.lastModified(), actual)
     }
 
-    fun verifyDirectory(root: File): Boolean = verify(root, hashEveryFile = true)
+    fun verifyDirectory(root: File): Boolean = verify(root, hashEveryFile = true, expectedSha256 = null)
 
-    fun verifySingleLargeFile(root: File): Boolean = verify(root, hashEveryFile = false)
+    /** Re-hashes a large model once per process against its pinned digest. */
+    fun verifySingleLargeFile(root: File, expectedSha256: String): Boolean =
+        verify(root, hashEveryFile = false, expectedSha256 = expectedSha256)
 
-    private fun verify(root: File, hashEveryFile: Boolean): Boolean = runCatching {
+    private fun verify(root: File, hashEveryFile: Boolean, expectedSha256: String?): Boolean = runCatching {
         val manifest = File(root, FILE_NAME)
         if (!root.isDirectory || !manifest.isFile) return false
         val lines = manifest.readLines(Charsets.UTF_8)
@@ -67,8 +72,20 @@ internal object ModelIntegrityManifest {
                 false
             } else if (file.length() != entry.length) {
                 false
-            } else if (!hashEveryFile && file.lastModified() == entry.lastModified) {
-                true
+            } else if (expectedSha256 != null && !entry.sha256.equals(expectedSha256, ignoreCase = true)) {
+                false
+            } else if (!hashEveryFile) {
+                val canonical = file.canonicalPath
+                val snapshot = VerifiedSnapshot(file.length(), file.lastModified(), entry.sha256)
+                if (verifiedLargeFiles[canonical] == snapshot) {
+                    true
+                } else {
+                    val actual = sha256(file)
+                    val valid = actual.equals(entry.sha256, ignoreCase = true) &&
+                        (expectedSha256 == null || actual.equals(expectedSha256, ignoreCase = true))
+                    if (valid) verifiedLargeFiles[canonical] = snapshot.copy(sha256 = actual)
+                    valid
+                }
             } else {
                 sha256(file).equals(entry.sha256, ignoreCase = true)
             }
@@ -108,6 +125,8 @@ internal object ModelIntegrityManifest {
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
+
+    private data class VerifiedSnapshot(val length: Long, val lastModified: Long, val sha256: String)
 
     private data class Entry(
         val path: String,
