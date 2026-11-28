@@ -595,7 +595,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     fun prepareCodeEngineeringRepair(
         session: CodeEngineeringSession,
-        selectedPaths: List<String>
+        selectedPaths: List<String>,
+        userConfirmedSourceContext: Boolean
     ): Job = viewModelScope.launch(Dispatchers.IO) {
         val current = _codeEngineeringState.value
         val inspection = current.ciInspection
