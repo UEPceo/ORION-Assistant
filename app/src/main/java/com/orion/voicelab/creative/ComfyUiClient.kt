@@ -29,7 +29,7 @@ data class ComfyUiEndpointConfig(val baseUrl:String, val bearerToken:String?=nul
         val h=host.lowercase().trimEnd('.').removeSurrounding("[","]")
         if(h=="localhost" || h.endsWith(".localhost") || h.endsWith(".local")) return true
         val parts=h.split(".")
-        if(parts.size!=4 || parts.any { it.toIntOrNull() !in 0..255 }) return h=="::1" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80:")
+        if(parts.size!=4 || parts.any { (it.toIntOrNull() ?: -1) !in 0..255 }) return h=="::1" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80:")
         val a=parts[0].toInt(); val b=parts[1].toInt()
         return a==10 || a==127 || a==192&&b==168 || a==172&&b in 16..31 || a==169&&b==254
     }
