@@ -1282,6 +1282,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val url = voice.downloadUrl ?: return
         if (voice.isInstalled || _uiState.value.voiceDownloadingId != null) return
         viewModelScope.launch(Dispatchers.IO) {
+            val downloadGuard = DownloadCancellationGuard(currentCoroutineContext()[Job])
             voiceDownloadMutex.withLock {
                 _uiState.update { it.copy(
                     voiceDownloadingId = voiceId,
@@ -1296,7 +1297,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                         archiveName = "${voice.modelDirectoryName}.tar.bz2",
                         modelFileName = voice.modelFileName,
                         url = url,
-                        shouldCancel = { !viewModelScope.isActive },
+                        shouldCancel = downloadGuard::shouldCancel,
                         onProgress = { percent, downloadedMb, totalMb ->
                             _uiState.update { it.copy(
                                 voiceDownloadProgressPercent = percent,
