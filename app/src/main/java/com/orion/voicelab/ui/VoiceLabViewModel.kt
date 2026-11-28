@@ -530,7 +530,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     fun prepareCodeEngineeringChange(
         session: CodeEngineeringSession,
         task: String,
-        selectedPaths: List<String>
+        selectedPaths: List<String>,
+        userConfirmedSourceContext: Boolean
     ): Job = viewModelScope.launch(Dispatchers.IO) {
         _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = true, error = null)
         codeEngineeringService.prepare(session, task, selectedPaths).fold(
@@ -604,7 +605,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         }
         val attempt = current.repairAttemptsUsed + 1
         _codeEngineeringState.value = current.copy(isWorking = true, error = null)
-        codeEngineeringService.prepareRepair(session, inspection, attempt, selectedPaths).fold(
+        codeEngineeringService.prepareRepair(session, inspection, attempt, selectedPaths, userConfirmedSourceContext).fold(
             onSuccess = { prepared ->
                 _codeEngineeringState.value = _codeEngineeringState.value.copy(
                     isWorking = false,
