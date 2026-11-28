@@ -1,6 +1,5 @@
 package com.orion.voicelab.connectors.gmail
 
-import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -16,9 +15,7 @@ data class GmailMessageSummary(
     val threadId: String,
     val from: String,
     val subject: String,
-    val date: String,
-    val snippet: String,
-    val bodyText: String = ""
+    val date: String
 )
 
 /**
@@ -68,7 +65,7 @@ class GmailApiClient(
             }
         }
 
-    private fun JSONObject.toSummary(includeBody: Boolean = false): GmailMessageSummary {
+    private fun JSONObject.toSummary(): GmailMessageSummary {
         val payload = optJSONObject("payload")
         val headers = payload?.optJSONArray("headers") ?: JSONArray()
         var from = ""
@@ -87,9 +84,7 @@ class GmailApiClient(
             threadId = optString("threadId"),
             from = from,
             subject = subject,
-            date = date,
-            snippet = optString("snippet").take(MAX_SNIPPET_LENGTH),
-            bodyText = if (includeBody && payload != null) payload.extractPlainText().take(MAX_BODY_LENGTH) else ""
+            date = date
         )
     }
 
@@ -114,25 +109,6 @@ class GmailApiClient(
         }
     }
 
-    private fun JSONObject.extractPlainText(): String {
-        val mimeType = optString("mimeType").lowercase()
-        if (mimeType == "text/plain") {
-            val encoded = optJSONObject("body")?.optString("data").orEmpty()
-            if (encoded.isNotBlank()) {
-                return runCatching {
-                    String(Base64.decode(encoded, Base64.URL_SAFE or Base64.NO_WRAP), Charsets.UTF_8)
-                }.getOrDefault("")
-            }
-        }
-        val parts = optJSONArray("parts") ?: return ""
-        for (i in 0 until parts.length()) {
-            val part = parts.optJSONObject(i) ?: continue
-            val text = part.extractPlainText()
-            if (text.isNotBlank()) return text
-        }
-        return ""
-    }
-
     private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
 
     class ReauthorizationRequiredException : IllegalStateException("La autorización de Gmail ha caducado. Vuelve a conectar la cuenta.")
@@ -142,8 +118,6 @@ class GmailApiClient(
         const val MAX_RESULTS = 20
         const val MAX_QUERY_LENGTH = 256
         const val MAX_HEADER_LENGTH = 300
-        const val MAX_SNIPPET_LENGTH = 500
-        const val MAX_BODY_LENGTH = 3_000
         const val MAX_RESPONSE_BYTES = 1_000_000
         const val TIMEOUT_MS = 15_000
     }
