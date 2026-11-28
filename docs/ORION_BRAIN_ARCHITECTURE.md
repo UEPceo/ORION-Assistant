@@ -69,7 +69,7 @@ Aprender significa actualizar el corpus recuperable, registrar correcciones y me
 ## Líneas prioritarias de evolución (28/11/2026)
 
 - La aceleración GPU/NPU se desarrollará como backend alternativo LiteRT-LM, conservando llama.cpp GGUF CPU como fallback. No se dará por compatible una NPU hasta verificar el SoC concreto y ejecutar una inferencia real. Diseño: `docs/ORION_ACCELERATED_INFERENCE_BACKEND.md`.
-- La ingeniería de software es una capacidad central en construcción: GitHub tiene workspace acotado, generación de parches estructurados, autorización temporal y commits aprobados; GitHub Actions valida ORION en runner efímero. La interfaz de diff, el bucle autónomo de reparación y un runner universal siguen pendientes. Diseño: `docs/ORION_CODE_ENGINEERING.md`.
+- La ingeniería de software es una capacidad central en construcción: GitHub tiene workspace acotado, generación de parches estructurados, autorización temporal y commits aprobados; GitHub Actions valida ORION en runner efímero. El diff y la aprobación están en la pantalla Conectores; el bucle de reparación y un runner universal siguen pendientes. Diseño: `docs/ORION_CODE_ENGINEERING.md`.
 - El aprendizaje continuo se organizará como captura, cuarentena, verificación, revisión, publicación, versionado y evaluación de regresiones. No implica autoentrenar pesos del LLM. Estado y brechas: `docs/ORION_CONTINUOUS_LEARNING.md`.
 
 ## Capacidad de programación y autonomía
