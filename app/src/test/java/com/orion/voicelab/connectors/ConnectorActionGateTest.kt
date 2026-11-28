@@ -111,6 +111,40 @@ class ConnectorActionGateTest {
     }
 
     @Test
+    fun githubCodeWritesRequireConfirmationAndCannotBeMislabelledReadOnly() {
+        listOf("create_branch", "commit_changes", "create_pull_request").forEach { operation ->
+            assertEquals(
+                ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION,
+                ConnectorActionGate.evaluate(
+                    ConnectorAction(ConnectorId.GITHUB, operation, risk = ConnectorRisk.REVERSIBLE_WRITE),
+                    userRequestedExactAction = true,
+                    connectorConnected = true
+                )
+            )
+            assertEquals(
+                ConnectorAuthorizationDecision.DENY,
+                ConnectorActionGate.evaluate(
+                    ConnectorAction(ConnectorId.GITHUB, operation, risk = ConnectorRisk.READ_ONLY),
+                    userRequestedExactAction = true,
+                    connectorConnected = true
+                )
+            )
+        }
+    }
+
+    @Test
+    fun unknownGithubWriteOperationIsDenied() {
+        assertEquals(
+            ConnectorAuthorizationDecision.DENY,
+            ConnectorActionGate.evaluate(
+                ConnectorAction(ConnectorId.GITHUB, "delete_repository", risk = ConnectorRisk.REVERSIBLE_WRITE),
+                userRequestedExactAction = true,
+                connectorConnected = true
+            )
+        )
+    }
+
+    @Test
     fun externalSideEffectsAlwaysRequireConfirmation() {
         val action = ConnectorAction(
             connectorId = ConnectorId.GMAIL,
