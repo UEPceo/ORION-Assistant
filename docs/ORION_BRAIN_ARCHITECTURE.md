@@ -456,3 +456,8 @@ La implementación actual de LlamaCppLanguageModel solicita n_gpu_layers=0; por 
 La interfaz de consentimiento se ha ajustado para describir el payload real del cliente remoto: prompt de sistema y hasta los últimos 12 mensajes, con límite de 8.000 caracteres por mensaje. El prompt de sistema puede contener instrucciones y contexto que ORION haya preparado para la consulta. No se envía el historial completo ni archivos adjuntos. La autorización sigue siendo explícita y persistente hasta que el usuario la desactive; el modo Solo local no transmite contenido.
 
 La ruta remota continúa siendo opcional. No se requiere proveedor comercial: puede apuntar a un servidor autoalojado compatible. Antes de activar la delegación automática en producción, quedan pendientes pruebas de redacción/minimización del prompt y pruebas unitarias que inspeccionen el JSON exacto transmitido.
+
+
+## Pruebas de minimización del payload remoto
+
+Se ha extraído la construcción del JSON remoto a `RemoteInferencePayload`. Las pruebas unitarias cubren el máximo de 12 mensajes recientes, los límites de 24.000 caracteres para el prompt de sistema y 8.000 por mensaje, y el mapeo de roles OpenAI. La prueba confirma el contrato del payload; no demuestra por sí sola el comportamiento de un servidor externo ni la seguridad de red extremo a extremo.
