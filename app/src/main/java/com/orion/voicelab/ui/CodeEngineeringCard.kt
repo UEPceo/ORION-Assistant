@@ -23,7 +23,7 @@ fun CodeEngineeringCard(
     onCommit: (CodeEngineeringSession,String,Boolean)->Unit,
     onCreatePullRequest: (CodeEngineeringSession,String,String,Boolean)->Unit,
     onInspectCi: (CodeEngineeringSession)->Unit,
-    onPrepareRepair: (CodeEngineeringSession,List<String>)->Unit,
+    onPrepareRepair: (CodeEngineeringSession,List<String>,Boolean)->Unit,
     onRevoke: (CodeEngineeringSession)->Unit
 ) {
     var repository by remember { mutableStateOf("") }
@@ -100,10 +100,11 @@ fun CodeEngineeringCard(
                                 onClick = {
                                     onPrepareRepair(
                                         session,
-                                        selectedPaths.split(',', '\n').map { it.trim() }.filter { it.isNotBlank() }
+                                        selectedPaths.split(',', '\n').map { it.trim() }.filter { it.isNotBlank() },
+                                        sourceContextConfirmed
                                     )
                                 },
-                                enabled = !state.isWorking && selectedPaths.isNotBlank(),
+                                enabled = !state.isWorking && selectedPaths.isNotBlank() && sourceContextConfirmed,
                                 modifier = Modifier.fillMaxWidth()
                             ) { Text("Preparar corrección acotada con logs") }
                         }
