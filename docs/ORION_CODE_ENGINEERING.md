@@ -75,6 +75,10 @@ El bucle tiene límite de iteraciones y presupuesto. Si las pruebas fallan o no 
 
 ## Estado actual
 
+- Se ha añadido `CodeChangeValidator` como primera base determinista: valida repositorio y ramas, bloquea escrituras en main/master, normaliza y rechaza rutas peligrosas, exige SHA previo para UPDATE/DELETE, limita tamaño y cantidad de archivos, detecta algunos patrones de credenciales y marca cambios de build/workflows/permisos para revisión reforzada.
+- Tiene pruebas unitarias para rutas, ramas, SHA, secretos, tamaño y revisión reforzada.
+- Este validador todavía no está conectado a un workspace, API GitHub de escritura, pantalla de diff ni runner. Por ello no convierte aún la programación en una función disponible en la app.
+
 - GitHub lectura de repositorios/archivos/issues/commits/Actions: implementado parcialmente.
 - Escritura GitHub y pull requests desde ORION: no implementadas.
 - Workspace local de proyectos: no implementado.
