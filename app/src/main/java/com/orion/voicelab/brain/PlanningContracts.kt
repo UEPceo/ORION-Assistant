@@ -157,10 +157,11 @@ object PlanOutputReferences {
 }
 data class PlanStepInputPreview(
     val summary: String?,
-    val arguments: Map<String, String?>
+    val arguments: Map<String, String?>,
+    val dependenciesResolved: Boolean
 ) {
     val readyForApproval: Boolean
-        get() = summary != null && arguments.values.all { it != null }
+        get() = dependenciesResolved && summary != null && arguments.values.all { it != null }
 }
 
 /** Resolves every placeholder before the UI can authorize a protected write. */
@@ -170,6 +171,9 @@ object PlanStepInputPreviewBuilder {
             summary = PlanOutputReferences.resolve(step.inputSummary, results),
             arguments = step.connectorArguments.mapValues { (_, value) ->
                 PlanOutputReferences.resolve(value, results)
+            },
+            dependenciesResolved = step.dependsOn.all { dependencyId ->
+                results[dependencyId]?.status == StepStatus.SUCCEEDED
             }
         )
 }
