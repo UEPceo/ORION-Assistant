@@ -1,14 +1,14 @@
 # ORION — Capacidad básica de ingeniería de software
 
-Estado: primitivas de escritura, workspace GitHub explícito, autorización de sesión y coordinación de propuestas implementados; integración de interfaz y generación LLM concreta pendiente.
+Estado: workspace, generador LLM JSON, autorización temporal, revisión visual del diff y commits aprobados integrados en la app; seguimiento CI y reparación autónoma siguen pendientes.
 
 ## Objetivo de producto
 
 La programación de código será una capacidad central de ORION, no una herramienta secundaria. Debe permitir trabajar con proyectos autorizados desde una petición en lenguaje natural, explicar lo que hace, proponer un plan, cambiar código, verificar los cambios y entregar resultados reproducibles.
 
-## Por qué todavía no está disponible
+## Alcance operativo y límites actuales
 
-GitHub ya permite crear ramas, commits multiarchivo con control SHA y pull requests draft. Se han añadido workspace de archivos seleccionados, sesión temporal ligada a repositorio/tarea/rama, aprobación de diff de un solo uso y coordinador que valida propuestas tipadas. El generador LLM sigue siendo un puerto pendiente de conexión a salida JSON estructurada. GitHub Actions ejecuta la suite Android/Kotlin del repositorio en un runner efímero; no es aún un runner universal.
+La pantalla Conectores ya permite seleccionar un repositorio, autorizar una tarea, inspeccionar rutas concretas, generar un parche JSON con el modelo local/híbrido, revisar el contenido actual y propuesto y aprobar un commit en una rama de trabajo. GitHub Actions ejecuta la suite Android/Kotlin de ORION en un runner efímero; todavía falta crear el PR desde este flujo, recuperar automáticamente resultados/logs, iterar reparaciones y soportar runners para proyectos arbitrarios.
 
 ## Capacidades que debe incluir
 
@@ -67,10 +67,10 @@ El bucle tiene límite de iteraciones y presupuesto. Si las pruebas fallan o no 
 
 1. Contratos de ingeniería, validación de rutas/diffs y pruebas de seguridad.
 2. GitHub write API con control SHA, creación de ramas y pull requests; ampliar permisos del conector solo tras tests.
-3. Conectar CodePatchGenerator con el LLM mediante esquema JSON estricto y contexto del workspace.
-4. UI de programación con plan, diff, aprobación exacta, progreso, logs y entrega.
+3. Añadir apertura de pull request draft desde la pantalla de ingeniería y enlazarlo con CI.
+4. Recuperar estados/logs de Actions y añadir un bucle de reparación con presupuesto de intentos y nueva aprobación de cada diff.
 5. Ampliar el runner aislado a proyectos externos y lenguajes adicionales, sin secretos y con límites verificables.
-6. Ciclo iterativo de depuración con presupuesto de intentos y evaluación reproducible.
+6. Añadir evaluación reproducible sobre proyectos Kotlin/Android, Python y web.
 7. Workspace local SAF y soporte IDE/terminal solo cuando dispongan de aislamiento verificable.
 
 ## Estado actual
@@ -81,5 +81,5 @@ El bucle tiene límite de iteraciones y presupuesto. Si las pruebas fallan o no 
 - `ConnectorActionGate` mantiene allowlists separadas: las escrituras GitHub no pueden etiquetarse como lectura y siempre requieren confirmación contextual.
 - El router de voz reconoce la creación explícita de ramas y pull requests.
 - Pruebas automatizadas añadidas para ramas, commits atómicos, rechazo de ramas modificadas, intents de voz y autorización de escrituras.
-- GitHubCodeWorkspace conserva snapshots acotados y SHA; GitHubCodeEngineeringService coordina sesión, generación tipada, validación y commit aprobado. CodeEngineeringSessionAuthority aplica caducidad, alcance por tarea y aprobación de un solo uso. La generación real desde LLM, UI de diff/consentimiento, seguimiento automático de Actions y reparación iterativa aún no están conectados a la interfaz; ORION no se declara programador autónomo plenamente operativo.
+- GitHubCodeWorkspace conserva snapshots acotados y SHA; LocalModelCodePatchGenerator produce propuestas JSON; GitHubCodeEngineeringService coordina sesión, validación y commit aprobado. CodeEngineeringSessionAuthority aplica caducidad, alcance por tarea y aprobación de un solo uso. La pantalla Conectores presenta el diff completo y exige confirmación explícita. Aún no se crean PR ni se siguen automáticamente Actions ni se reparan fallos; ORION no se declara programador autónomo plenamente operativo.
 
