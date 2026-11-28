@@ -43,6 +43,10 @@ object CrossDomainConceptGraph {
         }
         return result
     }
-    fun conceptsForText(text:String):Set<String> = text.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter(String::isNotBlank).flatMap(::directConcepts).toSet()
+    fun conceptsForText(text:String):Set<String> {
+        val normalized=java.text.Normalizer.normalize(text.lowercase(),java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+        return normalized.split(Regex("[^\\p{L}\\p{N}]+")).filter(String::isNotBlank).flatMap(::directConcepts).toSet()
+    }
     const val ASSOCIATION_WEIGHT=0.24
 }
