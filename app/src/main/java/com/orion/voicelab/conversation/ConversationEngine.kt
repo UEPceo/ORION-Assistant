@@ -571,7 +571,15 @@ class ConversationEngine internal constructor(
                 }
                 if (verifiedReply.isNotBlank()) {
                     callbacks?.onStreamingText(verifiedReply)
-                    sentenceChannel.trySend(verifiedReply)
+                    // Keep source markers and the bibliography visible in the transcript,
+                    // but do not make the speech synthesizer read citation numbers or URLs.
+                    val spokenReply = verifiedReply
+                        .replace(Regex("(?is)\\n?Fuentes:.*$"), "")
+                        .replace(Regex("\\[\\d{1,2}]"), "")
+                        .replace(Regex("https?://\\S+"), "")
+                        .replace(Regex("\\s+"), " ")
+                        .trim()
+                    if (spokenReply.isNotBlank()) sentenceChannel.trySend(spokenReply)
                 }
                 sentenceChannel.close()
                 ttsConsumer.await()
@@ -585,7 +593,8 @@ class ConversationEngine internal constructor(
                     return@launch
                 }
 
-                val replyText = llmResult.text.ifBlank { streamedDisplay.toString().trim() }
+                // Persist only the verified result; never store the unreviewed model draft.
+                val replyText = verifiedReply
                 if (replyText.isNotBlank()) {
                     val now = clockMs()
                     val endToSpeech = if (firstAudioStartMs >= 0L) {
