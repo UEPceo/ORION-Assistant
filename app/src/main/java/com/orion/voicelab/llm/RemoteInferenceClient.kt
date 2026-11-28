@@ -129,7 +129,16 @@ class RemoteInferenceClient(
                 connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
                 val status = connection.responseCode
                 val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-                val response = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText().take(256 * 1024) }.orEmpty()
+                val response = stream?.bufferedReader(Charsets.UTF_8)?.use { reader ->
+                    val output = StringBuilder()
+                    val buffer = CharArray(8_192)
+                    while (output.length < 256 * 1024) {
+                        val count = reader.read(buffer, 0, minOf(buffer.size, 256 * 1024 - output.length))
+                        if (count <= 0) break
+                        output.append(buffer, 0, count)
+                    }
+                    output.toString()
+                }.orEmpty()
                 if (status !in 200..299) error("El servidor de inferencia respondió HTTP $status: " + response.take(500))
                 val content = JSONObject(response).getJSONArray("choices")
                     .getJSONObject(0).getJSONObject("message").optString("content").trim()
