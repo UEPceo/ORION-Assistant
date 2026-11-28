@@ -73,9 +73,11 @@ object AnswerClaimCoverageGuard {
                 .replace(Regex("https?://\\S+"), " ")
                 .replace(Regex("\\[\\d{1,2}\\]"), " ")
                 .trim()
-                .replace(Regex("^[#>*\\-\\d.)\\s]+"), "")
+                .replace(Regex("^[#>*\\-\\s]+"), "")
+                .replace(Regex("^\\d+[.)]\\s+(?=[\\p{L}#>*\\-])"), "")
             val requiredTokens = tokens(segment)
-            if (requiredTokens.size < MIN_CONTENT_TOKENS) continue
+            if (requiredTokens.isEmpty()) continue
+            if (requiredTokens.size < MIN_CONTENT_TOKENS && !NUMERIC_FACT.containsMatchIn(segment)) continue
             val coveredTokens = spanRanges
                 .filter { it.first >= range.first && it.last <= range.last }
                 .flatMap { spanRange -> tokens(draft.substring(spanRange.first, spanRange.last + 1)) }
@@ -97,5 +99,6 @@ object AnswerClaimCoverageGuard {
     private const val CODE_FENCE = "\\u0060\\u0060\\u0060"
     private const val MAX_SPAN_CHARS = 700
     private const val MAX_SEGMENT_CHARS = 240
-    private const val MIN_CONTENT_TOKENS = 3
+    private val NUMERIC_FACT = Regex("""(?<!\\w)\\d+(?:[.,]\\d+)?(?:\\s?(?:%|€|\\$|km|m|cm|mm|kg|g|l|ml|°c|°f|años|días|horas|minutos|segundos))?(?!\\w)""", RegexOption.IGNORE_CASE)
+    private const val MIN_CONTENT_TOKENS = 2
 }
