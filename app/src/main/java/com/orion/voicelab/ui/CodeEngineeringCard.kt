@@ -60,7 +60,7 @@ fun CodeEngineeringCard(
                 OutlinedTextField(selectedPaths,{selectedPaths=it},label={Text("Archivos a inspeccionar (separados por comas)")},modifier=Modifier.fillMaxWidth(),minLines=2)
                 Row(verticalAlignment=Alignment.CenterVertically) {
                     Checkbox(sourceContextConfirmed,{sourceContextConfirmed=it})
-                    Text("Autorizo usar estos archivos como contexto del modelo. Si la inferencia remota está activa, el contenido podrá enviarse al proveedor autorizado.",style=MaterialTheme.typography.bodySmall)
+                    Text("Autorizo enviar al modelo los archivos seleccionados y los fragmentos de logs de CI necesarios para analizar y preparar el parche. Si la inferencia remota está activa, estos datos podrán enviarse al proveedor autorizado.",style=MaterialTheme.typography.bodySmall)
                 }
                 Button(onClick={onPrepare(session,task.trim(),selectedPaths.split(',', '\n').map{it.trim()}.filter{it.isNotBlank()},sourceContextConfirmed)},enabled=!state.isWorking&&task.isNotBlank()&&selectedPaths.isNotBlank()&&sourceContextConfirmed,modifier=Modifier.fillMaxWidth()) {
                     Text("Inspeccionar y preparar propuesta")
