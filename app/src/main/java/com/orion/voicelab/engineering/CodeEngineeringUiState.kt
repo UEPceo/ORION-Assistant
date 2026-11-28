@@ -8,5 +8,6 @@ data class CodeEngineeringUiState(
     val pullRequestUrl: String? = null,
     val ciInspection: CodeEngineeringCiInspection? = null,
     val ciError: String? = null,
+    val repairAttemptsUsed: Int = 0,
     val error: String? = null
 )
