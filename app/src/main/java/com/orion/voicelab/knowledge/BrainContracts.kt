@@ -39,8 +39,19 @@ enum class LearningOrigin {
     PEER_REVIEWED_SOURCE,
     REPUTABLE_SECONDARY,
     COMMUNITY_REPORT,
+    UNCLASSIFIED_SOURCE,
     USER_CORRECTION,
     MODEL_OUTPUT
+}
+
+/** Keeps source provenance honest: an unknown host is never labelled reputable. */
+internal fun learningOriginForAuthority(authority: EvidenceAuthority): LearningOrigin = when (authority) {
+    EvidenceAuthority.OFFICIAL_PRIMARY -> LearningOrigin.OFFICIAL_SOURCE
+    EvidenceAuthority.PRIMARY_TECHNICAL -> LearningOrigin.TECHNICAL_SOURCE
+    EvidenceAuthority.PEER_REVIEWED -> LearningOrigin.PEER_REVIEWED_SOURCE
+    EvidenceAuthority.REPUTABLE_SECONDARY -> LearningOrigin.REPUTABLE_SECONDARY
+    EvidenceAuthority.COMMUNITY -> LearningOrigin.COMMUNITY_REPORT
+    EvidenceAuthority.USER_SUPPLIED, EvidenceAuthority.UNKNOWN -> LearningOrigin.UNCLASSIFIED_SOURCE
 }
 
 enum class LearningDecision {
