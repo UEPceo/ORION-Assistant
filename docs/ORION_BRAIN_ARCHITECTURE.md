@@ -365,7 +365,7 @@ El recuperador disperso incorpora un grafo curado de conceptos y asociaciones en
 
 ## Planificador multipaso y acciones locales
 
-- Las salidas de pasos pueden encadenarse mediante `\u0024{stepId.output}` o `\u0024{stepId.summary}`; cada consumidor debe declarar la dependencia. Solo se interpolan resultados de pasos completados.
+- Las salidas de pasos pueden encadenarse mediante `${stepId.output}` o `${stepId.summary}`; cada consumidor debe declarar la dependencia. Solo se interpolan resultados de pasos completados.
 - La ejecución es por etapas: los pasos de lectura previos pueden ejecutarse primero; antes de una escritura no autorizada, ORION se pausa y presenta las entradas resueltas en Ajustes → Planes. La autorización se concede por paso y por ejecución, no se conserva.
 - Acciones locales disponibles: crear tarea, guardar nota como registro local y programar recordatorio. Se almacenan en el repositorio de tareas de Room y usan el planificador de recordatorios Android; no requieren red.
 - Las acciones locales y externas de escritura requieren riesgo MEDIUM o superior y confirmación contextual. Si una salida no se puede resolver, el paso queda bloqueado; un fallo de dependencia también bloquea descendientes.
