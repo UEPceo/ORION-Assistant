@@ -1193,8 +1193,11 @@ class VoiceLabUnitTest {
             ModelManager.llmBackupFile(filesLlm).writeBytes(validLlm)
             assertFalse(ModelManager.llmModelFile(filesLlm).exists())
 
-            assertTrue(ModelManager.isLlmInstalled(filesLlm, expectedExactBytes = validLlm.size.toLong()))
+            // The synthetic GGUF header is deliberately not the pinned production model.
+            // Recovery restores it, while integrity validation must reject its digest.
+            assertFalse(ModelManager.isLlmInstalled(filesLlm, expectedExactBytes = validLlm.size.toLong()))
             assertTrue(ModelManager.llmModelFile(filesLlm).isFile)
+            assertTrue(ModelManager.hasGgufMagicHeader(ModelManager.llmModelFile(filesLlm)))
             assertFalse(ModelManager.llmBackupFile(filesLlm).exists())
 
             // 2. TTS .bak directory recovery
