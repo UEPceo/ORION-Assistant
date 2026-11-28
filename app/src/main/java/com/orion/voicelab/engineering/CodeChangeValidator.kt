@@ -50,7 +50,10 @@ object CodeChangeValidator {
         Regex("\\bgh[pousr]_[A-Za-z0-9]{20,}\\b"),
         Regex("\\bgithub_pat_[A-Za-z0-9_]{20,}\\b"),
         Regex("\\bAKIA[0-9A-Z]{16}\\b"),
-        Regex("(?i)(?:api[_-]?key|client[_-]?secret|access[_-]?token)\\s*[:=]\\s*[\"'][^\"']{12,}[\"']")
+        Regex("\\bsk-[A-Za-z0-9_-]{20,}\\b"),
+        Regex("\\bAIza[0-9A-Za-z_-]{30,}\\b"),
+        Regex("(?i)(?:api[_-]?key|client[_-]?secret|access[_-]?token|password|passwd|secret)\\s*[:=]\\s*[\"'][^\"']{8,}[\"']"),
+        Regex("(?i)authorization\\s*[:=]\\s*[\"']?Bearer\\s+[A-Za-z0-9._~+/-]{16,}")
     )
 
     fun validate(proposal: CodeChangeProposal): CodeChangeValidation {
