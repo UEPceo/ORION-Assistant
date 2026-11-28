@@ -54,3 +54,10 @@ El permiso es temporal y en memoria. Tras reiniciar la app debe solicitarse de n
 - FLUX.1-schnell: https://github.com/black-forest-labs/flux
 - ComfyUI: https://github.com/comfyanonymous/ComfyUI
 - Stable Diffusion 1.5: https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5
+
+
+## ComfyUI API integration — first execution layer
+
+Se incorpora un cliente HTTP que puede enviar workflows JSON a un endpoint ComfyUI configurado, hacer polling de la cola, detectar errores, recuperar la salida y guardarla en caché privada. Permite upload multipart de referencias con límite de 25 MB; el adaptador de generación aún rechaza referencias porque la autorización de subida no está conectada al selector/UI. Las plantillas mapean nodo/input de prompt positivo y opcionalmente negativo; los nodos de referencia son un contrato preparado, no una ruta activa. Se añaden adaptadores de generación de imagen y vídeo que requieren endpoint y workflow suministrados en runtime. No se incluyen modelos ni endpoint preconfigurado. HTTPS obligatorio fuera de localhost/LAN privada; no se aceptan credenciales embebidas en URL.
+
+Pendiente: formulario de endpoint y almacenamiento seguro de credenciales, selector/importador de workflows, mapping visual de nodos, consentimiento UI para referencias, configuración de providers en OrionMediaRuntime, cancelación/progreso persistente y pruebas de integración contra servidor ComfyUI real.
