@@ -530,10 +530,15 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     fun prepareCodeEngineeringChange(
         session: CodeEngineeringSession,
         task: String,
-        selectedPaths: List<String>
+        selectedPaths: List<String>,
+        userConfirmedSourceContext: Boolean
     ): Job = viewModelScope.launch(Dispatchers.IO) {
+        if (!userConfirmedSourceContext) {
+            _codeEngineeringState.value = _codeEngineeringState.value.copy(error = "Autoriza expresamente el uso del contexto de código antes de generar la propuesta.")
+            return@launch
+        }
         _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = true, error = null)
-        codeEngineeringService.prepare(session, task, selectedPaths).fold(
+        codeEngineeringService.prepare(session, task, selectedPaths, userConfirmedSourceContext).fold(
             onSuccess = { prepared -> _codeEngineeringState.value = CodeEngineeringUiState(session = session, preparedChange = prepared) },
             onFailure = { error -> _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = false, error = error.message ?: "No se pudo preparar el cambio.") }
         )
@@ -552,8 +557,74 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         }
         _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = true, error = null)
         codeEngineeringService.commitApproved(session, prepared, userConfirmedExactDiff, reviewedDiffDigest).fold(
-            onSuccess = { result -> _codeEngineeringState.value = CodeEngineeringUiState(session = session, lastCommitSha = result.commitSha) },
+            onSuccess = { result ->
+                val repairAttempts = _codeEngineeringState.value.repairAttemptsUsed
+                _codeEngineeringState.value = CodeEngineeringUiState(
+                    session = session,
+                    lastCommitSha = result.commitSha,
+                    repairAttemptsUsed = repairAttempts
+                )
+            },
             onFailure = { error -> _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = false, error = error.message ?: "No se pudo aplicar el cambio.") }
+        )
+    }
+
+    fun inspectCodeEngineeringCi(session: CodeEngineeringSession): Job = viewModelScope.launch(Dispatchers.IO) {
+        val expectedHeadSha = _codeEngineeringState.value.lastCommitSha
+        if (expectedHeadSha.isNullOrBlank()) {
+            _codeEngineeringState.value = _codeEngineeringState.value.copy(ciError = "No hay un commit de esta sesión que validar.")
+            return@launch
+        }
+        _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = true, ciError = null)
+        codeEngineeringService.inspectCiForCurrentHead(
+            repository = session.grant.repository,
+            branch = session.grant.workBranch,
+            expectedHeadSha = expectedHeadSha
+        ).fold(
+            onSuccess = { inspection ->
+                _codeEngineeringState.value = _codeEngineeringState.value.copy(
+                    isWorking = false,
+                    ciInspection = inspection,
+                    ciError = inspection.logRetrievalError
+                )
+            },
+            onFailure = { error ->
+                _codeEngineeringState.value = _codeEngineeringState.value.copy(
+                    isWorking = false,
+                    ciError = error.message ?: "No se pudo consultar CI."
+                )
+            }
+        )
+    }
+
+    fun prepareCodeEngineeringRepair(
+        session: CodeEngineeringSession,
+        selectedPaths: List<String>,
+        userConfirmedSourceContext: Boolean
+    ): Job = viewModelScope.launch(Dispatchers.IO) {
+        val current = _codeEngineeringState.value
+        val inspection = current.ciInspection
+        if (inspection == null) {
+            _codeEngineeringState.value = current.copy(ciError = "Consulta primero el resultado de CI.")
+            return@launch
+        }
+        val attempt = current.repairAttemptsUsed + 1
+        _codeEngineeringState.value = current.copy(isWorking = true, error = null)
+        codeEngineeringService.prepareRepair(session, inspection, attempt, selectedPaths, userConfirmedSourceContext).fold(
+            onSuccess = { prepared ->
+                _codeEngineeringState.value = _codeEngineeringState.value.copy(
+                    isWorking = false,
+                    preparedChange = prepared,
+                    repairAttemptsUsed = attempt,
+                    error = null
+                )
+            },
+            onFailure = { error ->
+                _codeEngineeringState.value = _codeEngineeringState.value.copy(
+                    isWorking = false,
+                    error = error.message ?: "No se pudo preparar la reparación."
+                )
+            }
         )
     }
 

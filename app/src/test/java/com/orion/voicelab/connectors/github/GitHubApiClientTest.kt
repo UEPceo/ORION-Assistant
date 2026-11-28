@@ -8,6 +8,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.ByteArrayOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
@@ -144,6 +147,58 @@ class GitHubApiClientTest {
         val client = GitHubApiClient(credentials, GitHubDeviceFlowAuthenticator("test-client"),
             requestOverride = { called = true; org.json.JSONObject() })
         assertFalse(client.listWorkflowRunJobs("owner/repo", 0L).isSuccess)
+        assertFalse(called)
+    }
+
+    @Test
+    fun workflowLogsAreBoundedAndSecretRedacted() = runBlocking {
+        val store = FakeCredentialStore()
+        val credentials = GitHubCredentialManager(store)
+        credentials.save(GitHubDeviceAuthorizationResult.Authorized(
+            accessToken = "test-token", tokenType = "bearer", scope = "",
+            expiresInSeconds = 3_600, refreshToken = "refresh-token",
+            refreshTokenExpiresInSeconds = 86_400
+        ))
+        val secret = "ghp_" + "A".repeat(32)
+        val archive = ByteArrayOutputStream().also { bytes ->
+            ZipOutputStream(bytes).use { zip ->
+                zip.putNextEntry(ZipEntry("job/1_Run.txt"))
+                zip.write(("Build failed with token " + secret).toByteArray())
+                zip.closeEntry()
+                zip.putNextEntry(ZipEntry("job/binary.bin"))
+                zip.write(byteArrayOf(0, 1, 2, 3))
+                zip.closeEntry()
+            }
+        }.toByteArray()
+        var requestedPath = ""
+        var suppliedToken = ""
+        val client = GitHubApiClient(
+            credentials,
+            GitHubDeviceFlowAuthenticator("test-client"),
+            workflowLogDownloadOverride = { path, token ->
+                requestedPath = path
+                suppliedToken = token
+                archive
+            }
+        )
+        val logs = client.downloadWorkflowRunLogs("owner/repo", 98765L).getOrThrow()
+        assertEquals("/repos/owner/repo/actions/runs/98765/logs", requestedPath)
+        assertEquals("test-token", suppliedToken)
+        assertTrue(logs.contains("Build failed"))
+        assertTrue(logs.contains("[REDACTED]"))
+        assertFalse(logs.contains(secret))
+        assertFalse(logs.contains("binary.bin"))
+    }
+
+    @Test
+    fun workflowLogsRejectInvalidRunIdsBeforeDownload() = runBlocking {
+        var called = false
+        val client = GitHubApiClient(
+            GitHubCredentialManager(FakeCredentialStore()),
+            GitHubDeviceFlowAuthenticator("test-client"),
+            workflowLogDownloadOverride = { _, _ -> called = true; byteArrayOf() }
+        )
+        assertFalse(client.downloadWorkflowRunLogs("owner/repo", 0L).isSuccess)
         assertFalse(called)
     }
 

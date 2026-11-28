@@ -13,14 +13,17 @@ import androidx.compose.ui.unit.dp
 import com.orion.voicelab.engineering.CodeEngineeringSession
 import com.orion.voicelab.engineering.CodeEngineeringUiState
 import com.orion.voicelab.engineering.CodeFileOperation
+import com.orion.voicelab.engineering.CodeRepairBudget
 
 @Composable
 fun CodeEngineeringCard(
     state: CodeEngineeringUiState,
     onStartSession: (String,String,String,String,Boolean)->Unit,
-    onPrepare: (CodeEngineeringSession,String,List<String>)->Unit,
+    onPrepare: (CodeEngineeringSession,String,List<String>,Boolean)->Unit,
     onCommit: (CodeEngineeringSession,String,Boolean)->Unit,
     onCreatePullRequest: (CodeEngineeringSession,String,String,Boolean)->Unit,
+    onInspectCi: (CodeEngineeringSession)->Unit,
+    onPrepareRepair: (CodeEngineeringSession,List<String>,Boolean)->Unit,
     onRevoke: (CodeEngineeringSession)->Unit
 ) {
     var repository by remember { mutableStateOf("") }
@@ -57,9 +60,9 @@ fun CodeEngineeringCard(
                 OutlinedTextField(selectedPaths,{selectedPaths=it},label={Text("Archivos a inspeccionar (separados por comas)")},modifier=Modifier.fillMaxWidth(),minLines=2)
                 Row(verticalAlignment=Alignment.CenterVertically) {
                     Checkbox(sourceContextConfirmed,{sourceContextConfirmed=it})
-                    Text("Autorizo usar estos archivos como contexto del modelo. Si la inferencia remota está activa, el contenido podrá enviarse al proveedor autorizado.",style=MaterialTheme.typography.bodySmall)
+                    Text("Autorizo enviar al modelo los archivos seleccionados y los fragmentos de logs de CI necesarios para analizar y preparar el parche. Si la inferencia remota está activa, estos datos podrán enviarse al proveedor autorizado.",style=MaterialTheme.typography.bodySmall)
                 }
-                Button(onClick={onPrepare(session,task.trim(),selectedPaths.split(',', '\n').map{it.trim()}.filter{it.isNotBlank()})},enabled=!state.isWorking&&task.isNotBlank()&&selectedPaths.isNotBlank()&&sourceContextConfirmed,modifier=Modifier.fillMaxWidth()) {
+                Button(onClick={onPrepare(session,task.trim(),selectedPaths.split(',', '\n').map{it.trim()}.filter{it.isNotBlank()},sourceContextConfirmed)},enabled=!state.isWorking&&task.isNotBlank()&&selectedPaths.isNotBlank()&&sourceContextConfirmed,modifier=Modifier.fillMaxWidth()) {
                     Text("Inspeccionar y preparar propuesta")
                 }
                 OutlinedButton(onClick={onRevoke(session)},enabled=!state.isWorking,modifier=Modifier.fillMaxWidth()) { Text("Revocar sesión") }
@@ -68,7 +71,45 @@ fun CodeEngineeringCard(
             state.error?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
             state.lastCommitSha?.let { Text("Commit creado: $it",color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.bodySmall) }
             state.pullRequestUrl?.let { Text("Pull request draft creado: $it",color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.bodySmall) }
-            if (session != null && state.lastCommitSha != null && state.pullRequestUrl == null) {
+            if (session != null && state.lastCommitSha != null) {
+                Button(
+                    onClick = { onInspectCi(session) },
+                    enabled = !state.isWorking,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Consultar CI y recuperar logs") }
+            }
+            state.ciError?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
+            state.ciInspection?.let { inspection ->
+                val run = inspection.run
+                if (run == null) {
+                    Text("No se ha encontrado una ejecución de CI para el SHA exacto de este commit.",style=MaterialTheme.typography.bodySmall)
+                } else {
+                    Text("CI · ${run.status} · ${run.conclusion ?: "sin conclusión"} · SHA ${run.headSha.take(8)}",style=MaterialTheme.typography.bodySmall,fontWeight=FontWeight.SemiBold)
+                    inspection.jobs.forEach { job ->
+                        Text("${job.name}: ${job.status}/${job.conclusion ?: "—"}",style=MaterialTheme.typography.bodySmall)
+                    }
+                    inspection.failureLogs?.let { logs ->
+                        Text("Logs recuperados (secretos conocidos redactados)",style=MaterialTheme.typography.labelMedium,fontWeight=FontWeight.SemiBold)
+                        Column(Modifier.fillMaxWidth().heightIn(max=260.dp).verticalScroll(rememberScrollState())) {
+                            Text(logs.take(8_000),style=MaterialTheme.typography.bodySmall)
+                        }
+                        Text("Reparaciones propuestas: ${state.repairAttemptsUsed}/${CodeRepairBudget.MAX_ATTEMPTS}",style=MaterialTheme.typography.bodySmall)
+                        if (inspection.failed && state.repairAttemptsUsed < CodeRepairBudget.MAX_ATTEMPTS) {
+                            Text("ORION puede preparar una corrección basada en estos errores. El nuevo diff necesitará revisión y aprobación independientes.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            Button(
+                                onClick = {
+                                    val paths = selectedPaths.split(',', '\n').map { it.trim() }.filter { it.isNotBlank() }
+                                    session?.let { activeSession -> onPrepareRepair(activeSession, paths, sourceContextConfirmed) }
+                                    sourceContextConfirmed = false
+                                },
+                                enabled = session != null && !state.isWorking && selectedPaths.isNotBlank() && sourceContextConfirmed,
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Preparar corrección acotada con logs") }
+                        }
+                    }
+                }
+            }
+            if (session != null && state.lastCommitSha != null && state.pullRequestUrl == null && prepared == null) {
                 Button(
                     onClick = {
                         onCreatePullRequest(

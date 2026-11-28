@@ -6,12 +6,18 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.io.IOException
+import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
+import java.net.URI
+import java.util.zip.ZipInputStream
 import java.net.URL
 import android.util.Base64
 import com.orion.voicelab.engineering.CodeChangeProposal
 import com.orion.voicelab.engineering.CodeChangeValidator
 import com.orion.voicelab.engineering.CodeFileOperation
+import com.orion.voicelab.brain.PlanSecretGuard
+import kotlinx.coroutines.CancellationException
 
 data class GitHubRepositorySummary(
     val fullName: String,
@@ -74,7 +80,8 @@ class GitHubApiClient(
     private val credentials: GitHubCredentialManager,
     private val authenticator: GitHubDeviceFlowAuthenticator,
     private val requestOverride: (suspend (path: String) -> Any)? = null,
-    private val transportOverride: (suspend (method: String, path: String, body: JSONObject?) -> Any)? = null
+    private val transportOverride: (suspend (method: String, path: String, body: JSONObject?) -> Any)? = null,
+    private val workflowLogDownloadOverride: (suspend (path: String, accessToken: String) -> ByteArray)? = null
 ) {
     suspend fun listRepositories(page: Int = 1, perPage: Int = 30): Result<List<GitHubRepositorySummary>> =
         withContext(Dispatchers.IO) {
@@ -230,6 +237,97 @@ class GitHubApiClient(
                 }
             }
         }
+
+    /** Downloads bounded text logs without forwarding the GitHub bearer token to the signed URL. */
+    suspend fun downloadWorkflowRunLogs(repository: String, runId: Long, maxUncompressedBytes: Int = MAX_WORKFLOW_LOG_BYTES): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            require(isValidRepository(repository)) { "Repositorio no válido." }
+            require(runId > 0L) { "Identificador de ejecución no válido." }
+            require(maxUncompressedBytes in 16_384..MAX_WORKFLOW_LOG_BYTES) { "Límite de logs no válido." }
+            val path = "/repos/" + repository + "/actions/runs/" + runId + "/logs"
+            val token = credentials.getValidAccessToken(authenticator) ?: throw ReauthorizationRequiredException()
+            val archive = workflowLogDownloadOverride?.invoke(path, token) ?: downloadWorkflowLogArchive(path, token)
+            Result.success(extractWorkflowLogText(archive, maxUncompressedBytes))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
+    }
+
+    private fun downloadWorkflowLogArchive(path: String, token: String): ByteArray {
+        val api = (URL(API_BASE + path).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"; instanceFollowRedirects = false
+            connectTimeout = TIMEOUT_MS; readTimeout = TIMEOUT_MS
+            setRequestProperty("Authorization", "Bearer " + token)
+            setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("X-GitHub-Api-Version", API_VERSION)
+            setRequestProperty("User-Agent", "ORION-Android")
+        }
+        val location: String
+        try {
+            val status = api.responseCode
+            if (status != 302) throw IOException("GitHub no devolvió una URL temporal para los logs (HTTP " + status + ").")
+            location = api.getHeaderField("Location") ?: throw IOException("GitHub no incluyó la URL temporal de los logs.")
+        } finally { api.disconnect() }
+        val uri = URI(location)
+        val host = uri.host?.lowercase() ?: throw IOException("Host de descarga de logs no válido.")
+        val allowedHost = host == "github.com" || host.endsWith(".githubusercontent.com") ||
+            host.endsWith(".blob.core.windows.net") || host.endsWith(".actions.githubusercontent.com")
+        require(uri.scheme.equals("https", true) && uri.userInfo == null && uri.port in setOf(-1, 443) && allowedHost) {
+            "GitHub devolvió un host de logs no permitido."
+        }
+        val download = (URL(location).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"; instanceFollowRedirects = false
+            connectTimeout = TIMEOUT_MS; readTimeout = TIMEOUT_MS
+            setRequestProperty("Accept", "application/zip, application/octet-stream")
+            setRequestProperty("User-Agent", "ORION-Android")
+        }
+        try {
+            val status = download.responseCode
+            if (status !in 200..299) throw IOException("No se pudieron descargar los logs (HTTP " + status + ").")
+            return readBoundedBytes(download.inputStream, MAX_WORKFLOW_LOG_ARCHIVE_BYTES)
+        } finally { download.disconnect() }
+    }
+
+    private fun extractWorkflowLogText(archive: ByteArray, maxUncompressedBytes: Int): String {
+        require(archive.isNotEmpty() && archive.size <= MAX_WORKFLOW_LOG_ARCHIVE_BYTES) { "El archivo de logs está vacío o supera el límite permitido." }
+        val output = StringBuilder(); var total = 0
+        ZipInputStream(ByteArrayInputStream(archive)).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                if (!entry.isDirectory && (entry.name.endsWith(".txt", true) || entry.name.endsWith(".log", true))) {
+                    val bytes = ByteArrayOutputStream(); val buffer = ByteArray(4096)
+                    while (true) {
+                        val count = zip.read(buffer); if (count < 0) break
+                        total += count
+                        require(total <= maxUncompressedBytes) { "Los logs descomprimidos superan el límite permitido." }
+                        bytes.write(buffer, 0, count)
+                    }
+                    if (bytes.size() > 0) {
+                        output.append("\n--- ").append(entry.name.substringAfterLast('/').take(120)).append(" ---\n")
+                        output.append(PlanSecretGuard.redact(String(bytes.toByteArray(), Charsets.UTF_8), MAX_WORKFLOW_LOG_OUTPUT_CHARS)).append('\n')
+                    }
+                }
+                zip.closeEntry()
+            }
+        }
+        require(output.isNotEmpty()) { "El archivo no contiene logs de texto reconocibles." }
+        return output.toString().take(MAX_WORKFLOW_LOG_OUTPUT_CHARS)
+    }
+
+    private fun readBoundedBytes(stream: InputStream, maxBytes: Int): ByteArray {
+        stream.use { input ->
+            val output = ByteArrayOutputStream(); val buffer = ByteArray(8192); var total = 0
+            while (true) {
+                val count = input.read(buffer); if (count < 0) break
+                total += count
+                require(total <= maxBytes) { "El archivo descargado supera el límite permitido." }
+                output.write(buffer, 0, count)
+            }
+            return output.toByteArray()
+        }
+    }
 
     suspend fun listFiles(repository: String, path: String = "", branch: String? = null): Result<List<GitHubFileSummary>> =
         withContext(Dispatchers.IO) {
@@ -585,6 +683,9 @@ class GitHubApiClient(
         const val MAX_RESPONSE_BYTES = 1_000_000
         const val MAX_WORKFLOW_JOBS = 100
         const val MAX_WORKFLOW_STEPS = 100
+        const val MAX_WORKFLOW_LOG_ARCHIVE_BYTES = 5 * 1024 * 1024
+        const val MAX_WORKFLOW_LOG_BYTES = 2 * 1024 * 1024
+        const val MAX_WORKFLOW_LOG_OUTPUT_CHARS = 1_500_000
         const val MAX_FILE_CONTENT_BYTES = 512 * 1024
         const val MAX_FILE_CONTENT_BASE64 = MAX_FILE_CONTENT_BYTES * 2
         const val MAX_DESCRIPTION_LENGTH = 500

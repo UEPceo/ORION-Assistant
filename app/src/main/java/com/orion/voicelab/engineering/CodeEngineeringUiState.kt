@@ -6,5 +6,8 @@ data class CodeEngineeringUiState(
     val preparedChange: PreparedCodeChange? = null,
     val lastCommitSha: String? = null,
     val pullRequestUrl: String? = null,
+    val ciInspection: CodeEngineeringCiInspection? = null,
+    val ciError: String? = null,
+    val repairAttemptsUsed: Int = 0,
     val error: String? = null
 )

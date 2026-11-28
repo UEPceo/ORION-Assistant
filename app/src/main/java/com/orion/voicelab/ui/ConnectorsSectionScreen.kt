@@ -334,8 +334,8 @@ fun ConnectorsSectionScreen(
                 onStartSession = { repository, base, branch, task, confirmed ->
                     viewModel.startCodeEngineeringSession(repository, base, branch, task, confirmed)
                 },
-                onPrepare = { session, task, paths ->
-                    viewModel.prepareCodeEngineeringChange(session, task, paths)
+                onPrepare = { session, task, paths, confirmed ->
+                    viewModel.prepareCodeEngineeringChange(session, task, paths, confirmed)
                 },
                 onCommit = { session, digest, confirmed ->
                     viewModel.commitApprovedCodeEngineeringChange(session, digest, confirmed)
@@ -343,6 +343,8 @@ fun ConnectorsSectionScreen(
                 onCreatePullRequest = { session, title, body, confirmed ->
                     viewModel.createCodeEngineeringPullRequest(session, title, body, confirmed)
                 },
+                onInspectCi = { session -> viewModel.inspectCodeEngineeringCi(session) },
+                onPrepareRepair = { session, paths, confirmed -> viewModel.prepareCodeEngineeringRepair(session, paths, confirmed) },
                 onRevoke = { session -> viewModel.revokeCodeEngineeringSession(session) }
             )
         }
