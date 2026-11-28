@@ -14,8 +14,8 @@ class ComfyUiImageGenerationProvider(
     override val providerId="comfyui-image"
     override fun capability()=MediaCapabilityStatus.AVAILABLE
     override suspend fun generate(request:MediaGenerationRequest):GeneratedMedia {
-        require(request.referenceAssets.isEmpty()) { "La generación con imágenes de referencia requiere el flujo de consentimiento de subida, aún no conectado." }
-        val workflow=template.build(request)
+        val uploaded=request.referenceAssets.map { client.uploadReference(it) }
+        val workflow=template.build(request,uploaded)
         val output=client.runWorkflow(workflow,timeoutMs=300000L)
         return GeneratedMedia(MediaAsset(Uri.fromFile(output.localFile),output.mimeType,output.localFile.name,sizeBytes=output.localFile.length()),providerId,modelLabel,System.currentTimeMillis())
     }
@@ -29,8 +29,8 @@ class ComfyUiVideoGenerationProvider(
     override val providerId="comfyui-video"
     override fun capability()=MediaCapabilityStatus.AVAILABLE
     override suspend fun generate(request:MediaGenerationRequest):GeneratedMedia {
-        require(request.referenceAssets.isEmpty()) { "I2V necesita conectar la autorización de subida de referencias antes de habilitarse." }
-        val workflow=template.build(request)
+        val uploaded=request.referenceAssets.map { client.uploadReference(it) }
+        val workflow=template.build(request,uploaded)
         val output=client.runWorkflow(workflow,timeoutMs=900000L)
         return GeneratedMedia(MediaAsset(Uri.fromFile(output.localFile),output.mimeType,output.localFile.name,durationMs=request.durationSeconds?.times(1000L),sizeBytes=output.localFile.length()),providerId,modelLabel,System.currentTimeMillis())
     }
