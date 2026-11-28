@@ -121,3 +121,11 @@ class BrainCoreTest {
     }
 
 }
+    @Test
+    fun unknownSourcesKeepUnclassifiedProvenance() {
+        assertEquals(LearningOrigin.UNCLASSIFIED_SOURCE, learningOriginForAuthority(EvidenceAuthority.UNKNOWN))
+        assertEquals(LearningOrigin.UNCLASSIFIED_SOURCE, learningOriginForAuthority(EvidenceAuthority.USER_SUPPLIED))
+        assertEquals(LearningOrigin.OFFICIAL_SOURCE, learningOriginForAuthority(EvidenceAuthority.OFFICIAL_PRIMARY))
+        assertEquals(LearningOrigin.TECHNICAL_SOURCE, learningOriginForAuthority(EvidenceAuthority.PRIMARY_TECHNICAL))
+    }
+
