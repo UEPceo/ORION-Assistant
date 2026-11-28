@@ -3,7 +3,7 @@ package com.orion.voicelab.connectors
 import android.content.Context
 import android.util.Base64
 import androidx.test.core.app.ApplicationProvider
-import java.security.KeyGenerator
+import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
