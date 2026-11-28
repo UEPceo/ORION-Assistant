@@ -565,7 +565,7 @@ fun OrionVoiceLabScreen(
                         }
 
                         OrionTab.CONNECTORS -> {
-                            ConnectorsSectionScreen()
+                            ConnectorsSectionScreen(viewModel = viewModel)
                         }
 
                         OrionTab.LAB -> {
