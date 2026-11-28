@@ -468,3 +468,8 @@ Se ha extraído la construcción del JSON remoto a `RemoteInferencePayload`. Las
 El wrapper `llamacpp-kotlin 0.4.0` integrado en ORION selecciona bibliotecas CPU ARM64 según las features del procesador (incluye variantes DotProd/I8MM). Su JNI informa `gpu=false` y `reasonNoGPU=Currently not supported`; el CMake declara `LM_GGML_USE_CPU` y no compila OpenCL/Vulkan/Hexagon. Por tanto, ORION dispone de dispatch CPU optimizado, no de aceleración GPU/NPU en el motor local actual.
 
 El paquete comunitario Android de llama.cpp con Hexagon/OpenCL es CLI/servidor, no un AAR JNI. Su digest de release permite fijar un artefacto para investigación, pero no demuestra seguridad de cadena de suministro ni compatibilidad con el runtime actual. La integración debe realizarse como un backend experimental independiente o un port del CMake/JNI; mantener el motor CPU como fallback y no alterar el modelo predeterminado hasta completar tests y benchmarks.
+
+
+## Seguridad del planificador — reintentos de escrituras
+
+Se ha endurecido la política de reintentos: solo se reintentan automáticamente pasos de razonamiento, lectura, cálculo y lectura de conectores. Una clave de idempotencia declarada por el plan no basta para repetir automáticamente una escritura externa, porque el proveedor puede no aplicar esa clave o la respuesta puede perderse después de completar la operación. Las escrituras externas fallidas o interrumpidas quedan para verificación y reintento explícito del usuario. Se añadió una prueba que confirma que incluso un paso de escritura con clave de idempotencia solo se ejecuta una vez automáticamente.
