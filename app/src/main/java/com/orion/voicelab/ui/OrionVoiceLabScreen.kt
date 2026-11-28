@@ -166,7 +166,10 @@ fun OrionVoiceLabScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val planExecutions by viewModel.planExecutionRecords.collectAsStateWithLifecycle()
+    val knowledgeReviews by viewModel.knowledgeReviews.collectAsStateWithLifecycle()
+    val knowledgeReviewMessage by viewModel.knowledgeReviewMessage.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    LaunchedEffect(viewModel) { viewModel.refreshKnowledgeReviews() }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val reportExportedMsg = stringResource(R.string.report_exported)
@@ -616,7 +619,12 @@ fun OrionVoiceLabScreen(
                                 onExecutePlan = { planId, approvedIds, retryIds ->
                                     viewModel.executePlanExecution(planId, approvedIds, retryIds)
                                 },
-                                onDeletePlan = { planId -> viewModel.deletePlanExecution(planId) }
+                                onDeletePlan = { planId -> viewModel.deletePlanExecution(planId) },
+                                knowledgeReviews = knowledgeReviews,
+                                knowledgeReviewMessage = knowledgeReviewMessage,
+                                onApproveKnowledgeReview = { id -> viewModel.approveKnowledgeReview(id) },
+                                onPublishKnowledgeUnverified = { id -> viewModel.publishKnowledgeUnverified(id) },
+                                onRejectKnowledgeReview = { id -> viewModel.rejectKnowledgeReview(id) }
                             )
                         }
                     }
