@@ -37,6 +37,7 @@ class OrionDatabaseEncryptionInstrumentedTest {
         val legacy = SQLiteDatabase.openOrCreateDatabase(databaseFile, null)
         legacy.execSQL("CREATE TABLE sample (id INTEGER PRIMARY KEY, value TEXT NOT NULL)")
         legacy.execSQL("INSERT INTO sample(value) VALUES ('preserved-row')")
+        legacy.version = 5
         legacy.close()
 
         val passphrase = OrionDatabaseEncryption.getOrCreatePassphrase(context)
@@ -54,6 +55,11 @@ class OrionDatabaseEncryptionInstrumentedTest {
                 assertTrue(cursor.moveToFirst())
                 cursor.getString(0)
             }
+            val schemaVersion = it.rawQuery("PRAGMA user_version", null).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                cursor.getInt(0)
+            }
+            assertEquals(5, schemaVersion)
             assertNotNull(cipherVersion)
             assertTrue(cipherVersion.isNotBlank())
             val preserved = it.rawQuery("SELECT value FROM sample", null).use { cursor ->
