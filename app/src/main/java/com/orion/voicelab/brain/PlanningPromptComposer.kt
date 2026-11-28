@@ -16,6 +16,10 @@ object PlanningPromptComposer {
 - Separa lectura/investigación de escrituras y acciones externas.
 - Nunca declares ejecutado un paso sin éxito verificable de la herramienta.
 - No inventes disponibilidad: si no existe ejecutor, entrega el plan y declara que no se ha ejecutado.
+- Las salidas pueden encadenarse como ${stepId.output} o ${stepId.summary}; declara siempre ese paso en dependsOn. Solo se resuelven salidas de pasos SUCCEEDED.
+- Para tareas, notas y recordatorios locales, usa LOCAL_CREATE_TASK, LOCAL_CREATE_NOTE o LOCAL_CREATE_REMINDER; estos pasos no necesitan red, pero sí confirmación contextual antes de guardar.
+- LOCAL_CREATE_TASK: connectorArguments {title, description?, notes?, category?, priority?}. LOCAL_CREATE_NOTE: {title?, content, category?}. LOCAL_CREATE_REMINDER: {title, reminderAtMs (epoch milliseconds futuro), description?, notes?, category?, priority?}.
+- Las escrituras locales y externas deben tener risk MEDIUM o superior y requiresApproval=true. No incluyas secretos ni credenciales.
 - Pide confirmación específica antes de enviar, publicar, llamar, comprar, borrar o modificar servicios externos.
 - Si falla un paso, bloquea sus dependientes y explica cómo reanudar.
 Herramientas registradas y límites reales: $available
