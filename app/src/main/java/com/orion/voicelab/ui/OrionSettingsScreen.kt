@@ -73,6 +73,7 @@ import com.orion.voicelab.brain.PlanExecutionEntity
 import com.orion.voicelab.brain.PlanExecutionJsonCodec
 import com.orion.voicelab.brain.PlanRisk
 import com.orion.voicelab.brain.PlanOutputReferences
+import com.orion.voicelab.brain.PlanStepInputPreviewBuilder
 import com.orion.voicelab.brain.PlanStepKind
 import com.orion.voicelab.brain.PlanValidator
 import com.orion.voicelab.brain.StepStatus
@@ -358,8 +359,8 @@ fun OrionSettingsScreen(
                     val results = remember(record.id, record.resultsJson) {
                         runCatching { PlanExecutionJsonCodec.decodeResults(record.resultsJson) }.getOrDefault(emptyMap())
                     }
-                    var approvedIds by remember(record.id) { mutableStateOf(emptySet<String>()) }
-                    var retryIds by remember(record.id) { mutableStateOf(emptySet<String>()) }
+                    var approvedIds by remember(record.id, record.resultsJson) { mutableStateOf(emptySet<String>()) }
+                    var retryIds by remember(record.id, record.resultsJson) { mutableStateOf(emptySet<String>()) }
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -375,6 +376,7 @@ fun OrionSettingsScreen(
                             } else {
                                 plan.steps.forEach { step ->
                                     val result = results[step.id]
+                                    val inputPreview = PlanStepInputPreviewBuilder.build(step, results)
                                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                         Text("${step.title} · ${result?.status ?: StepStatus.PENDING}", style = MaterialTheme.typography.bodyMedium)
                                         if (!result?.summary.isNullOrBlank()) {
@@ -385,15 +387,17 @@ fun OrionSettingsScreen(
                                         }
                                         if ((step.requiresApproval || step.risk >= PlanRisk.MEDIUM) && result?.status != StepStatus.SUCCEEDED) {
                                             if (step.inputSummary.isNotBlank()) {
-                                                val preview = PlanOutputReferences.resolve(step.inputSummary, results)
-                                                Text("Contexto: ${preview ?: "Pendiente de salida de pasos anteriores"}", style = MaterialTheme.typography.bodySmall)
+                                                Text("Contexto resuelto: ${inputPreview.summary ?: "Pendiente de salida de pasos anteriores"}", style = MaterialTheme.typography.bodySmall)
                                             }
-                                            step.connectorArguments.forEach { (key, rawValue) ->
-                                                val preview = PlanOutputReferences.resolve(rawValue, results)
-                                                Text("$key: ${preview ?: "Pendiente de salida de pasos anteriores"}", style = MaterialTheme.typography.bodySmall)
+                                            inputPreview.arguments.forEach { (key, value) ->
+                                                Text("$key: ${value ?: "Pendiente de salida de pasos anteriores"}", style = MaterialTheme.typography.bodySmall)
+                                            }
+                                            if (!inputPreview.readyForApproval) {
+                                                Text("No puedes autorizar este paso hasta que todas las entradas dependientes estén resueltas.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                                             }
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Checkbox(
+                                                    enabled = inputPreview.readyForApproval,
                                                     checked = step.id in approvedIds,
                                                     onCheckedChange = { checked ->
                                                         approvedIds = if (checked) approvedIds + step.id else approvedIds - step.id
