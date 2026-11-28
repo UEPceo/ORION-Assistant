@@ -314,7 +314,7 @@ class TaskSystemTest {
             assertEquals(1, shadowNm.allNotifications.size)
             val reminderNotification = shadowNm.allNotifications.single()
             assertEquals(android.app.Notification.VISIBILITY_PRIVATE, reminderNotification.visibility)
-            assertEquals("Tienes una tarea pendiente", reminderNotification.publicVersion.contentText)
+            assertEquals("Tienes una tarea pendiente", reminderNotification.publicVersion.extras.getCharSequence(android.app.Notification.EXTRA_TEXT))
 
             repo.completeTask(t1.id)
             assertEquals(0, shadowAlarm.scheduledAlarms.size)
