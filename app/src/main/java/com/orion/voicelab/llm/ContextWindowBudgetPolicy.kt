@@ -6,7 +6,7 @@ package com.orion.voicelab.llm
  * user input and generated output instead of filling the entire window with RAG passages.
  */
 object ContextWindowBudgetPolicy {
-    private const val CHARS_PER_TOKEN_ESTIMATE = 4
+    private const val CHARS_PER_TOKEN_ESTIMATE = 3
     private const val EVIDENCE_CONTEXT_SHARE = 0.28
     private const val MIN_EVIDENCE_CHARS = 1_500
     private const val MAX_EVIDENCE_CHARS = 12_000
