@@ -1,6 +1,6 @@
 package com.orion.voicelab.knowledge
 
-import java.net.HttpURLConnection
+import javax.net.ssl.HttpsURLConnection
 import java.net.InetAddress
 import java.net.URI
 import java.net.URL
@@ -23,7 +23,10 @@ internal object SafeWebPageReader {
     fun read(rawUrl: String): Page? {
         var current = normalizePublicHttpsUrl(rawUrl) ?: return null
         repeat(MAX_REDIRECTS + 1) { hop ->
-            val connection = (URL(current).openConnection() as HttpURLConnection).apply {
+            val host = URI(current).host ?: return null
+            val pinnedAddress = resolvePublicAddress(host) ?: return null
+            val connection = (URL(current).openConnection() as HttpsURLConnection).apply {
+                sslSocketFactory = PinnedHttpsSocketFactory(host, pinnedAddress, CONNECT_TIMEOUT_MS)
                 requestMethod = "GET"
                 connectTimeout = CONNECT_TIMEOUT_MS
                 readTimeout = READ_TIMEOUT_MS
@@ -86,13 +89,18 @@ internal object SafeWebPageReader {
             host.endsWith(".local") ||
             host.endsWith(".internal")
         ) return null
-        val addresses = InetAddress.getAllByName(host)
-        if (addresses.isEmpty() || addresses.any(::isNonPublicAddress)) return null
+        if (resolvePublicAddress(host) == null) return null
         URI("https", null, host, -1, uri.path.ifBlank { "/" }, uri.query, null)
             .toASCIIString().takeIf { it.length <= MAX_URL_CHARS }
     }.getOrNull()
 
-    private fun isNonPublicAddress(address: InetAddress): Boolean {
+    internal fun resolvePublicAddress(host: String): InetAddress? {
+        val addresses = runCatching { InetAddress.getAllByName(host) }.getOrNull() ?: return null
+        if (addresses.isEmpty() || addresses.any(::isNonPublicAddress)) return null
+        return addresses.first()
+    }
+
+    internal fun isNonPublicAddress(address: InetAddress): Boolean {
         if (address.isAnyLocalAddress || address.isLoopbackAddress ||
             address.isLinkLocalAddress || address.isSiteLocalAddress ||
             address.isMulticastAddress
@@ -101,20 +109,36 @@ internal object SafeWebPageReader {
         if (bytes.size == 4) {
             val a = bytes[0]
             val b = bytes[1]
+            val c = bytes[2]
             return a == 0 || a == 10 || a == 127 ||
                 (a == 169 && b == 254) ||
                 (a == 172 && b in 16..31) ||
                 (a == 192 && b == 168) ||
                 (a == 100 && b in 64..127) ||
                 (a == 192 && b == 0) ||
+                (a == 192 && b == 88 && c == 99) ||
                 (a == 198 && b in 18..19) ||
                 (a == 198 && b == 51) ||
                 (a == 203 && b == 0) ||
                 a >= 224
         }
         if (bytes.size == 16) {
-            return (bytes[0] and 0xfe) == 0xfc ||
-                (bytes[0] == 0x20 && bytes[1] == 0x01 && bytes[2] == 0x0d && bytes[3] == 0xb8)
+            val isGlobalUnicast = (bytes[0] and 0xe0) == 0x20 // 2000::/3
+            if (!isGlobalUnicast) return true
+            val isIetfProtocolAssignment = bytes[0] == 0x20 &&
+                bytes[1] == 0x01 && (bytes[2] == 0x00 || bytes[2] == 0x01)
+            val isDocumentation = (bytes[0] == 0x3f && bytes[1] == 0xff &&
+                (bytes[2] and 0xf0) == 0x00) || // 3fff::/20
+                (bytes[0] == 0x20 && bytes[1] == 0x01 && bytes[2] == 0x0d && bytes[3] == 0xb8) // 2001:db8::/32
+            val isSixToFour = bytes[0] == 0x20 && bytes[1] == 0x02 // 2002::/16
+            val isWellKnownNat64 = bytes[0] == 0x00 && bytes[1] == 0x64 &&
+                bytes[2] == 0xff && bytes[3] == 0x9b &&
+                bytes.subList(4, 12).all { it == 0 } // 64:ff9b::/96
+            val isLocalUseNat64 = bytes[0] == 0x00 && bytes[1] == 0x64 &&
+                bytes[2] == 0xff && bytes[3] == 0x9b &&
+                bytes[4] == 0x00 && bytes[5] == 0x01 // 64:ff9b:1::/48
+            return isIetfProtocolAssignment || isDocumentation || isSixToFour ||
+                isWellKnownNat64 || isLocalUseNat64
         }
         return true
     }
