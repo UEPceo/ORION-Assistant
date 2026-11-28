@@ -27,6 +27,7 @@ data class KnowledgeRegressionResult(
     val staleEvidenceIds:Set<String>,
     val domainMismatchIds:Set<String>,
     val primaryEvidenceMissingIds:Set<String>,
+    val primaryEvidenceRequiredMissing:Boolean,
     val answerEmpty:Boolean
 )
 
@@ -44,10 +45,12 @@ object KnowledgeRegressionEvaluator {
             retrieved.filter { id -> byId[id]?.let { nowMs-it.retrievedAtMs>test.maxEvidenceAgeMs || it.retrievedAtMs>nowMs } ?: true }.toSet()
         } else emptySet()
         val domainMismatch=retrieved.filter { byId[it]?.domain!=test.domain }.toSet()
-        val missingPrimary=if(test.requirePrimary) retrieved.filter { byId[it]?.authority !in setOf(EvidenceAuthority.OFFICIAL_PRIMARY,EvidenceAuthority.PRIMARY_TECHNICAL,EvidenceAuthority.PEER_REVIEWED) }.toSet() else emptySet()
+        val primaryAuthorities=setOf(EvidenceAuthority.OFFICIAL_PRIMARY,EvidenceAuthority.PRIMARY_TECHNICAL,EvidenceAuthority.PEER_REVIEWED)
+        val missingPrimary=if(test.requirePrimary) retrieved.filter { byId[it]?.authority !in primaryAuthorities }.toSet() else emptySet()
+        val primaryRequiredMissing=test.requirePrimary && retrieved.none { byId[it]?.authority in primaryAuthorities }
         val answerEmpty=observation.answer.isBlank()
-        val passed=missing.isEmpty()&&missingCitations.isEmpty()&&unsupported.isEmpty()&&stale.isEmpty()&&domainMismatch.isEmpty()&&missingPrimary.isEmpty()&&!answerEmpty
-        return KnowledgeRegressionResult(test.id,passed,missing,missingCitations,unsupported,stale,domainMismatch,missingPrimary,answerEmpty)
+        val passed=missing.isEmpty()&&missingCitations.isEmpty()&&unsupported.isEmpty()&&stale.isEmpty()&&domainMismatch.isEmpty()&&missingPrimary.isEmpty()&&!primaryRequiredMissing&&!answerEmpty
+        return KnowledgeRegressionResult(test.id,passed,missing,missingCitations,unsupported,stale,domainMismatch,missingPrimary,primaryRequiredMissing,answerEmpty)
     }
 
     fun score(results:List<KnowledgeRegressionResult>):Double =
