@@ -86,6 +86,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.orion.voicelab.creative.ComfyUiEndpointConfig
+import com.orion.voicelab.creative.ComfyUiCredentialStore
 import com.orion.voicelab.creative.ComfyUiWorkflowTemplate
 import com.orion.voicelab.creative.MediaGenerationRequest
 import com.orion.voicelab.knowledge.NeuralEmbeddingModelManager
