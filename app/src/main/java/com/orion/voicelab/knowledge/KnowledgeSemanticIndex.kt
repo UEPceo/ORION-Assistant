@@ -121,4 +121,4 @@ class KnowledgeSemanticIndex(context: Context) {
         return if (leftNorm == 0.0 || rightNorm == 0.0) 0.0 else (dot / (leftNorm * rightNorm)).coerceIn(0.0, 1.0)
     }
 
-}\n
+}
