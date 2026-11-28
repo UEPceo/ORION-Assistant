@@ -1,6 +1,6 @@
 {
   "id": "andalucia-fishing",
-  "version": 2,
+  "version": 3,
   "title": "Pesca recreativa Andalucía: marco de consulta responsable",
   "documents": [
     {
@@ -32,6 +32,26 @@
       "authority": "OFFICIAL_PRIMARY",
       "jurisdiction": "ES-AN",
       "content": "La Junta de Andalucía informa de que el uso de PescaREC es obligatorio para pescadores recreativos desde el 20 de marzo de 2026 y relaciona esta obligación con el marco europeo de control pesquero y el Real Decreto 214/2026, de 18 de marzo. La declaración de capturas es una obligación distinta de disponer de licencia. Antes de dar instrucciones prácticas, comprueba en el portal institucional el procedimiento vigente, las especies afectadas, los plazos, los datos que deben registrarse y las excepciones aplicables. No infieras que toda salida sin captura tiene el mismo tratamiento que una captura declarable ni inventes pasos de la aplicación. Esta ficha conserva el dato de la fecha indicada por la fuente consultada el 27 de noviembre de 2026; si se necesita actuar, debe verificarse que la página y la normativa no hayan cambiado."
+    },
+    {
+      "id": "surfcasting-condition-checklist",
+      "title": "Checklist responsable antes de una salida de surfcasting",
+      "url": "https://www.juntadeandalucia.es/organismos/agriculturapescaaguaydesarrollorural/areas/pesca-acuicultura/pesca-maritima-recreativa.html",
+      "publisher": "Junta de Andalucía",
+      "domain": "SURFCASTING",
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "ES-AN",
+      "content": "Antes de planificar una salida, comprobar previsión marítima y viento, evolución de marea, acceso y seguridad de la playa, presencia de bañistas, zonas protegidas y restricciones locales. La previsión no garantiza condiciones reales: observa el mar al llegar, evita entrar en agua o situarte en zonas expuestas y no pesques durante avisos adversos. El cebo, especie objetivo y equipo se eligen según condiciones y normativa vigente; nunca asumir que una especie, talla, cupo o zona está permitida sin comprobar la fuente oficial actual. La ficha es una lista de prudencia, no una previsión ni autorización."
+    },
+    {
+      "id": "catch-release-and-identification",
+      "title": "Identificación de capturas y liberación responsable",
+      "url": "https://www.juntadeandalucia.es/organismos/agriculturapescaaguaydesarrollorural/areas/pesca-acuicultura/pesca-maritima-recreativa.html",
+      "publisher": "Junta de Andalucía",
+      "domain": "FISHING",
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "ES-AN",
+      "content": "Identifica la captura antes de decidir conservarla: si existe duda sobre la especie, talla, límite, época, zona o régimen de protección, no la retengas y consulta la normativa oficial. Minimiza el tiempo fuera del agua, manipula con manos húmedas y cuidado, evita daños innecesarios y devuelve con suavidad los ejemplares que deban liberarse. No atribuyas a una especie un tamaño legal o una veda sin fuente actual. La práctica responsable debe respetar las obligaciones de declaración y las reglas aplicables a la modalidad y jurisdicción."
     }
   ]
 }
