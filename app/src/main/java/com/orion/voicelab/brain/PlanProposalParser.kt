@@ -9,7 +9,7 @@ sealed interface PlanProposalParseResult {
     data class Invalid(val errors: List<String>) : PlanProposalParseResult
 }
 
-/** Strict parser for structured LLM plan proposals. Parsing never executes a plan. Parsing never executes a plan. */
+/** Strict parser for structured LLM plan proposals. Parsing never executes a plan. */
 object PlanProposalParser {
     private const val MAX_INPUT_CHARS = 24_000
     private const val MAX_STEPS = 12
@@ -26,49 +26,64 @@ object PlanProposalParser {
         if (planId.isBlank() || planId.length > 100) return invalid("Identificador de plan no válido.")
         return try {
             val root = JSONObject(raw)
-            val goal = root.optString("goal").trim().take(MAX_TEXT_FIELD)
+            val goal = readText(root, "goal", MAX_TEXT_FIELD).trim()
             val stepsJson = root.optJSONArray("steps") ?: return invalid("La propuesta no contiene un array de pasos.")
             if (stepsJson.length() !in 1..MAX_STEPS) return invalid("El plan debe contener entre 1 y $MAX_STEPS pasos.")
 
+            require(!root.has("budget") || root.optJSONObject("budget") != null) { "El presupuesto debe ser un objeto JSON." }
             val budgetJson = root.optJSONObject("budget") ?: JSONObject()
             val budget = ExecutionBudget(
-                maxSteps = budgetJson.optInt("maxSteps", MAX_STEPS).coerceIn(1, MAX_STEPS),
-                maxRetriesPerStep = budgetJson.optInt("maxRetriesPerStep", 1).coerceIn(0, 3),
-                maxDurationMs = budgetJson.optLong("maxDurationMs", 5 * 60_000L).coerceIn(1L, 30L * 60_000L)
+                maxSteps = readInt(budgetJson, "maxSteps", MAX_STEPS).also { require(it in 1..MAX_STEPS) },
+                maxRetriesPerStep = readInt(budgetJson, "maxRetriesPerStep", 1).also { require(it in 0..3) },
+                maxDurationMs = readLong(budgetJson, "maxDurationMs", 5 * 60_000L).also { require(it in 1L..30L * 60_000L) }
             )
             val steps = mutableListOf<PlannedStep>()
             for (index in 0 until stepsJson.length()) {
                 val item = stepsJson.optJSONObject(index) ?: return invalid("El paso ${index + 1} no es un objeto JSON.")
-                val id = item.optString("id").trim().take(80)
-                val title = item.optString("title").trim().take(180)
-                val rationale = item.optString("rationale").trim().take(MAX_TEXT_FIELD)
-                val kind = runCatching { PlanStepKind.valueOf(item.optString("kind").uppercase(Locale.ROOT)) }.getOrNull()
+                val id = readText(item, "id", 80).trim()
+                val title = readText(item, "title", 180).trim()
+                val rationale = readText(item, "rationale", MAX_TEXT_FIELD).trim()
+                require(id.isNotBlank() && title.isNotBlank()) { "Cada paso necesita identificador y título." }
+                val kindText = readText(item, "kind", 40)
+                val riskText = readText(item, "risk", 40)
+                val kind = runCatching { PlanStepKind.valueOf(kindText.uppercase(Locale.ROOT)) }.getOrNull()
                     ?: return invalid("Tipo de paso desconocido en la posición ${index + 1}.")
-                val risk = runCatching { PlanRisk.valueOf(item.optString("risk").uppercase(Locale.ROOT)) }.getOrNull()
+                val risk = runCatching { PlanRisk.valueOf(riskText.uppercase(Locale.ROOT)) }.getOrNull()
                     ?: return invalid("Riesgo desconocido en la posición ${index + 1}.")
 
                 val dependencies = mutableSetOf<String>()
+                require(!item.has("dependsOn") || item.optJSONArray("dependsOn") != null) { "dependsOn debe ser un array JSON." }
                 val dependenciesJson = item.optJSONArray("dependsOn")
                 if (dependenciesJson != null) {
-                    for (i in 0 until dependenciesJson.length()) dependencies += dependenciesJson.getString(i).take(80)
+                    for (i in 0 until dependenciesJson.length()) {
+                        val dependency = dependenciesJson.opt(i)
+                        require(dependency is String && dependency.isNotBlank() && dependency.length <= 80) {
+                            "Dependencia no válida en el paso $id."
+                        }
+                        require(dependencies.add(dependency)) { "Dependencia duplicada en el paso $id." }
+                    }
                 }
 
                 val arguments = linkedMapOf<String, String>()
+                require(!item.has("connectorArguments") || item.optJSONObject("connectorArguments") != null) { "connectorArguments debe ser un objeto JSON." }
                 val argumentsJson = item.optJSONObject("connectorArguments") ?: JSONObject()
                 val keys = argumentsJson.keys()
                 while (keys.hasNext()) {
-                    val key = keys.next().take(100)
+                    val key = keys.next()
+                    require(key.length <= 100) { "Clave de argumento demasiado larga en el paso $id." }
                     val value = argumentsJson.opt(key)
-                    if (value !is String) return invalid("Todos los argumentos del conector deben ser texto plano.")
-                    arguments[key] = value.take(MAX_TEXT_FIELD)
+                    require(value is String && value.length <= MAX_TEXT_FIELD) {
+                        "Todos los argumentos deben ser texto plano y no superar $MAX_TEXT_FIELD caracteres."
+                    }
+                    arguments[key] = value
                 }
 
-                val connectorName = item.optString("connectorId").takeUnless { it.isBlank() || it == "null" }
+                val connectorName = readOptionalText(item, "connectorId", 80).takeUnless { it.isBlank() || it == "null" }
                 val connectorId = if (connectorName == null) null else {
                     runCatching { ConnectorId.valueOf(connectorName.uppercase(Locale.ROOT)) }.getOrNull()
                         ?: return invalid("Conector no reconocido en el paso $id.")
                 }
-                val operation = item.optString("connectorOperation").takeUnless { it.isBlank() || it == "null" }?.take(100)
+                val operation = readOptionalText(item, "connectorOperation", 100).takeUnless { it.isBlank() || it == "null" }
                 val localKinds = setOf(
                     PlanStepKind.LOCAL_CREATE_TASK,
                     PlanStepKind.LOCAL_CREATE_NOTE,
@@ -116,9 +131,9 @@ object PlanProposalParser {
                     rationale = rationale,
                     risk = risk,
                     dependsOn = dependencies,
-                    requiresApproval = item.optBoolean("requiresApproval", risk >= PlanRisk.MEDIUM),
-                    idempotencyKey = item.optString("idempotencyKey").takeUnless { it.isBlank() || it == "null" }?.take(160),
-                    inputSummary = item.optString("inputSummary").take(MAX_TEXT_FIELD),
+                    requiresApproval = readBoolean(item, "requiresApproval", risk >= PlanRisk.MEDIUM),
+                    idempotencyKey = readOptionalText(item, "idempotencyKey", 160).takeUnless { it.isBlank() || it == "null" },
+                    inputSummary = readText(item, "inputSummary", MAX_TEXT_FIELD),
                     connectorId = connectorId,
                     connectorOperation = operation,
                     connectorArguments = arguments
@@ -132,6 +147,39 @@ object PlanProposalParser {
         } catch (error: Exception) {
             invalid("JSON de plan no válido: ${error::class.java.simpleName}.")
         }
+    }
+
+    private fun readText(json: JSONObject, key: String, maxLength: Int): String {
+        if (!json.has(key) || json.isNull(key)) return ""
+        val value = json.opt(key)
+        require(value is String && value.length <= maxLength) {
+            "El campo $key debe ser texto y no superar $maxLength caracteres."
+        }
+        return value
+    }
+
+    private fun readOptionalText(json: JSONObject, key: String, maxLength: Int): String =
+        readText(json, key, maxLength)
+
+    private fun readInt(json: JSONObject, key: String, default: Int): Int {
+        if (!json.has(key)) return default
+        val value = json.opt(key)
+        require(value is Number) { "El campo $key debe ser numérico." }
+        return value.toInt().also { require(value.toDouble() == it.toDouble()) { "El campo $key debe ser entero." } }
+    }
+
+    private fun readLong(json: JSONObject, key: String, default: Long): Long {
+        if (!json.has(key)) return default
+        val value = json.opt(key)
+        require(value is Number) { "El campo $key debe ser numérico." }
+        return value.toLong().also { require(value.toDouble() == it.toDouble()) { "El campo $key debe ser entero." } }
+    }
+
+    private fun readBoolean(json: JSONObject, key: String, default: Boolean): Boolean {
+        if (!json.has(key)) return default
+        val value = json.opt(key)
+        require(value is Boolean) { "El campo $key debe ser booleano." }
+        return value
     }
 
     private fun invalid(message: String) = PlanProposalParseResult.Invalid(listOf(message))
