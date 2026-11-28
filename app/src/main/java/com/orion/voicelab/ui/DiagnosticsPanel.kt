@@ -93,6 +93,11 @@ fun OrionDiagnosticsPanel(state: VoiceLabUiState) {
                 label = "Descarga/disco",
                 value = "ASR $asrDiskStatus · LLM $llmDiskStatus · TTS $ttsDiskStatus"
             )
+            val cpu = com.orion.voicelab.llm.LlamaRuntimeDiagnostics.snapshot()
+            DiagnosticLine(
+                label = "Motor LLM",
+                value = "${cpu.backend} · ABI ${cpu.abi} · ${cpu.configuredThreads}/${cpu.availableProcessors} hilos configurados · ${cpu.dispatchDescription}"
+            )
             DiagnosticLine(
                 label = "Carga en RAM",
                 value = "ASR ${if (state.asrLoaded) "sí" else "no"} · " +
