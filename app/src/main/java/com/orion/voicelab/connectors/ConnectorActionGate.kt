@@ -37,7 +37,7 @@ object ConnectorActionGate {
         return when (action.risk) {
             ConnectorRisk.READ_ONLY -> {
                 if (!isReadOnlyOperation(action.operation)) {
-                    ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION
+                    ConnectorAuthorizationDecision.DENY
                 } else if (userRequestedExactAction) {
                     ConnectorAuthorizationDecision.ALLOW
                 } else {
