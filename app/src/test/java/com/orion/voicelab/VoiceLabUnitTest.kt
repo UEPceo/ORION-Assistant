@@ -720,6 +720,7 @@ class VoiceLabUnitTest {
             clockMs = { 100L },
             inputFactory = { FakeVoiceInputController() }
         )
+        try {
         val errors = CopyOnWriteArrayList<String>()
         val endedLatch = CountDownLatch(1)
         badEngine.attachCallbacks(object : ConversationEngine.Callbacks {
@@ -742,7 +743,9 @@ class VoiceLabUnitTest {
         assertEquals(ConversationState.ERROR, badEngine.state.value)
         assertFalse(badEngine.isCallActive())
         assertTrue(errors.any { it.contains("Modelo ASR ausente") })
-        badEngine.shutdown()
+        } finally {
+            badEngine.shutdown()
+        }
 
         // 2. Full turn orchestration + duplicate frame protection + reset + barge-in interrupt
         val fakeInput = FakeVoiceInputController()
@@ -763,6 +766,10 @@ class VoiceLabUnitTest {
             clockMs = { nowMs.addAndGet(20L) },
             inputFactory = { fakeInput }
         )
+        try {
+        try {
+        try {
+        try {
 
         val turnsSeen = CopyOnWriteArrayList<List<ConversationTurn>>()
         val listeningLatch = CountDownLatch(1)
@@ -831,7 +838,15 @@ class VoiceLabUnitTest {
         assertTrue(fakeTts.cancelCount.get() >= 1)
         assertTrue(fakePlayback.stopCount.get() >= 1)
 
-        engine.shutdown()
+        } finally {
+            } finally {
+            } finally {
+            } finally {
+            engine.shutdown()
+        }
+        }
+        }
+        }
     }
 
     @Test
