@@ -23,6 +23,7 @@ class OrionDatabaseEncryptionInstrumentedTest {
     @Before fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         databaseFile = context.getDatabasePath(DB_NAME)
+        databaseFile.parentFile?.mkdirs()
         backupFile = File(databaseFile.parentFile, DB_NAME + BACKUP_SUFFIX)
         temporaryFile = File(databaseFile.parentFile, DB_NAME + TEMP_SUFFIX)
         cleanState()
@@ -39,6 +40,8 @@ class OrionDatabaseEncryptionInstrumentedTest {
         legacy.close()
 
         val passphrase = OrionDatabaseEncryption.getOrCreatePassphrase(context)
+        assertEquals(64, passphrase.size)
+        assertTrue(String(passphrase, Charsets.UTF_8).matches(Regex("[0-9a-f]{64}")))
         OrionDatabaseEncryption.encryptLegacyDatabaseIfNeeded(context, passphrase)
 
         assertTrue(databaseFile.isFile)
