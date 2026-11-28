@@ -392,6 +392,12 @@ object SpanishDateTimeParser {
         }
         mins = mins.coerceIn(0, 59)
 
+        // A numeric HH:MM expression is an explicit 24-hour clock in Spanish usage.
+        // Do not turn "15 de diciembre a las 10:30" into an AM/PM clarification.
+        if (explicitMins != null && period.isBlank()) {
+            return ClockExtraction(resolvedMinutes = hour * 60 + mins)
+        }
+
         if (hour >= 13 || hour == 0) {
             return ClockExtraction(resolvedMinutes = hour * 60 + mins)
         }
