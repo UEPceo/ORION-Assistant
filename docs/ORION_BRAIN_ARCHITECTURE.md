@@ -391,3 +391,24 @@ Estado de integración: el catálogo, selector manual/automático y fallback seg
 - Pruebas unitarias: límites de RAM disponible, snapshots imposibles, crecimiento de footprint con modelos/contextos mayores y reducción escalonada de contexto. El contexto no se amplía por encima de lo solicitado.
 - La política se aplica al motor LLM que usa actualmente el runtime. Los artefactos superiores aún no se declaran operativos: antes de activarlos se deben fijar sus archivos GGUF concretos, revisión, tamaño exacto, SHA-256, licencia y compatibilidad real con la versión de llama.cpp. No se sustituye una verificación criptográfica por una simple cabecera GGUF.
 - La última compilación inspeccionada fallaba por tres errores de Kotlin ajenos a este bloque (interpolación literal de referencias de pasos, tratamiento de pares de conflictos y mutex compartido no declarado); los tres se han corregido y quedan pendientes los nuevos resultados CI.
+
+
+### Activación de los tres perfiles GGUF superiores — 28/11/2026
+
+Se han integrado tres artefactos descargables, con URL de revisión fijada y SHA-256 comprobado antes de activarlos:
+
+- Equilibrado: Qwen2.5-3B-Instruct Q4_K_M, aproximadamente 2,1 GB, contexto 4.096, RAM física recomendada 8 GB.
+- Potente: Qwen2.5-7B-Instruct Q4_K_M, aproximadamente 4,68 GB, contexto 4.096, RAM física recomendada 12 GB.
+- Flagship: Qwen2.5-14B-Instruct Q3_K_M, aproximadamente 7,34 GB, contexto 2.048, RAM física recomendada 16 GB. Se reduce la cuantización y el contexto para contener el consumo; sigue siendo un perfil experimental en móviles.
+
+El instalador usa descargas reanudables, HTTPS, espacio libre mínimo, SHA-256, cabecera GGUF y sustitución con backup. Un artefacto con hash incorrecto nunca se activa. Los modelos superiores no se descargan automáticamente ni se incluyen en el APK.
+
+Ajustes permite descargar e instalar cada perfil. La preferencia manual o automática se guarda; el perfil descargado se selecciona al iniciar ORION de nuevo. El runtime usa el archivo correspondiente y compone el prompt con el perfil realmente seleccionado. Si el archivo no existe, la RAM física no alcanza el umbral o la RAM libre no supera la estimación conservadora de carga, se usa Ligero.
+
+La protección de memoria comprueba RAM disponible antes de construir el motor y vuelve a comprobarla inmediatamente antes de cargar llama.cpp. Estima pesos, KV cache/contexto, buffers y margen de Android. El contexto de Flagship se reduce a 2.048 tokens y el batch de los perfiles superiores a 128. Si la memoria cae entre la comprobación inicial y la carga, se rechaza la inicialización de forma controlada. Una excepción OutOfMemoryError de inicialización se transforma en error operativo; no puede interceptarse un cierre forzado del proceso por el sistema ante agotamiento nativo extremo.
+
+La validación de integridad completa se realiza fuera del hilo principal. La verificación positiva se cachea durante la sesión del motor para evitar recalcular el SHA-256 de archivos de varios GB en cada carga. Si se reemplaza el archivo, la instancia debe reconstruirse para volver a verificarlo.
+
+Pruebas añadidas: bandas de RAM física, RAM libre real, snapshots incoherentes, estimación creciente con modelo/contexto, reducción escalonada de contexto, catálogo de artefactos, SHA-256, URLs HTTPS y prompt correspondiente al perfil activo.
+
+La presencia del artefacto y la compatibilidad del código no sustituyen un benchmark real en cada dispositivo. Quedan por medir en hardware: latencia de primer token, tokens/segundo, pico de RAM nativa, temperatura, consumo y estabilidad prolongada. El perfil Flagship puede no ser utilizable en móviles de 16 GB si el sistema no deja suficiente RAM libre; en ese caso el fallback a Ligero es intencionado.
