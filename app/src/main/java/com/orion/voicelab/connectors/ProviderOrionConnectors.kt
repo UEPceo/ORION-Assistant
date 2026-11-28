@@ -35,7 +35,7 @@ class GmailOrionConnector(
                     else api.getMessage(first.id).fold(
                         onSuccess = { message ->
                             ConnectorResult.Success(
-                                "Correo más reciente. De: ${message.from}. Asunto: ${message.subject}. Fecha: ${message.date}."
+                                "Correo más reciente. De: ${message.from}. Asunto: ${message.subject}. Fecha: ${message.date}.")
                         },
                         onFailure = {
                             ConnectorResult.Failure("No se pudo abrir el correo más reciente.", true)
@@ -53,7 +53,7 @@ class GmailOrionConnector(
             return api.getMessage(id).fold(
                 onSuccess = { message ->
                     ConnectorResult.Success(
-                        "De: ${message.from}. Asunto: ${message.subject}. Fecha: ${message.date}."
+                        "De: ${message.from}. Asunto: ${message.subject}. Fecha: ${message.date}.")
                 },
                 onFailure = {
                     ConnectorResult.Failure(
