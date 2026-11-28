@@ -442,3 +442,10 @@ En modo Automático, ORION conserva el mejor perfil local que el dispositivo pue
 ## Despertador offline — evaluación de viabilidad (2026-11-28)
 
 La dependencia sherpa-onnx existente incluye API Kotlin para keyword spotting en streaming, por lo que no se requiere un SDK adicional. La revisión del catálogo oficial de modelos KWS no encontró un modelo preentrenado español: los publicados cubren chino, inglés y chino+inglés. Moonshine Base ES v2 es un modelo ASR y no puede tratarse como KWS sin un adaptador/modelo específico validado. No se ha activado escucha permanente ni un servicio de micrófono en segundo plano. La integración queda condicionada a localizar o entrenar un modelo español con licencia y calidad verificables. El contrato de seguridad, consentimiento, servicio foreground, batería y validación acústica está documentado en [WAKE_WORD_READINESS.md](WAKE_WORD_READINESS.md).
+
+
+## Revisión de limitaciones: wake word y aceleración Android (2026-11-28)
+
+Se ha localizado un candidato KWS español compatible con sherpa-onnx: jguerrisi/sherpa-onnx-kws-zipformer-es-3M-2026-08-08. Su licencia declarada es Apache-2.0 y permite palabras configurables mediante BPE, pero su evaluación publicada es pequeña y no incluye «ORION». Quedan pendientes fijar revisión inmutable, hashes, tokenización BPE, pruebas de falsos disparos y validación acústica peninsular/andaluza. No activar el micrófono en segundo plano hasta cerrar esas comprobaciones y el flujo de consentimiento. Ver WAKE_WORD_READINESS.md.
+
+La implementación actual de LlamaCppLanguageModel solicita n_gpu_layers=0; por tanto, usa CPU. No se debe cambiar ese valor sin confirmar que el AAR/JNI incorpora un backend GPU. La ruta de mejora prioriza auditar y habilitar KleidiAI en arm64, y después prototipar Vulkan/OpenCL para Adreno con detección real, fallback y mediciones. LiteRT-LM dispone de API Kotlin estable y backends CPU/GPU/NPU en Android, así que se evaluará como backend alternativo en un prototipo separado, sin sustituir llama.cpp hasta superar pruebas comparativas. Hexagon/NPU no se declarará compatible sin runtime y pruebas concretas. Ver LLAMA_ANDROID_ACCELERATION_AUDIT.md.
