@@ -4,11 +4,11 @@ import java.net.URI
 import java.security.MessageDigest
 
 /**
- * Controlled knowledge ingestion. Every stored item retains its original publisher and
- * URL; model-generated text is categorically excluded from the evidence corpus.
+ * Normalizes evidence and places every accepted candidate in quarantine. This service
+ * never writes directly to the active retrieval corpus.
  */
 class KnowledgeIngestionService(
-    private val repository: KnowledgeRepository,
+    private val reviewQueue: KnowledgeReviewQueue,
     private val now: () -> Long = System::currentTimeMillis,
     private val maxContentChars: Int = 50_000
 ) {
@@ -33,12 +33,11 @@ class KnowledgeIngestionService(
             canonicalUrl = canonicalUrl,
             contentHash = contentHash
         )
-        repository.upsert(
-            candidate.document.copy(
-                evidence = normalizedEvidence,
-                excerpt = candidate.document.excerpt.take(maxContentChars)
-            )
+        val normalizedDocument = candidate.document.copy(
+            evidence = normalizedEvidence,
+            excerpt = candidate.document.excerpt.take(maxContentChars)
         )
+        reviewQueue.enqueue(normalizedDocument, candidate.origin, decision)
         return decision
     }
 
