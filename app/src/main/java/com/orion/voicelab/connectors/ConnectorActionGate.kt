@@ -12,6 +12,10 @@ enum class ConnectorAuthorizationDecision {
  * write operation safe merely by labelling its risk READ_ONLY.
  */
 object ConnectorActionGate {
+    private val writeOperationsByConnector = mapOf(
+        ConnectorId.GITHUB to setOf("create_branch", "commit_changes", "create_pull_request")
+    )
+
     private val readOnlyOperationsByConnector = mapOf(
         ConnectorId.GMAIL to setOf("search_messages", "get_message", "read_latest_message"),
         ConnectorId.GITHUB to setOf(
@@ -41,10 +45,13 @@ object ConnectorActionGate {
                 }
             }
 
-            ConnectorRisk.REVERSIBLE_WRITE,
+            ConnectorRisk.REVERSIBLE_WRITE -> {
+                if (action.operation.trim().lowercase() in writeOperationsByConnector[action.connectorId].orEmpty()) {
+                    ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION
+                } else ConnectorAuthorizationDecision.DENY
+            }
             ConnectorRisk.EXTERNAL_SIDE_EFFECT,
-            ConnectorRisk.DESTRUCTIVE ->
-                ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION
+            ConnectorRisk.DESTRUCTIVE -> ConnectorAuthorizationDecision.DENY
         }
     }
 
