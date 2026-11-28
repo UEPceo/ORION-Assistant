@@ -39,7 +39,7 @@ internal object OrionDatabaseEncryption {
         val key = loadOrCreateWrappingKey()
         val random = ByteArray(32)
         SecureRandom().nextBytes(random)
-        val passphrase = random.joinToString("") { "%02x".format(it) }.toByteArray(Charsets.UTF_8)
+        val passphrase = random.joinToString("") { "%02x".format(it.toInt() and 0xff) }.toByteArray(Charsets.UTF_8)
         random.fill(0)
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, key)
