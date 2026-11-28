@@ -101,7 +101,8 @@ class RemoteInferenceClient(
             val normalized = endpoint.trim().trimEnd('/')
             require(isSafeEndpoint(normalized)) { "El endpoint debe usar HTTPS o una dirección HTTP local/de red privada." }
             require(model.isNotBlank() && model.length <= 160) { "Identificador de modelo no válido." }
-            val completionUrl = when { normalized.endsWith("/chat/completions") -> normalized; normalized.endsWith("/v1") -> "$normalized/chat/completions"; else -> "$normalized/v1/chat/completions" }\n            val url = URL(completionUrl)
+            val completionUrl = when { normalized.endsWith("/chat/completions") -> normalized; normalized.endsWith("/v1") -> "$normalized/chat/completions"; else -> "$normalized/v1/chat/completions" }
+            val url = URL(completionUrl)
             val messages = JSONArray().put(JSONObject().put("role", "system").put("content", systemPrompt.take(24_000)))
             history.takeLast(12).forEach { msg ->
                 val role = when (msg.role) {
