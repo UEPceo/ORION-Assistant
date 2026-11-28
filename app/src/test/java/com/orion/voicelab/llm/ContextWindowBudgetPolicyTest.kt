@@ -9,7 +9,7 @@ class ContextWindowBudgetPolicyTest {
         val lite = ContextWindowBudgetPolicy.evidenceChars(2048)
         val balanced = ContextWindowBudgetPolicy.evidenceChars(4096)
         val powerful = ContextWindowBudgetPolicy.evidenceChars(8192)
-        assertTrue(lite in 2_000..2_500)
+        assertTrue(lite in 1_500..1_800)
         assertTrue(balanced > lite)
         assertTrue(powerful > balanced)
         assertEquals(12_000, ContextWindowBudgetPolicy.evidenceChars(32_768))
