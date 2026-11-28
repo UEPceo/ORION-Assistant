@@ -9,6 +9,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import org.json.JSONObject
+import com.orion.voicelab.model.ModelManager
 
 /** Downloads only allowlisted, hash-verified knowledge package updates. */
 class KnowledgePackUpdateWorker(
@@ -17,6 +18,8 @@ class KnowledgePackUpdateWorker(
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         return try {
+            // Avoid network, disk and CPU contention while the mandatory offline stack is being installed.
+            if (!ModelManager.areCoreModelsInstalled(applicationContext.filesDir)) return Result.retry()
             val manifestText = download(MANIFEST_URL, MAX_MANIFEST_BYTES)
             val manifest = JSONObject(manifestText)
             require(manifest.optInt("schema") == 1) { "Esquema de manifiesto no compatible." }
