@@ -65,7 +65,7 @@ object AnswerClaimCoverageGuard {
             val range = segmentStart until boundary.range.first
             segmentStart = boundary.range.last + 1
             range
-        } + (segmentStart until prose.length)
+        } + listOf(segmentStart until prose.length)
 
         for (range in segmentRanges) {
             if (range.isEmpty()) continue
