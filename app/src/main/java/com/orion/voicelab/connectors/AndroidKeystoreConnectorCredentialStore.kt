@@ -16,9 +16,11 @@ import javax.crypto.spec.GCMParameterSpec
  * Encrypts provider credentials with an AES-256-GCM key held by Android Keystore.
  * Only ciphertext is persisted in app-private SharedPreferences.
  */
-class AndroidKeystoreConnectorCredentialStore(
-    context: Context
+class AndroidKeystoreConnectorCredentialStore internal constructor(
+    context: Context,
+    private val testKeyProvider: (() -> SecretKey)?
 ) : ConnectorCredentialStore {
+    constructor(context: Context) : this(context, null)
     private val preferences = context.applicationContext.getSharedPreferences(
         PREFERENCES_NAME,
         Context.MODE_PRIVATE
@@ -87,7 +89,9 @@ class AndroidKeystoreConnectorCredentialStore(
         }
     }
 
-    private fun getOrCreateKey(): SecretKey = synchronized(KEY_LOCK) {
+    private fun getOrCreateKey(): SecretKey {
+        testKeyProvider?.let { return it() }
+        return synchronized(KEY_LOCK) {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return@synchronized it }
 
@@ -104,6 +108,7 @@ class AndroidKeystoreConnectorCredentialStore(
                 .build()
         )
         generator.generateKey()
+        }
     }
 
     private companion object {
