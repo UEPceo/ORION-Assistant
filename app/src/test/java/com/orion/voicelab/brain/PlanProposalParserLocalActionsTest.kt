@@ -19,4 +19,19 @@ class PlanProposalParserLocalActionsTest {
         val unsafe = """{"goal":"nota","steps":[{"id":"n","kind":"LOCAL_CREATE_NOTE","title":"Nota","risk":"MEDIUM","connectorArguments":{"content":"texto","access_token":"secret"}}]}"""
         assertTrue(PlanProposalParser.parse(unsafe, "unsafe") is PlanProposalParseResult.Invalid)
     }
+
+    @Test fun rejectsOversizedFieldsInsteadOfSilentlyTruncatingThem() {
+        val longTitle = "x".repeat(181)
+        val raw = """{"goal":"crear tarea","steps":[{"id":"task","kind":"LOCAL_CREATE_TASK","title":"Tarea","risk":"MEDIUM","connectorArguments":{"title":"$longTitle"}}]}"""
+        assertTrue(PlanProposalParser.parse(raw, "long-field") is PlanProposalParseResult.Invalid)
+    }
+
+    @Test fun rejectsWrongJsonTypesAndDuplicateDependencies() {
+        val wrongType = """{"goal":"crear tarea","steps":[{"id":"task","kind":"LOCAL_CREATE_TASK","title":"Tarea","risk":"MEDIUM","requiresApproval":"true","connectorArguments":{"title":"Tarea"}}]}"""
+        assertTrue(PlanProposalParser.parse(wrongType, "wrong-type") is PlanProposalParseResult.Invalid)
+
+        val duplicateDependency = """{"goal":"crear tareas","steps":[{"id":"first","kind":"LOCAL_CREATE_TASK","title":"Primera","risk":"MEDIUM","connectorArguments":{"title":"Primera"}},{"id":"second","kind":"LOCAL_CREATE_TASK","title":"Segunda","risk":"MEDIUM","dependsOn":["first","first"],"connectorArguments":{"title":"Segunda"}}]}"""
+        assertTrue(PlanProposalParser.parse(duplicateDependency, "duplicate-dependency") is PlanProposalParseResult.Invalid)
+    }
+
 }
