@@ -53,6 +53,23 @@ class PlanSecretGuardTest {
         assertTrue(encoded.contains("[REDACTED]"))
     }
 
+    @Test fun redactsCommonProviderSecretsAndSignedUrlParameters() {
+        val raw = "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456\n" +
+            "client_secret=super-secret-value-123\n" +
+            "https://example.test/download?sig=long-signed-signature-value&expires=123"
+        val safe = PlanSecretGuard.redact(raw)
+        assertFalse(safe.contains("abcdefghijklmnopqrstuvwxyz123456"))
+        assertFalse(safe.contains("super-secret-value-123"))
+        assertFalse(safe.contains("long-signed-signature-value"))
+        assertTrue(safe.contains("[REDACTED]"))
+    }
+
+    @Test fun redactsBeforeTruncatingSoSecretsAtTheBoundaryAreNotPartiallyExposed() {
+        val secret = "client_secret=boundary-secret-value-123456789"
+        val safe = PlanSecretGuard.redact("x".repeat(20) + secret, 30)
+        assertFalse(safe.contains("boundary"))
+    }
+
     @Test fun detectsPrivateKeyHeaders() {
         assertTrue(PlanSecretGuard.containsSecret("-----BEGIN PRIVATE KEY-----"))
         assertFalse(PlanSecretGuard.containsSecret("ordinary plan output"))
