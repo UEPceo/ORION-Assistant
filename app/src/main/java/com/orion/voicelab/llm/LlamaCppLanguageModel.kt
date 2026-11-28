@@ -218,16 +218,16 @@ class LlamaCppLanguageModel internal constructor(
             withContext(llamaDispatcher) {
                 if (destroyed.get()) error("El motor LLM ya fue cerrado")
                 if (contextIdRef.get() != null) return@withContext 0L
-                check(isModelInstalled()) {
-                    "El modelo LLM local no está instalado o está corrupto."
-                }
-
                 val decision = ModelMemoryPolicy.evaluate(
                     memorySnapshotProvider(),
                     modelFile.length(),
                     contextTokens
                 )
                 check(decision.allowed) { decision.reason }
+
+                check(isModelInstalled()) {
+                    "El modelo LLM local no está instalado o está corrupto."
+                }
 
                 val t0 = clockMs()
                 val (modelUri, fd) = bridge.openModelDescriptor(modelFile)
