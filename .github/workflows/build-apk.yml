@@ -50,6 +50,7 @@ jobs:
           KEYSTORE_PATH="$RUNNER_TEMP/orion-ci-debug.keystore"
           printf '%s' "$ORION_DEBUG_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
           test -s "$KEYSTORE_PATH"
+          keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$ORION_DEBUG_STORE_PASSWORD" -alias "$ORION_DEBUG_KEY_ALIAS" | grep -E "Alias name:|SHA1:"
           echo "ORION_DEBUG_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
 
       - name: Configure Android SDK
