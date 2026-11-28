@@ -2,6 +2,10 @@
 
 Estado: núcleo local, planificación por etapas, acciones locales con confirmación, recuperación híbrida y corpus offline de dieciséis packs implementados. El encoder ONNX multilingüe se instala por defecto cuando hay Wi-Fi sin batería baja y espacio suficiente; validación en dispositivo pendiente. Los proveedores multimedia siguen sin configuración.
 
+## Principio de evolución
+
+Toda limitación detectada debe convertirse en una línea de ingeniería con alternativas, mediciones, pruebas, fallback y estado explícito. ORION no debe quedar ligado a un único modelo, proveedor, acelerador o dispositivo. La estrategia transversal está en [ORION_LIMITATION_RESOLUTION_STRATEGY.md](ORION_LIMITATION_RESOLUTION_STRATEGY.md).
+
 ## Objetivo
 
 ORION será un asistente personal y empresarial de propósito general, con conversación, investigación, programación, análisis informático, navegación de información y ejecución controlada de tareas. Debe abarcar programación, arquitectura de software, sistemas, redes, ciberseguridad, Internet, empresa, productividad, conocimiento general, pesca recreativa, pesca marítima y surfcasting.
