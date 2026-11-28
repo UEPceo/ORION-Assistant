@@ -6,6 +6,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.io.IOException
 import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.URI
