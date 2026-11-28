@@ -154,6 +154,7 @@ class LlamaCppLanguageModel internal constructor(
 
     companion object {
         fun forProfile(context: Context, filesDir: File, artifact: ProfileModelArtifact): LlamaCppLanguageModel {
+            val artifactVerified = AtomicBoolean(false)
             val appContext = context.applicationContext
             val memoryProvider = {
                 val manager = appContext.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
@@ -164,7 +165,12 @@ class LlamaCppLanguageModel internal constructor(
             return LlamaCppLanguageModel(
                 modelFile = ModelManager.profileModelFile(filesDir, artifact.profileId),
                 bridge = AndroidLlamaRuntimeBridge(appContext.contentResolver),
-                modelInstalledCheck = { ModelManager.isProfileLlmInstalled(filesDir, artifact.profileId) },
+                modelInstalledCheck = { file ->
+                    if (artifactVerified.get()) file.isFile && ModelManager.hasGgufMagicHeader(file)
+                    else ModelManager.isProfileLlmInstalled(filesDir, artifact.profileId).also { valid ->
+                        if (valid) artifactVerified.set(true)
+                    }
+                },
                 memorySnapshotProvider = memoryProvider,
                 contextTokens = artifact.contextTokens,
                 batchSize = 128,
