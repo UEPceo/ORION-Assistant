@@ -57,3 +57,8 @@ Google publica LiteRT-LM con API Kotlin estable, ejecución local y backends CPU
 - Release v1.1.0 y digest: https://github.com/midnightkoderr/llama.cpp-android/releases/tag/v1.1.0
 - llama.cpp build / KleidiAI / OpenCL: https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md
 - LiteRT-LM overview y backends Android: https://developers.google.com/edge/litert-lm/overview
+
+
+## Ajuste CPU incorporado en ORION
+
+Se añadió `LlamaThreadPolicy`, que replica el criterio conservador de selección automática del JNI del wrapper: 1/2/3 hilos para 1/2/3 núcleos; 2 hilos en equipos de 4 núcleos; máximo 4 en equipos con más núcleos. Antes ORION forzaba hasta 4 hilos incluso en un dispositivo de 4 núcleos, anulando la decisión de 2 hilos del propio runtime. La política se aplica al crear modelos y tiene pruebas unitarias. Es una corrección de configuración CPU, no una afirmación de mejora de tokens/s; el rendimiento térmico y la latencia requieren benchmark real.
