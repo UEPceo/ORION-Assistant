@@ -16,6 +16,11 @@ import com.orion.voicelab.creative.CreativeSkillRouter
 import com.orion.voicelab.creative.CreativeBrainPromptComposer
 import com.orion.voicelab.creative.CreativeSkill
 import com.orion.voicelab.creative.OrionMediaRuntime
+import com.orion.voicelab.creative.ComfyUiEndpointConfig
+import com.orion.voicelab.creative.ComfyUiClient
+import com.orion.voicelab.creative.ComfyUiWorkflowTemplate
+import com.orion.voicelab.creative.ComfyUiImageGenerationProvider
+import com.orion.voicelab.creative.ComfyUiVideoGenerationProvider
 import com.orion.voicelab.data.AsrStats
 import com.orion.voicelab.data.AssistantIdentity
 import com.orion.voicelab.data.AudioHardwareStatus
@@ -114,7 +119,19 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private val settingsPreferences = appContext.getSharedPreferences("orion_user_settings", 0)
     private val connectorRuntime = OrionConnectorRuntime(appContext)
     private val brainRuntime = OrionBrainRuntime(appContext)
-    private val mediaRuntime = OrionMediaRuntime()
+    private fun configuredMediaRuntime(): OrionMediaRuntime {
+        val mediaPrefs=appContext.getSharedPreferences("orion_media_settings",0)
+        val endpoint=mediaPrefs.getString("endpoint","").orEmpty()
+        if(endpoint.isBlank()) return OrionMediaRuntime()
+        return runCatching {
+            val client=ComfyUiClient(appContext,ComfyUiEndpointConfig(endpoint))
+            val imageWorkflow=mediaPrefs.getString("image_workflow","").orEmpty()
+            val videoWorkflow=mediaPrefs.getString("video_workflow","").orEmpty()
+            val images=if(imageWorkflow.isNotBlank()) listOf(ComfyUiImageGenerationProvider(client,ComfyUiWorkflowTemplate(imageWorkflow,mediaPrefs.getString("image_prompt_node","").orEmpty(),negativePromptNodeId=mediaPrefs.getString("image_negative_node","").orEmpty().ifBlank { null })) else emptyList()
+            val videos=if(videoWorkflow.isNotBlank()) listOf(ComfyUiVideoGenerationProvider(client,ComfyUiWorkflowTemplate(videoWorkflow,mediaPrefs.getString("video_prompt_node","").orEmpty(),negativePromptNodeId=mediaPrefs.getString("video_negative_node","").orEmpty().ifBlank { null })) else emptyList()
+            OrionMediaRuntime(imageProviders=images,videoProviders=videos)
+        }.getOrElse { OrionMediaRuntime() }
+    }
     private val connectorPermissionManager = com.orion.voicelab.connectors.ConnectorPermissionManager()
     @Volatile private var lastConnectorRepository: String? = null
     @Volatile private var pendingConnectorInputAction: com.orion.voicelab.connectors.ConnectorAction? = null
@@ -212,10 +229,10 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             }
             val creativeSkill = CreativeSkillRouter.route(userText)
             val mediaStatus = when (creativeSkill) {
-                CreativeSkill.IMAGE_GENERATION -> mediaRuntime.imageGenerationStatus()
-                CreativeSkill.VIDEO_GENERATION -> mediaRuntime.videoGenerationStatus()
-                CreativeSkill.IMAGE_UNDERSTANDING -> mediaRuntime.imageUnderstandingStatus("image/jpeg")
-                CreativeSkill.VIDEO_UNDERSTANDING -> mediaRuntime.videoUnderstandingStatus()
+                CreativeSkill.IMAGE_GENERATION -> configuredMediaRuntime().imageGenerationStatus()
+                CreativeSkill.VIDEO_GENERATION -> configuredMediaRuntime().videoGenerationStatus()
+                CreativeSkill.IMAGE_UNDERSTANDING -> configuredMediaRuntime().imageUnderstandingStatus("image/jpeg")
+                CreativeSkill.VIDEO_UNDERSTANDING -> configuredMediaRuntime().videoUnderstandingStatus()
                 else -> null
             }
             val creativeContext = CreativeBrainPromptComposer.compose(
