@@ -61,7 +61,7 @@ class GmailApiClient(
                 requestJson(
                     "https://gmail.googleapis.com/gmail/v1/users/me/messages/${encode(messageId)}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date",
                     token
-                ).toSummary(includeBody = false)
+                ).toSummary()
             }
         }
 
