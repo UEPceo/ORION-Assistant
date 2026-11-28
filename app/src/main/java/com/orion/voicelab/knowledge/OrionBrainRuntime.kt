@@ -14,7 +14,8 @@ class OrionBrainRuntime(
     private val retrieval = BrainRetrievalEngine(
         sources = listOf(localCorpus, DuckDuckGoKnowledgeSource()) + externalSources.filterNot { it.sourceId in setOf(localCorpus.sourceId, "duckduckgo-web-discovery") }
     )
-    private val ingestion = KnowledgeIngestionService(localCorpus)
+    val reviewQueue = KnowledgeReviewQueueStore(context, localCorpus)
+    private val ingestion = KnowledgeIngestionService(reviewQueue)
     val offlinePackInstaller = BundledKnowledgePackInstaller(context, ingestion, localCorpus)
 
     suspend fun retrieve(queryText: String, jurisdiction: String? = null): BrainContext {
@@ -28,4 +29,18 @@ class OrionBrainRuntime(
     suspend fun remember(candidate: LearningCandidate): LearningDecision {
         return ingestion.ingest(candidate)
     }
+
+    suspend fun pendingKnowledgeReviews(): List<KnowledgeReviewItem> = reviewQueue.pending()
+
+    suspend fun approveKnowledgeReview(id: String, userConfirmed: Boolean): Boolean =
+        reviewQueue.approve(id, userConfirmed)
+
+    suspend fun publishKnowledgeAsUnverified(id: String, userConfirmed: Boolean): Boolean =
+        reviewQueue.publishUnverified(id, userConfirmed)
+
+    suspend fun rejectKnowledgeReview(id: String, userConfirmed: Boolean): Boolean =
+        reviewQueue.reject(id, userConfirmed)
+
+    suspend fun rollbackKnowledgeDocument(id: String, userConfirmed: Boolean): Boolean =
+        reviewQueue.rollback(id, userConfirmed)
 }
