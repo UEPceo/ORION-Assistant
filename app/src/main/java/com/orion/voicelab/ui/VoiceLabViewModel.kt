@@ -58,6 +58,8 @@ import com.orion.voicelab.data.VoiceLabUiState
 import com.orion.voicelab.engine.MoonshineModelManager
 import com.orion.voicelab.engine.OrionVoiceEngine
 import com.orion.voicelab.llm.LlamaCppLanguageModel
+import com.orion.voicelab.llm.HybridLanguageModel
+import com.orion.voicelab.llm.RemoteInferenceSettings
 import com.orion.voicelab.llm.ModelProfilePromptComposer
 import com.orion.voicelab.llm.ModelMemoryPolicy
 import com.orion.voicelab.llm.ModelMemorySnapshot
@@ -237,7 +239,10 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val activityManager = appContext.getSystemService(android.content.Context.ACTIVITY_SERVICE) as ActivityManager
         val memoryInfo = ActivityManager.MemoryInfo()
         activityManager.getMemoryInfo(memoryInfo)
-        val requestedId = if (automatic) {
+        val remoteSettings = RemoteInferenceSettings.read(appContext)
+        val requestedId = if (remoteSettings.isConfigured && remoteSettings.mode == RemoteInferenceSettings.MODE_REMOTE_ONLY) {
+            "lite"
+        } else if (automatic) {
             LanguageModelProfileCatalog.recommendForDevice(memoryInfo.totalMem / (1024L * 1024L)).id
         } else {
             preferences.getString("selected_profile", "lite") ?: "lite"
@@ -251,11 +256,12 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 artifact.contextTokens
             ).allowed
         }.getOrDefault(false)
-        if (artifact != null && candidateFile?.isFile == true && hasSafeMemory && ModelManager.hasGgufMagicHeader(candidateFile)) {
+        val localModel = if (artifact != null && candidateFile?.isFile == true && hasSafeMemory && ModelManager.hasGgufMagicHeader(candidateFile)) {
             LlamaCppLanguageModel.forProfile(appContext, appContext.filesDir, artifact)
         } else {
             LlamaCppLanguageModel(context = appContext, modelFile = ModelManager.llmModelFile(appContext.filesDir))
         }
+        HybridLanguageModel(appContext, localModel)
     }
     private val speechSynthesizer = SherpaOnnxSpeechSynthesizer(
         filesDir = appContext.filesDir
