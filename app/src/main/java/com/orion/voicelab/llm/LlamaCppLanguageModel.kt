@@ -1,6 +1,8 @@
 package com.orion.voicelab.llm
 
 import android.content.ContentResolver
+import android.content.Context
+import android.app.ActivityManager
 import android.net.Uri
 import android.os.SystemClock
 import com.orion.voicelab.data.ChatMessage
@@ -119,13 +121,27 @@ class LlamaCppLanguageModel internal constructor(
     private val modelInstalledCheck: (File) -> Boolean = { file ->
         file.isFile && ModelManager.hasGgufMagicHeader(file)
     },
-    private val clockMs: () -> Long = { SystemClock.elapsedRealtime() }
+    private val clockMs: () -> Long = { SystemClock.elapsedRealtime() },
+    private val memorySnapshotProvider: () -> ModelMemorySnapshot = {
+        ModelMemorySnapshot(Long.MAX_VALUE, Long.MAX_VALUE)
+    }
 ) : LocalLanguageModel {
 
     constructor(
-        contentResolver: ContentResolver,
+        context: Context,
         modelFile: File
     ) : this(
+        modelFile = modelFile,
+        bridge = AndroidLlamaRuntimeBridge(context.contentResolver),
+        memorySnapshotProvider = {
+            val activityManager = context.applicationContext.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val memoryInfo = ActivityManager.MemoryInfo()
+            activityManager.getMemoryInfo(memoryInfo)
+            ModelMemorySnapshot(memoryInfo.totalMem, memoryInfo.availMem)
+        }
+    )
+
+    constructor(contentResolver: ContentResolver, modelFile: File) : this(
         modelFile = modelFile,
         bridge = AndroidLlamaRuntimeBridge(contentResolver)
     )
@@ -178,6 +194,13 @@ class LlamaCppLanguageModel internal constructor(
                     "El modelo LLM local no está instalado o está corrupto."
                 }
 
+                val decision = ModelMemoryPolicy.evaluate(
+                    memorySnapshotProvider(),
+                    modelFile.length(),
+                    CONTEXT_SIZE
+                )
+                check(decision.allowed) { decision.reason }
+
                 val t0 = clockMs()
                 val (modelUri, fd) = bridge.openModelDescriptor(modelFile)
 
@@ -192,10 +215,13 @@ class LlamaCppLanguageModel internal constructor(
                     "n_gpu_layers" to 0
                 )
 
-                val result = bridge.startEngine(params) { token ->
-                    if (!cancelled.get()) {
-                        activeTokenSink?.invoke(token)
+                val result = try {
+                    bridge.startEngine(params) { token ->
+                        if (!cancelled.get()) activeTokenSink?.invoke(token)
                     }
+                } catch (memoryError: OutOfMemoryError) {
+                    System.gc()
+                    error("Memoria insuficiente al inicializar llama.cpp. Se ha rechazado la carga para proteger ORION.")
                 }
 
                 val nativeError = result?.get("error")?.toString()?.takeIf { it.isNotBlank() }
