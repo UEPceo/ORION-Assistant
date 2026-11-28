@@ -2,7 +2,7 @@ package com.orion.voicelab.knowledge
 
 /** Creates a compact, provenance-preserving context block for the local LLM. */
 object BrainPromptComposer {
-    fun compose(context: BrainContext, maxChars: Int = 2_200): String {
+    fun compose(context: BrainContext, maxChars: Int = 5_200): String {
         val header = when (context.presentation) {
             BrainPresentation.EVIDENCE_SUPPORTED -> "EVIDENCIA CONTRASTADA (no es garantía absoluta):"
             BrainPresentation.UNVERIFIED -> "INFORMACIÓN NO VERIFICADA:"

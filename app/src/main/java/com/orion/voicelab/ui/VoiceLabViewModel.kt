@@ -73,6 +73,7 @@ import com.orion.voicelab.llm.ModelMemoryPolicy
 import com.orion.voicelab.llm.ModelMemorySnapshot
 import com.orion.voicelab.llm.LanguageModelProfileCatalog
 import com.orion.voicelab.knowledge.OrionBrainRuntime
+import com.orion.voicelab.knowledge.BrainContext
 import com.orion.voicelab.knowledge.verifyGeneratedAnswer
 import com.orion.voicelab.brain.PlanningPromptComposer
 import com.orion.voicelab.brain.OrionPlan
@@ -232,6 +233,9 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private var latestTasks: List<TaskItem> = emptyList()
 
     @Volatile
+    private var latestTurnBrainContext: BrainContext? = null
+
+    @Volatile
     private var pendingTaskPromptSnapshot: PendingTaskPrompt? = null
 
     @Volatile
@@ -311,15 +315,19 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 recentPhoneCalls = latestPhoneCallRecords,
                 activeTasks = latestTasks
             )
-            val brainPrompt = withContext(Dispatchers.IO) {
+            latestTurnBrainContext = null
+            val turnBrainContext = withContext(Dispatchers.IO) {
                 try {
-                    BrainPromptComposer.compose(brainRuntime.retrieve(userText))
+                    brainRuntime.retrieve(userText)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
-                    "CONOCIMIENTO LOCAL NO DISPONIBLE EN ESTE TURNO: continúa la conversación con el contexto disponible, no afirmes haber consultado fuentes y comunica la limitación solo si afecta a la respuesta."
+                    null
                 }
             }
+            latestTurnBrainContext = turnBrainContext
+            val brainPrompt = turnBrainContext?.let(BrainPromptComposer::compose)
+                ?: "CONOCIMIENTO LOCAL NO DISPONIBLE EN ESTE TURNO: continúa la conversación con el contexto disponible, no afirmes haber consultado fuentes y comunica la limitación solo si afecta a la respuesta."
             val creativeSkill = CreativeSkillRouter.route(userText)
             val mediaStatus = when (creativeSkill) {
                 CreativeSkill.IMAGE_GENERATION -> configuredMediaRuntime().imageGenerationStatus()
@@ -370,7 +378,9 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         responseVerifier = { userText, draft ->
             withContext(Dispatchers.IO) {
                 try {
-                    brainRuntime.verifyGeneratedAnswer(userText, draft, languageModel)
+                    val evidenceContext = latestTurnBrainContext
+                        ?: return@withContext "No puedo confirmar esa respuesta: no se conservó el contexto exacto de evidencias de este turno."
+                    brainRuntime.verifyGeneratedAnswer(userText, draft, evidenceContext, languageModel)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {

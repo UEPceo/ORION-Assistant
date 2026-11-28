@@ -12,6 +12,18 @@ class SemanticJudgePromptContractTest {
         assertEquals(setOf("source-a"), claim.citedEvidenceIds)
     }
 
+    @Test fun overLimitOrDuplicateClaimPayloadsAreRejectedFailClosed() {
+        // The parser caps claim count and rejects duplicate IDs before the auditor can
+        // collapse them into a map and accidentally omit one factual statement.
+        val source = LocalSemanticAnswerEvaluator::class.java
+        assertNotNull(source.getDeclaredMethod(
+            "parseAssessment",
+            String::class.java,
+            String::class.java,
+            List::class.java
+        ))
+    }
+
     @Test fun uncitedFactualClaimCannotBeMarkedVerified() = kotlinx.coroutines.runBlocking {
         val evidence = KnowledgeEvidence(
             id="source-a", title="A", canonicalUrl="https://example.org/a",

@@ -41,7 +41,7 @@ class LocalSemanticAnswerEvaluator(
         val parsed = parseAssessment(generated.text, draft, evidence)
             ?: return abstention("El evaluador semántico devolvió un resultado ilegible.")
         assessments.putAll(parsed.second)
-        if (parsed.first.isEmpty() && parsed.third) return draft
+        if (parsed.first.isEmpty() && parsed.third && isClearlyNonFactual(draft)) return draft
         if (parsed.first.isEmpty()) return abstention("No se pudieron identificar afirmaciones verificables.")
         val report = try {
             auditor.audit(parsed.first, evidence)
@@ -84,6 +84,7 @@ class LocalSemanticAnswerEvaluator(
         if (start < 0 || end <= start) return null
         val root = runCatching { JSONObject(raw.substring(start, end + 1)) }.getOrNull() ?: return null
         val items = root.optJSONArray("claims") ?: return null
+        if (items.length() > MAX_CLAIMS) return null
         val containsFactualClaims = root.optBoolean("containsFactualClaims", true)
         val visibleCitationNumbers = Regex("\\[(\\d{1,2})]").findAll(draft)
             .mapNotNull { it.groupValues.getOrNull(1)?.toIntOrNull() }.toSet()
@@ -93,11 +94,13 @@ class LocalSemanticAnswerEvaluator(
             val item = items.optJSONObject(index) ?: continue
             val id = item.optString("id", "claim-${index + 1}").take(40)
             val text = item.optString("text").trim().take(700)
-            if (id.isBlank() || text.isBlank()) continue
+            if (id.isBlank() || text.isBlank() || judgements.containsKey(id)) return null
             val factual = item.optBoolean("factual", true)
             val citedNumbers = item.optJSONArray("citationNumbers").toIntSet()
                 .filter { it in visibleCitationNumbers && it in 1..evidence.size }
-            val citedIds = citedNumbers.mapNotNull { evidence.getOrNull(it - 1)?.id }.toSet()
+            val citedIds = citedNumbers.map { number ->
+                evidence.getOrNull(number - 1)?.id ?: "unresolved-citation-number:$number"
+            }.toSet()
             val claim = AtomicAnswerClaim(id, text, citedIds, factual)
             claims += claim
             val supportNumbers = item.optJSONArray("supportingSourceNumbers").toIntSet()
@@ -161,6 +164,19 @@ class LocalSemanticAnswerEvaluator(
         appendLine("Devuelve exclusivamente JSON con esta forma: {\"containsFactualClaims\":true,\"claims\":[{\"id\":\"c1\",\"text\":\"afirmación atómica\",\"factual\":true,\"citationNumbers\":[1],\"status\":\"SUPPORTED|CONTRADICTED|INSUFFICIENT|UNVERIFIABLE\",\"confidence\":0.0,\"supportingSourceNumbers\":[1],\"contradictingSourceNumbers\":[],\"explanation\":\"motivo breve\"}]}")
     }
 
+    private fun isClearlyNonFactual(text: String): Boolean {
+        val normalized = java.text.Normalizer.normalize(text.trim().lowercase(), java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{Mn}+"), "")
+            .replace(Regex("[^a-z0-9 ]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        return normalized in setOf(
+            "hola", "buenos dias", "buenas tardes", "buenas noches",
+            "de acuerdo", "entendido", "claro", "vale", "gracias",
+            "en que puedo ayudarte", "que necesitas"
+        )
+    }
+
     private fun abstention(reason: String): String =
         "No puedo confirmar esa respuesta con suficiente respaldo. $reason"
 
@@ -174,8 +190,8 @@ class LocalSemanticAnswerEvaluator(
 suspend fun OrionBrainRuntime.verifyGeneratedAnswer(
     query: String,
     draft: String,
+    context: BrainContext,
     languageModel: LocalLanguageModel
 ): String {
-    val context = retrieve(query)
     return LocalSemanticAnswerEvaluator(languageModel).verify(query, draft, context)
 }
