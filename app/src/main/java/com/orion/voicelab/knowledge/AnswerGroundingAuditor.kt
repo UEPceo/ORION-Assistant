@@ -10,7 +10,8 @@ data class AtomicAnswerClaim(
     val id: String,
     val text: String,
     val citedEvidenceIds: Set<String>,
-    val isFactual: Boolean = true
+    val isFactual: Boolean = true,
+    val sourceSpan: String? = null
 )
 
 data class SemanticJudgeAssessment(
