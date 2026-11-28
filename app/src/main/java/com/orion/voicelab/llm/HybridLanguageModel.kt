@@ -16,6 +16,8 @@ class HybridLanguageModel(
     override val modelDisplayName: String get() = local.modelDisplayName
     override val modelLicense: String get() = local.modelLicense
 
+    @Volatile private var activeRemoteClient: RemoteInferenceClient? = null
+
     private fun settings() = RemoteInferenceSettings.read(context)
     private fun remoteOnlyRequested() = settings().let {
         it.enabled && it.mode == RemoteInferenceSettings.MODE_REMOTE_ONLY
@@ -40,7 +42,10 @@ class HybridLanguageModel(
         return 0L
     }
 
-    override fun cancelGeneration() = local.cancelGeneration()
+    override fun cancelGeneration() {
+        activeRemoteClient?.cancel()
+        local.cancelGeneration()
+    }
     override fun unload() = local.unload()
 
     override suspend fun generateReply(
@@ -58,12 +63,14 @@ class HybridLanguageModel(
             error("El modo Solo remoto necesita endpoint, modelo y consentimiento de contexto configurados.")
         }
         if (remoteAllowed && remotePreferred) {
+            val client = RemoteInferenceClient(
+                endpoint = config.endpoint,
+                model = config.model,
+                apiKey = RemoteInferenceSettings.apiKey(context)
+            )
+            activeRemoteClient = client
             try {
-                val result = RemoteInferenceClient(
-                    endpoint = config.endpoint,
-                    model = config.model,
-                    apiKey = RemoteInferenceSettings.apiKey(context)
-                ).generate(systemPrompt, history)
+                val result = client.generate(systemPrompt, history)
                 if (!result.cancelled) onToken(result.text)
                 return result
             } catch (cancelled: CancellationException) {
@@ -77,6 +84,8 @@ class HybridLanguageModel(
                     )
                 }
                 // Automatic mode falls back locally without changing privacy settings or provider.
+            } finally {
+                if (activeRemoteClient === client) activeRemoteClient = null
             }
         }
         check(!remoteOnlyRequested()) {
