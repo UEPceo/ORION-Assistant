@@ -155,6 +155,7 @@ object ConnectorVoiceIntentRouter {
             issueNumber != null && containsAny(normalized, "detalle", "detalles", "información", "informacion", "describe", "abre") -> "get_issue"
             containsAny(normalized, "commit", "commits", "cambios recientes", "últimos cambios", "ultimos cambios", "historial de cambios") -> "list_commits"
             Regex("""\bci\b""").containsMatchIn(normalized) || containsAny(normalized, "compilación", "compilacion", "workflow", "actions", "integración continua", "integracion continua", "ha terminado de compilar") -> "list_workflow_runs"
+            containsAny(normalized, "lee el archivo", "lee archivo", "muestra el archivo", "muestra archivo", "abre el archivo", "abre archivo") -> "get_file"
             containsAny(normalized, "archivos", "carpetas", "estructura del repo", "estructura del repositorio", "contenido del repositorio") -> "list_files"
             containsAny(normalized, "incidencias", "issues", "problemas abiertos", "tareas abiertas") -> "list_issues"
             else -> null
