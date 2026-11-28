@@ -193,6 +193,11 @@ class TelephonyAndRoomRobolectricTest {
         val manager = PhoneCallManager(app)
         val shadowApp = shadowOf(app)
 
+        // Call-state reconciliation must respect the permission boundary.
+        assertEquals(SystemTelephonyState.UNAVAILABLE, manager.currentCallState())
+        shadowApp.grantPermissions(Manifest.permission.READ_PHONE_STATE)
+        assertEquals(SystemTelephonyState.IDLE, manager.currentCallState())
+
         // Invalid number rejected safely without starting any Activity
         val invalid = manager.dispatchCall("sin digitos", preferDirectCall = true)
         assertTrue(invalid is CallDispatchResult.Failed)
