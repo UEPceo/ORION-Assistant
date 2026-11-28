@@ -19,6 +19,8 @@ data class LlmGenerationResult(
 
 interface LocalLanguageModel {
     val profileId: String get() = "lite"
+    /** Effective native context after RAM-based downscaling; default is the base profile window. */
+    val contextWindowTokens: Int get() = 2048
     val modelDisplayName: String
     val modelLicense: String
 

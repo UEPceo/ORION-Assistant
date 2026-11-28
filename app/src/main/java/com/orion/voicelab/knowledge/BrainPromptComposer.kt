@@ -12,7 +12,7 @@ object BrainPromptComposer {
         composeBundle(context, maxChars).prompt
 
     fun composeBundle(context: BrainContext, maxChars: Int = 3_000): BrainPromptBundle {
-        require(maxChars >= 256) { "Prompt budget must be at least 256 characters." }
+        require(maxChars >= 0) { "Prompt budget cannot be negative." }
         fun header(presentation: BrainPresentation) = when (presentation) {
             BrainPresentation.EVIDENCE_SUPPORTED -> "EVIDENCIA CONTRASTADA (no es garantía absoluta):"
             BrainPresentation.UNVERIFIED -> "INFORMACIÓN NO VERIFICADA:"

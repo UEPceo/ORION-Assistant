@@ -34,18 +34,44 @@ object ChatPromptFormatter {
     fun formatChatMl(
         systemPrompt: String,
         history: List<ChatMessage>,
-        maxTurns: Int = 10
+        maxTurns: Int = 10,
+        maxContextTokens: Int = 2048
     ): String {
-        val recent = if (history.size > maxTurns) {
-            history.takeLast(maxTurns)
-        } else {
-            history
+        val promptBudget = ContextWindowBudgetPolicy.promptChars(maxContextTokens)
+        val safeSystem = systemPrompt.trim()
+        require(safeSystem.length + SYSTEM_OVERHEAD_CHARS <= promptBudget) {
+            "El prompt de sistema supera el presupuesto del contexto efectivo; reduce contexto antes de generar."
+        }
+        require(maxTurns > 0) { "El número de turnos debe ser positivo." }
+        val recentHistory = history.takeLast(maxTurns)
+        val selected = mutableListOf<ChatMessage>()
+        var usedChars = safeSystem.length + SYSTEM_OVERHEAD_CHARS
+        for ((reverseIndex, message) in recentHistory.asReversed().withIndex()) {
+            val overhead = MESSAGE_OVERHEAD_CHARS
+            val available = promptBudget - usedChars - overhead
+            if (available <= 0) {
+                if (reverseIndex == 0 && message.role == ChatRole.USER) {
+                    error("El mensaje actual supera el presupuesto del contexto efectivo; no se recortará ni se enviará incompleto.")
+                }
+                break
+            }
+            if (message.content.length > available) {
+                if (reverseIndex == 0 && message.role == ChatRole.USER) {
+                    error("El mensaje actual supera el presupuesto del contexto efectivo; reduce su longitud o usa un perfil con más contexto.")
+                }
+                break
+            }
+            selected += message
+            usedChars += message.content.length + overhead
+        }
+        if (recentHistory.lastOrNull()?.role == ChatRole.USER && selected.none { it === recentHistory.last() }) {
+            error("No se pudo conservar íntegro el mensaje actual dentro del contexto efectivo.")
         }
         return buildString {
             append("<|im_start|>system\n")
-            append(systemPrompt.trim())
+            append(safeSystem)
             append("<|im_end|>\n")
-            for (msg in recent) {
+            for (msg in selected.asReversed()) {
                 val roleTag = when (msg.role) {
                     ChatRole.SYSTEM -> "system"
                     ChatRole.USER -> "user"
@@ -60,6 +86,9 @@ object ChatPromptFormatter {
             append("<|im_start|>assistant\n")
         }
     }
+
+    private const val SYSTEM_OVERHEAD_CHARS = 56
+    private const val MESSAGE_OVERHEAD_CHARS = 40
 
     fun cleanAssistantText(raw: String): String {
         var cleaned = raw
@@ -195,6 +224,9 @@ class LlamaCppLanguageModel internal constructor(
     private val mutex = Mutex()
 
     private val contextIdRef = AtomicReference<Int?>(null)
+    private val effectiveContextTokens = AtomicInteger(0)
+    override val contextWindowTokens: Int
+        get() = effectiveContextTokens.get().takeIf { it > 0 } ?: contextTokens
     private val cancelled = AtomicBoolean(false)
     private val generating = AtomicBoolean(false)
     private val unloadRequested = AtomicBoolean(false)
@@ -288,6 +320,7 @@ class LlamaCppLanguageModel internal constructor(
                     return@withContext 0L
                 }
 
+                effectiveContextTokens.set(selectedContextTokens)
                 clockMs() - t0
             }
         } catch (e: RejectedExecutionException) {
@@ -325,7 +358,7 @@ class LlamaCppLanguageModel internal constructor(
                     cancelled.set(false)
                     generating.set(true)
 
-                    val prompt = ChatPromptFormatter.formatChatMl(systemPrompt, history)
+                    val prompt = ChatPromptFormatter.formatChatMl(systemPrompt, history, maxContextTokens = contextWindowTokens)
                     val startMs = clockMs()
                     var firstTokenMs = -1L
                     val tokenCounter = AtomicInteger(0)
@@ -419,6 +452,7 @@ class LlamaCppLanguageModel internal constructor(
         cancelled.set(true)
         activeTokenSink = null
         val idToRelease = contextIdRef.getAndSet(null) ?: return
+        effectiveContextTokens.set(0)
 
         if (generating.get() && !destroyed.get()) {
             controlScope.launch {
@@ -452,6 +486,7 @@ class LlamaCppLanguageModel internal constructor(
         activeTokenSink = null
         val wasGenerating = generating.get()
         val idToRelease = contextIdRef.getAndSet(null)
+        effectiveContextTokens.set(0)
 
         if (idToRelease != null && wasGenerating) {
             controlScope.launch {
