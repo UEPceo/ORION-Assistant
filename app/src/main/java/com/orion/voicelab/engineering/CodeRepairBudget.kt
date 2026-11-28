@@ -1,5 +1,7 @@
 package com.orion.voicelab.engineering
 
+import com.orion.voicelab.brain.PlanSecretGuard
+
 /**
  * Bounds repair iterations and reduces CI output to diagnostic signals. Logs remain untrusted
  * data and never authorize execution, commits or merges.
@@ -15,7 +17,8 @@ object CodeRepairBudget {
 
     fun summarizeLogs(rawLogs: String): String {
         val selected = java.util.ArrayDeque<String>()
-        rawLogs.lineSequence()
+        val sanitizedLogs = PlanSecretGuard.redact(rawLogs, 1_500_000)
+        sanitizedLogs.lineSequence()
             .map { it.take(500) }
             .filter { line ->
                 line.containsAny(
@@ -28,8 +31,8 @@ object CodeRepairBudget {
                 selected.addLast(line)
                 if (selected.size > 18) selected.removeFirst()
             }
-        val summary = if (selected.isNotEmpty()) selected.joinToString("\n") else rawLogs.takeLast(1_200)
-        return summary.takeLast(MAX_DIAGNOSTIC_CHARS)
+        if (selected.isEmpty()) return ""
+        return selected.joinToString("\n").takeLast(MAX_DIAGNOSTIC_CHARS)
     }
 
     private fun String.containsAny(vararg values: String): Boolean =
