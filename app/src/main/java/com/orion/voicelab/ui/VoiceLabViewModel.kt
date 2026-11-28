@@ -980,7 +980,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             try {
                 ModelManager.downloadAndInstallLlm(
                     filesDir = appContext.filesDir,
-                    shouldCancel = { !viewModelScope.isActive }
+                    shouldCancel = { downloadJob?.isActive != true }
                 ) { percent, downMb, totalMb ->
                     _uiState.update {
                         it.copy(
@@ -1042,7 +1042,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 ModelManager.downloadAndInstallTts(
                     filesDir = appContext.filesDir,
                     cacheDir = appContext.cacheDir,
-                    shouldCancel = { !viewModelScope.isActive },
+                    shouldCancel = { downloadJob?.isActive != true },
                     onProgress = { percent, downMb, totalMb ->
                         _uiState.update {
                             it.copy(
