@@ -26,6 +26,7 @@ import com.orion.voicelab.creative.CreativeBrainPromptComposer
 import com.orion.voicelab.creative.CreativeSkill
 import com.orion.voicelab.creative.OrionMediaRuntime
 import com.orion.voicelab.creative.ComfyUiEndpointConfig
+import com.orion.voicelab.creative.ComfyUiCredentialStore
 import com.orion.voicelab.creative.ComfyUiClient
 import com.orion.voicelab.creative.ComfyUiWorkflowTemplate
 import com.orion.voicelab.creative.ComfyUiImageGenerationProvider
@@ -151,7 +152,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val endpoint=mediaPrefs.getString("endpoint","").orEmpty()
         if(endpoint.isBlank()) return OrionMediaRuntime()
         return runCatching {
-            val client=ComfyUiClient(appContext,ComfyUiEndpointConfig(endpoint))
+            val bearerToken = ComfyUiCredentialStore.read(appContext).getOrElse { return OrionMediaRuntime() }
+            val client=ComfyUiClient(appContext,ComfyUiEndpointConfig(endpoint, bearerToken.ifBlank { null }))
             val imageWorkflow=mediaPrefs.getString("image_workflow","").orEmpty()
             val videoWorkflow=mediaPrefs.getString("video_workflow","").orEmpty()
             val images = if (imageWorkflow.isNotBlank()) {
