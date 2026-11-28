@@ -33,14 +33,15 @@ object AnswerClaimCoverageGuard {
         val factualClaims = claims.filter { it.isFactual }
         val invalid = factualClaims.filter { claim ->
             claim.sourceSpan.isNullOrBlank() ||
-                claim.sourceSpan.length > MAX_SPAN_CHARS ||
+                claim.sourceSpan.orEmpty().length > MAX_SPAN_CHARS ||
                 !draft.contains(claim.sourceSpan)
         }.map { it.id }.toSet()
         if (invalid.isNotEmpty()) return AnswerClaimCoverageCheck(false, emptyList(), invalid)
 
         val coveredTokens = factualClaims.flatMap { tokens(it.sourceSpan.orEmpty()) }.toSet()
         val codeFence = "\\u0060\\u0060\\u0060"
-        val prose = draft.substringBefore(Regex("(?im)^\\s*(?:fuentes|sources)\\s*:"))
+        val bibliographyStart = Regex("(?im)^\\s*(?:fuentes|sources)\\s*:").find(draft)?.range?.first ?: draft.length
+        val prose = draft.substring(0, bibliographyStart)
             .replace(Regex("(?s)" + codeFence + ".*?" + codeFence), " ")
             .replace(Regex("https?://\\S+"), " ")
             .replace(Regex("\\[\\d{1,2}\\]"), " ")
