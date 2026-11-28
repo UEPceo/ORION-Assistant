@@ -3363,7 +3363,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         engine.destroy()
         conversationEngine.shutdown()
         speechRecognizer.shutdown()
-        languageModel.shutdown()
+        languageModel.unload()
         speechSynthesizer.shutdown()
         super.onCleared()
     }
