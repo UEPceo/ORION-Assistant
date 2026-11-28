@@ -54,5 +54,5 @@ object KnowledgeRegressionEvaluator {
     }
 
     fun score(results:List<KnowledgeRegressionResult>):Double =
-        if(results.isEmpty()) 1.0 else results.count { it.passed }.toDouble()/results.size
+        if(results.isEmpty()) 0.0 else results.count { it.passed }.toDouble()/results.size
 }
