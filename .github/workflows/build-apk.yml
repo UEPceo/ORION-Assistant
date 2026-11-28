@@ -69,9 +69,6 @@ jobs:
                  test -s "$KEYSTORE_PATH" &&
                  keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$ORION_DEBUG_STORE_PASSWORD" -alias "$ORION_DEBUG_KEY_ALIAS" | grep -E "Alias name:|SHA1:"; then
               echo "ORION_DEBUG_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
-              echo "ORION_DEBUG_STORE_PASSWORD=$ORION_DEBUG_STORE_PASSWORD" >> "$GITHUB_ENV"
-              echo "ORION_DEBUG_KEY_ALIAS=$ORION_DEBUG_KEY_ALIAS" >> "$GITHUB_ENV"
-              echo "ORION_DEBUG_KEY_PASSWORD=$ORION_DEBUG_KEY_PASSWORD" >> "$GITHUB_ENV"
             else
               echo "::warning::The configured PKCS12 keystore could not be decoded or opened. Continuing with Gradle's generated debug key; Gmail OAuth will remain unavailable in this CI APK until signing secrets are corrected."
               rm -f "$KEYSTORE_PATH"
@@ -106,6 +103,9 @@ jobs:
       - name: Build debug APK
         env:
           ORION_GITHUB_CLIENT_ID: ${{ env.ORION_GITHUB_CLIENT_ID }}
+          ORION_DEBUG_STORE_PASSWORD: ${{ secrets.ORION_DEBUG_STORE_PASSWORD }}
+          ORION_DEBUG_KEY_ALIAS: ${{ secrets.ORION_DEBUG_KEY_ALIAS }}
+          ORION_DEBUG_KEY_PASSWORD: ${{ secrets.ORION_DEBUG_KEY_PASSWORD }}
         shell: bash
         run: |
           set -o pipefail
