@@ -1205,6 +1205,7 @@ class VoiceLabUnitTest {
                 parentFile?.mkdirs()
                 writeBytes(ByteArray(64) { 2 })
             }
+            ModelIntegrityManifest.createDirectoryManifest(ttsBackupDir)
             assertTrue(ModelManager.isTtsInstalled(filesTts))
             assertTrue(ModelManager.ttsDirectory(filesTts).isDirectory)
             assertFalse(ttsBackupDir.exists())
@@ -1215,6 +1216,7 @@ class VoiceLabUnitTest {
             File(asrBackupDir, "encoder_model.ort").writeBytes(ByteArray(1_100_000) { 3 })
             File(asrBackupDir, "decoder_model_merged.ort").writeBytes(ByteArray(1_100_000) { 4 })
             File(asrBackupDir, "tokens.txt").writeBytes(ByteArray(2_000) { 5 })
+            ModelIntegrityManifest.createDirectoryManifest(asrBackupDir)
             assertTrue(MoonshineModelManager.modelFilesPresent(filesAsr))
             assertTrue(MoonshineModelManager.modelDirectory(filesAsr).isDirectory)
             assertFalse(asrBackupDir.exists())

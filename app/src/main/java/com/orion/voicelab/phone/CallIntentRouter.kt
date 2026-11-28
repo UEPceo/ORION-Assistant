@@ -32,7 +32,7 @@ object CallIntentRouter {
     )
 
     private val pendingWithRegex = Regex(
-        """(?:que\s+tenia|que\s+tengo|algo)\s+(?:pendiente(?:\s+(?:de|para)\s+hablar)?|que\s+hablar)\s+con\s+(.+)"""
+        """(?:que\s+tenia|que\s+tengo|algo)\s+(?:pendiente(?:\s+(?:(?:de|para)\s+)?hablar)?|que\s+hablar)\s+con\s+(.+)"""
     )
 
     private val callbacksRegex = Regex(

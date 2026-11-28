@@ -176,6 +176,16 @@ class AndroidTaskReminderScheduler(
                 .setStyle(NotificationCompat.BigTextStyle().bigText(bodyText))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
+                // Keep task/contact details private on lock screens.
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setPublicVersion(
+                    NotificationCompat.Builder(context.applicationContext, CHANNEL_ID)
+                        .setSmallIcon(R.mipmap.ic_launcher)
+                        .setContentTitle("Recordatorio de ORION")
+                        .setContentText("Tienes una tarea pendiente")
+                        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                        .build()
+                )
                 .setAutoCancel(true)
                 .setContentIntent(openPendingIntent)
                 .addAction(0, "Completar", completeIntent)
