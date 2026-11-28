@@ -1,14 +1,16 @@
 # ORION 0.8.1 — Recuperación automática de modelos y diagnóstico exportable (Android / Jetpack Compose)
 
 
-## Planificador multipaso persistente — fase inicial
+## Planificador multipaso persistente — ejecución local y conectores
 
-- Las peticiones multipaso reconocidas pueden generar con el LLM local una propuesta JSON estructurada de consultas de solo lectura.
-- El parser valida tipos de paso, dependencias, riesgo, límites, credenciales y operaciones realmente implementadas para Gmail, GitHub, Google Maps y PescaIA.
-- Las propuestas se guardan en Room (migración incremental de base de datos `v4 → v5`), con checkpoint de estado y resultado tras cada paso.
-- Ajustes permite revisar pasos, autorizar acciones protegidas en cada ejecución, reanudar planes pausados y seleccionar reintentos tras verificar resultados.
-- Tras un cierre durante una operación, el paso se marca como resultado incierto y no se repite automáticamente.
-- Limitaciones actuales: generación solo de consultas de lectura, sin ejecución de pasos locales/escrituras y sin pasar automáticamente la salida de un paso como entrada del siguiente. Guardar una propuesta no la ejecuta.
+- Las peticiones multipaso compatibles pueden generar propuestas estructuradas; el parser valida tipos, dependencias, riesgo, límites, credenciales y operaciones registradas.
+- Las propuestas se guardan en Room con checkpoints, resultados y recuperación tras interrupciones.
+- El planificador admite encadenamiento de resultados mediante referencias declaradas a pasos anteriores.
+- Los handlers locales implementados pueden crear tareas, notas y recordatorios, siempre con confirmación contextual.
+- Los conectores externos solo ejecutan operaciones registradas y disponibles; su uso depende de autenticación y permisos.
+- Las escrituras no se reintentan automáticamente. Si un proceso se interrumpe durante una operación cuyo resultado es incierto, el plan se pausa para verificación.
+- Las aprobaciones se solicitan por paso y por ejecución; no se convierten en permisos permanentes.
+- Limitaciones: el catálogo de conectores no equivale a una capacidad universal de ejecutar cualquier acción. La programación autónoma de proyectos y la ejecución aislada de código siguen pendientes. Véase `docs/PLAN_EXECUTION_VALIDATION.md`.
 
 
 ## Novedades de la Fase 0.8.1 — Recuperación automática de modelos
