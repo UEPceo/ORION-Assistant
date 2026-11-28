@@ -13,7 +13,7 @@ data class LlamaRuntimeSnapshot(
     val backend: String = "CPU"
 ) {
     val dispatchDescription: String
-        get() = "selección automática de kernels ARM por la biblioteca nativa"
+        get() = "selección automática de kernels compatibles por la biblioteca nativa"
 }
 
 object LlamaRuntimeDiagnostics {
