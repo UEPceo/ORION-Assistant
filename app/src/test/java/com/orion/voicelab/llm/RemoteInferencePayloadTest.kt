@@ -31,9 +31,9 @@ class RemoteInferencePayloadTest {
         val messages = payload.getJSONArray("messages")
 
         assertEquals(RemoteInferencePayload.MAX_SYSTEM_PROMPT_CHARS,
-            messages.getJSONObject(0).getString("content").length())
+            messages.getJSONObject(0).getString("content").length)
         assertEquals(RemoteInferencePayload.MAX_MESSAGE_CHARS,
-            messages.getJSONObject(1).getString("content").length())
+            messages.getJSONObject(1).getString("content").length)
     }
 
     @Test fun mapsConversationRolesToOpenAiRoles() {
