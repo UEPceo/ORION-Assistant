@@ -102,6 +102,44 @@ object ConnectorVoiceIntentRouter {
             ))
         }
 
+        val codeRepository = repositoryPattern.find(text)?.value ?: lastRepository
+        if (containsAny(normalized, "crea una rama", "crear una rama", "crea rama", "crear rama")) {
+            val branch = Regex("""(?i)(?:rama|branch)\\s+(?:llamada\\s+|de\\s+)?([A-Za-z0-9._/-]{1,120})""")
+                .find(text)?.groupValues?.get(1)
+            val base = Regex("""(?i)(?:desde|basada en|partiendo de)\\s+(main|master|develop|development)""")
+                .find(text)?.groupValues?.get(1) ?: "main"
+            return RoutedAction(ConnectorAction(
+                connectorId = ConnectorId.GITHUB,
+                operation = "create_branch",
+                arguments = buildMap {
+                    codeRepository?.let { put("repository", it) }
+                    branch?.let { put("branch", it) }
+                    put("base_branch", base)
+                },
+                risk = ConnectorRisk.REVERSIBLE_WRITE
+            ))
+        }
+
+        if (containsAny(normalized, "abre un pull request", "crea un pull request", "crear pull request", "abre pull request")) {
+            val head = Regex("""(?i)(?:desde|rama)\\s+([A-Za-z0-9._/-]{1,120})""")
+                .find(text)?.groupValues?.get(1)
+            val base = Regex("""(?i)(?:hacia|contra|a)\\s+(main|master|develop|development)""")
+                .find(text)?.groupValues?.get(1) ?: "main"
+            return RoutedAction(ConnectorAction(
+                connectorId = ConnectorId.GITHUB,
+                operation = "create_pull_request",
+                arguments = buildMap {
+                    codeRepository?.let { put("repository", it) }
+                    head?.let { put("head", it) }
+                    put("base", base)
+                    put("draft", "true")
+                    val title = Regex("""(?i)(?:titulado|título|titulo)\\s+(.+)$""").find(text)?.groupValues?.get(1)
+                    title?.let { put("title", it.take(200)) }
+                },
+                risk = ConnectorRisk.REVERSIBLE_WRITE
+            ))
+        }
+
         if (containsAny(normalized, "mis repositorios", "repositorios de github", "repos de github", "lista mis repos")) {
             val page = Regex("""(?:página|pagina)\s+(\d+)""", RegexOption.IGNORE_CASE)
                 .find(text)?.groupValues?.get(1)?.toIntOrNull()?.coerceIn(1, 100) ?: 1
