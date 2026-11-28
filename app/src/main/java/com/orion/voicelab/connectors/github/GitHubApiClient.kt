@@ -108,7 +108,7 @@ class GitHubApiClient(
     suspend fun listCommits(repository: String, page: Int = 1): Result<List<GitHubCommitSummary>> =
         withContext(Dispatchers.IO) {
             runCatching {
-                require(REPOSITORY_PATTERN.matches(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
+                require(isValidRepository(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
                 val json = requestJson("/repos/$repository/commits?per_page=20&page=${page.coerceIn(1, MAX_PAGE)}")
                 buildList {
                     for (i in 0 until json.length()) {
@@ -130,7 +130,7 @@ class GitHubApiClient(
     suspend fun listWorkflowRuns(repository: String, page: Int = 1): Result<List<GitHubWorkflowRunSummary>> =
         withContext(Dispatchers.IO) {
             runCatching {
-                require(REPOSITORY_PATTERN.matches(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
+                require(isValidRepository(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
                 val root = requestObject("/repos/$repository/actions/runs?per_page=20&page=${page.coerceIn(1, MAX_PAGE)}")
                 val runs = root.optJSONArray("workflow_runs") ?: JSONArray()
                 buildList {
@@ -152,8 +152,8 @@ class GitHubApiClient(
     suspend fun listFiles(repository: String, path: String = "", branch: String? = null): Result<List<GitHubFileSummary>> =
         withContext(Dispatchers.IO) {
             runCatching {
-                require(REPOSITORY_PATTERN.matches(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
-                require(path.length <= 300 && path.split('/').none { it == ".." || it == "." }) { "Ruta de repositorio no válida." }
+                require(isValidRepository(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
+                require(path.length <= 300 && path.split('/').none { it == ".." || it == "." } && !path.contains('%') && !path.contains(92.toChar())) { "Ruta de repositorio no válida." }
                 val safePath = path.trim('/').split('/').filter { it.isNotBlank() }
                     .joinToString("/") { java.net.URLEncoder.encode(it, Charsets.UTF_8.name()).replace("+", "%20") }
                 val safeBranch = branch?.takeIf { it.isNotBlank() }?.let {
