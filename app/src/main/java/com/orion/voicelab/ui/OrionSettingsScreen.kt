@@ -639,7 +639,7 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
             val providerId=if(kind==MediaGenerationKind.IMAGE) "comfyui-image" else "comfyui-video"
             val label=endpoint.trim().ifBlank { "Servidor ComfyUI" }
             val approval=consentGate.prepare(kind,providerId,label,prompt)
-            pendingGeneration=MediaGenerationConsentRequestUi(approval.id,kind,prompt,negative,ratio,duration,providerId,label)
+            pendingGeneration=MediaGenerationConsentRequestUi(approval.id,kind,prompt,negative,ratio,duration,providerId,label,selectedReferenceAssets.toList())
         }
         Text("Generación directa",fontWeight=FontWeight.SemiBold)
         Button(onClick={referencePicker.launch(arrayOf("image/*"))},modifier=Modifier.fillMaxWidth()) { Text("Añadir imágenes de referencia (máx. 4)") }
@@ -700,7 +700,7 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
             AlertDialog(
                 onDismissRequest={consentGate.cancel(pending.id);pendingGeneration=null},
                 title={Text("Confirmar generación remota")},
-                text={Text("ORION enviará el prompt a ${pending.destination}. Operación: ${if(pending.kind==MediaGenerationKind.IMAGE)"generar imagen" else "generar vídeo"}. Se enviarán también ${selectedReferenceAssets.size} imagen(es) de referencia si has seleccionado alguna. ¿Confirmas?")},
+                text={Text("ORION enviará el prompt a ${pending.destination}. Operación: ${if(pending.kind==MediaGenerationKind.IMAGE)"generar imagen" else "generar vídeo"}. Se enviarán también ${pending.references.size} imagen(es) de referencia: ${pending.references.joinToString { it.displayName.orEmpty() }}. ¿Confirmas?")},
                 confirmButton={TextButton(onClick={
                     pendingGeneration=null
                     generating=true
@@ -714,7 +714,7 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
                                 OrionMediaRuntime(imageProviders=images,videoProviders=videos)
                             }
                             val executor=MediaGenerationConsentExecutor(runtime,consentGate,{ val manager=context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as ConnectivityManager; val active=manager.activeNetwork; manager.getNetworkCapabilities(active)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)==true })
-                            val request=MediaGenerationRequest(pending.prompt,pending.negative.ifBlank { null },pending.ratio,pending.duration,selectedReferenceAssets)
+                            val request=MediaGenerationRequest(pending.prompt,pending.negative.ifBlank { null },pending.ratio,pending.duration,pending.references)
                             val result=executor.execute(pending.id,true,request)
                             generated=result;savedResultUri=null
                             generationStatus="Generación completada. El resultado está en almacenamiento temporal; guárdalo para conservarlo."
@@ -727,4 +727,4 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
         }
     }
 }
-private data class MediaGenerationConsentRequestUi(val id:String,val kind:MediaGenerationKind,val prompt:String,val negative:String,val ratio:String,val duration:Int?,val providerId:String,val destination:String)
+private data class MediaGenerationConsentRequestUi(val id:String,val kind:MediaGenerationKind,val prompt:String,val negative:String,val ratio:String,val duration:Int?,val providerId:String,val destination:String,val references:List<MediaAsset>)
