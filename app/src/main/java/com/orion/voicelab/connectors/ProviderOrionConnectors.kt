@@ -112,11 +112,11 @@ class GitHubOrionConnector(
         return when (action.operation) {
             "list_repositories" -> api.listRepositories(
                 page = action.arguments["page"]?.toIntOrNull() ?: 1,
-                perPage = action.arguments["limit"]?.toIntOrNull() ?: 10
+                perPage = action.arguments["limit"]?.toIntOrNull() ?: 30
             ).fold(
                 onSuccess = { repos ->
                     if (repos.isEmpty()) ConnectorResult.Success("No he encontrado repositorios.")
-                    else ConnectorResult.Success(repos.take(10).joinToString("\n") {
+                    else ConnectorResult.Success(repos.take(30).joinToString("\n") {
                         "${it.fullName} — ${if (it.private) "privado" else "público"}; rama: ${it.defaultBranch}; ${it.description}"
                     })
                 },
