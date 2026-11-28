@@ -58,6 +58,21 @@ class CodeChangeValidatorTest {
         assertTrue(result.requiresElevatedReview)
     }
 
+    @Test fun blocksCredentialFilesAndPrivateKeyMaterialByPath() {
+        listOf(
+            ".env", ".env.production", "config/local.properties", ".npmrc",
+            ".ssh/id_rsa", ".aws/credentials", "secrets.json",
+            "config/service-account-prod.json", "signing/release.p12", "certs/private.pem"
+        ).forEach { path ->
+            assertFalse("Sensitive path must be blocked: $path", CodeChangeValidator.isSafePath(path))
+        }
+    }
+
+    @Test fun rejectsControlCharactersInPaths() {
+        assertFalse(CodeChangeValidator.isSafePath("src/Main.kt\\nInjected"))
+        assertFalse(CodeChangeValidator.isSafePath("src/Main.kt\\tInjected"))
+    }
+
     @Test fun rejectsOversizedPatch() {
         val huge = "x".repeat(CodeChangeValidator.MAX_FILE_BYTES + 1)
         val result = CodeChangeValidator.validate(

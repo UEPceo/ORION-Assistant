@@ -45,6 +45,16 @@ object CodeChangeValidator {
     private val repositoryPattern = Regex("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}")
     private val shaPattern = Regex("[a-fA-F0-9]{40}")
     private val branchPattern = Regex("[A-Za-z0-9][A-Za-z0-9._/-]{0,119}")
+    private val sensitivePathPatterns = listOf(
+        Regex("""(^|/)\\.env(?:\\.[^/]*)?$""", RegexOption.IGNORE_CASE),
+        Regex("""(^|/)local\\.properties$""", RegexOption.IGNORE_CASE),
+        Regex("""(^|/)\\.npmrc$|(^|/)\\.pypirc$""", RegexOption.IGNORE_CASE),
+        Regex("""(^|/)\\.aws(?:/|$)|(^|/)\\.ssh(?:/|$)""", RegexOption.IGNORE_CASE),
+        Regex("""(^|/)(?:secrets?|credentials?)\\.(?:json|ya?ml|properties|toml|txt)$""", RegexOption.IGNORE_CASE),
+        Regex("""(^|/)(?:client_secret|service-account|firebase-adminsdk)[^/]*\\.json$""", RegexOption.IGNORE_CASE),
+        Regex("""(^|/)(?:id_rsa|id_ed25519|id_ecdsa|id_dsa)(?:\\.pub)?$""", RegexOption.IGNORE_CASE),
+        Regex("""\\.(?:jks|keystore|p12|pfx|pem|key|p8)$""", RegexOption.IGNORE_CASE)
+    )
     private val secretPatterns = listOf(
         Regex("-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
         Regex("\\bgh[pousr]_[A-Za-z0-9]{20,}\\b"),
