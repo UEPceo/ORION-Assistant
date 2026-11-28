@@ -370,3 +370,14 @@ El recuperador disperso incorpora un grafo curado de conceptos y asociaciones en
 - Acciones locales disponibles: crear tarea, guardar nota como registro local y programar recordatorio. Se almacenan en el repositorio de tareas de Room y usan el planificador de recordatorios Android; no requieren red.
 - Las acciones locales y externas de escritura requieren riesgo MEDIUM o superior y confirmación contextual. Si una salida no se puede resolver, el paso queda bloqueado; un fallo de dependencia también bloquea descendientes.
 - Los pasos no compatibles no se muestran como ejecutables. Los resultados y salidas se guardan para reanudación; tras un cierre, operaciones de resultado incierto requieren revisión explícita.
+
+## Perfiles adaptativos del modelo local
+
+La configuración de ORION define cuatro perfiles offline: Ligero, Equilibrado, Potente y Flagship. El modo automático recomienda un perfil a partir de la RAM física total del dispositivo (no de la RAM libre momentánea); el modo manual permite guardar una preferencia. Umbrales recomendados: 6, 8, 12 y 16 GB respectivamente. Los tamaños mostrados son estimaciones de descarga y no equivalen a RAM de ejecución: KV cache, contexto, buffers nativos y el propio Android requieren memoria adicional.
+
+- Ligero: Qwen2.5-1.5B Q4_K_M (modelo actual), con alternativas candidatas Qwen3.5 0.8B/1.5B; ~1–1.3 GB; 4–6 GB de RAM; voz y dispositivos modestos.
+- Equilibrado: Qwen2.5-3B o Qwen3.5 2B/4B Q4_K_M; ~2–2.7 GB; 8 GB de RAM.
+- Potente: Qwen3.5-4B, Phi-4-mini o Gemma 4 E4B; ~2.5–3.6 GB; 8–12 GB de RAM.
+- Flagship: Qwen3.5-9B o modelos 7–8B Q4; ~5–6 GB; 12–16 GB de RAM.
+
+Estado de integración: el catálogo, selector manual/automático y fallback seguro están implementados. Solo Ligero está marcado como operativo porque es el único artefacto GGUF actualmente descargable, verificado e integrado en llama.cpp. Los otros perfiles son candidatos y no se activan ni se presentan como instalados hasta incorporar archivos GGUF concretos, URLs/versiones inmutables, hashes, licencias, parámetros de contexto/hilos y pruebas de memoria/latencia. Si el perfil recomendado o solicitado aún no está operativo, el motor permanece en Ligero.
