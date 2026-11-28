@@ -55,6 +55,29 @@ class PlanningContractsTest {
         assertEquals(1, attempts.get())
     }
 
+
+    @Test fun idempotencyKeyAloneNeverEnablesAutomaticWriteRetry() {
+        val attempts = AtomicInteger(0)
+        val writePlan = OrionPlan(
+            "write-idempotent", "send once",
+            listOf(PlannedStep(
+                "send", PlanStepKind.CONNECTOR_WRITE, "Send", "", PlanRisk.HIGH,
+                connectorId = ConnectorId.GMAIL,
+                connectorOperation = "send_message",
+                idempotencyKey = "provider-key-123"
+            )),
+            ExecutionBudget(maxRetriesPerStep = 3)
+        )
+        val result = runBlocking {
+            PlanExecutionCoordinator().execute(writePlan, setOf("send")) { _, _ ->
+                attempts.incrementAndGet()
+                StepExecution(StepStatus.FAILED, "Outcome uncertain")
+            }
+        }
+        assertEquals(1, attempts.get())
+        assertEquals(PlanStatus.FAILED, result.status)
+    }
+
     @Test fun enforcesOverallExecutionTimeBudget() {
         val plan = OrionPlan("slow", "slow", listOf(PlannedStep("slow", PlanStepKind.READ, "Slow", "", PlanRisk.LOW)),
             ExecutionBudget(maxDurationMs = 30L))
