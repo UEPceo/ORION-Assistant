@@ -41,7 +41,13 @@ data class ComfyUiWorkflowTemplate(
     val positivePromptInput:String="text",
     val negativePromptNodeId:String?=null,
     val negativePromptInput:String="text",
-    val referenceImageNodeIds:List<String> = emptyList()
+    val referenceImageNodeIds:List<String> = emptyList(),
+    val dimensionNodeId:String?=null,
+    val widthInput:String="width",
+    val heightInput:String="height",
+    val durationNodeId:String?=null,
+    val durationInput:String="length",
+    val framesPerSecond:Int=16
 ) {
     fun build(request:MediaGenerationRequest, uploadedReferences:List<String> = emptyList()):JSONObject {
         require(workflowJson.toByteArray(Charsets.UTF_8).size<=2*1024*1024) { "Workflow demasiado grande." }
@@ -57,6 +63,23 @@ data class ComfyUiWorkflowTemplate(
             val negative=node.optJSONObject("inputs")?:throw IllegalArgumentException("El nodo negativo no tiene inputs.")
             require(negative.has(negativePromptInput)) { "Input negativo no existe." }
             negative.put(negativePromptInput,request.negativePrompt.take(4000))
+        }
+        request.aspectRatio?.takeIf { dimensionNodeId!=null }?.let { ratio ->
+            val parts=ratio.split(":")
+            require(parts.size==2&&parts.all { (it.toIntOrNull() ?: 0) in 1..100 }) { "Formato de aspecto inválido. Usa por ejemplo 16:9." }
+            val node=root.optJSONObject(dimensionNodeId)?:throw IllegalArgumentException("Nodo de dimensiones inexistente.")
+            val nodeInputs=node.optJSONObject("inputs")?:throw IllegalArgumentException("Nodo de dimensiones sin inputs.")
+            require(nodeInputs.has(widthInput)&&nodeInputs.has(heightInput)) { "Inputs de anchura/altura no configurados en el workflow." }
+            val width=768
+            val height=width*parts[1].toInt()/parts[0].toInt()
+            nodeInputs.put(widthInput,width);nodeInputs.put(heightInput,height)
+        }
+        request.durationSeconds?.takeIf { durationNodeId!=null }?.let { seconds ->
+            require(seconds in 1..60&&framesPerSecond in 1..60) { "Duración/FPS fuera de límites." }
+            val node=root.optJSONObject(durationNodeId)?:throw IllegalArgumentException("Nodo de duración inexistente.")
+            val nodeInputs=node.optJSONObject("inputs")?:throw IllegalArgumentException("Nodo de duración sin inputs.")
+            require(nodeInputs.has(durationInput)) { "Input de frames/duración no configurado." }
+            nodeInputs.put(durationInput,seconds*framesPerSecond)
         }
         require(uploadedReferences.size<=referenceImageNodeIds.size) { "No hay nodos configurados para todas las referencias." }
         uploadedReferences.forEachIndexed { index,filename ->
