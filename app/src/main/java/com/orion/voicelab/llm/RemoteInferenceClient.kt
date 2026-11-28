@@ -185,7 +185,7 @@ class RemoteInferenceClient(
             }
         }
 
-    private fun isSafeEndpoint(value: String): Boolean {
+    internal fun isSafeEndpoint(value: String): Boolean {
         val uri = runCatching { java.net.URI(value) }.getOrNull() ?: return false
         val host = uri.host?.lowercase() ?: return false
         if (uri.userInfo != null || uri.fragment != null || uri.query != null) return false
