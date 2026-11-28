@@ -198,7 +198,7 @@ class PlanningContractsTest {
         val plan = OrionPlan("staged", "read then write", listOf(
             PlannedStep("read", PlanStepKind.READ, "Read", "", PlanRisk.LOW),
             PlannedStep("write", PlanStepKind.CREATE_DRAFT, "Draft", "", PlanRisk.HIGH,
-                dependsOn = setOf("read"), connectorArguments = mapOf("content" to "\\${read.output}"))
+                dependsOn = setOf("read"), connectorArguments = mapOf("content" to "\${read.output}"))
         ))
         val first = runBlocking {
             PlanExecutionCoordinator().execute(plan, emptySet()) { step, _ ->
