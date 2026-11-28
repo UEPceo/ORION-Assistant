@@ -67,6 +67,8 @@ data class PersistedPlanExecution(
 
 object PlanExecutionJsonCodec {
     fun encodePlan(plan: OrionPlan): String {
+        val validation = PlanValidator.validate(plan)
+        require(validation.valid) { validation.errors.joinToString(" ") }
         val root = JSONObject()
             .put("id", plan.id)
             .put("goal", plan.goal)
@@ -155,8 +157,8 @@ object PlanExecutionJsonCodec {
             array.put(JSONObject()
                 .put("id", id)
                 .put("status", result.status.name)
-                .put("summary", result.summary.take(6_000))
-                .put("outputReference", result.outputReference?.take(300) ?: JSONObject.NULL))
+                .put("summary", PlanSecretGuard.redact(result.summary))
+                .put("outputReference", result.outputReference?.let(PlanSecretGuard::redact) ?: JSONObject.NULL))
         }
         return array.toString()
     }
@@ -226,7 +228,7 @@ class PlanExecutionRepository(private val dao: PlanExecutionDao) {
             status = status.name,
             activeStepId = activeStepId,
             updatedAtMs = nowMs,
-            lastError = lastError.take(1200)
+            lastError = PlanSecretGuard.redact(lastError).take(1200)
         )
     }
 
