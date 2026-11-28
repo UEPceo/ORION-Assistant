@@ -43,7 +43,7 @@ class GitHubApiClient(
             runCatching {
                 val safePage = page.coerceIn(1, MAX_PAGE)
                 val safeLimit = perPage.coerceIn(1, MAX_PER_PAGE)
-                val json = requestJson("/user/repos?sort=updated&per_page=$safeLimit&page=$safePage")
+                val json = requestJson("/user/repos?visibility=all&affiliation=owner,collaborator,organization_member&sort=updated&per_page=$safeLimit&page=$safePage")
                 buildList {
                     for (i in 0 until json.length()) {
                         val item = json.optJSONObject(i) ?: continue
@@ -90,7 +90,7 @@ class GitHubApiClient(
     suspend fun getIssue(repository: String, number: Int): Result<GitHubIssueDetail> =
         withContext(Dispatchers.IO) {
             runCatching {
-                require(REPOSITORY_PATTERN.matches(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
+                require(isValidRepository(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
                 require(number > 0) { "Número de incidencia no válido." }
                 val item = requestObject("/repos/$repository/issues/$number")
                 GitHubIssueDetail(
