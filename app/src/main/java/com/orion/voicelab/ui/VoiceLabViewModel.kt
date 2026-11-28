@@ -877,6 +877,8 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 installTtsSuspend(throwOnError = true)
                 installAsrSuspend(throwOnError = true)
                 installLlmSuspend(throwOnError = true)
+                // Optional semantic encoder is queued only after the mandatory offline voice stack is ready.
+                com.orion.voicelab.knowledge.NeuralEmbeddingAutoInstallScheduler.schedule(appContext)
 
                 _uiState.update {
                     it.copy(
