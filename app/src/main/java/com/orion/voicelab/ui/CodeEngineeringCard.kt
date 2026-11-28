@@ -111,7 +111,7 @@ fun CodeEngineeringCard(
                     }
                 }
             }
-            if (session != null && state.lastCommitSha != null && state.pullRequestUrl == null) {
+            if (session != null && state.lastCommitSha != null && state.pullRequestUrl == null && prepared == null) {
                 Button(
                     onClick = {
                         onCreatePullRequest(
