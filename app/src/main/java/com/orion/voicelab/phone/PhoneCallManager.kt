@@ -81,7 +81,7 @@ class PhoneCallManager(private val context: Context) {
         if (sanitized.isEmpty() || sanitized.none { it.isDigit() }) {
             return CallDispatchResult.Failed("Número de teléfono no válido.")
         }
-        val uri = Uri.parse("tel:$sanitized")
+        val uri = Uri.parse("tel:${sanitized.replace("#", "%23")}")
 
         if (preferDirectCall && hasCallPhonePermission()) {
             return try {
