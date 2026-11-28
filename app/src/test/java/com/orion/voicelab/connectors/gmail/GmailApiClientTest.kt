@@ -5,8 +5,8 @@ import com.orion.voicelab.connectors.ConnectorId
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -30,10 +30,10 @@ class GmailApiClientTest {
         val message = client.getMessage("message-123").getOrThrow()
 
         assertTrue(requestedUrl.contains("format=metadata"))
-        assertFalse(requestedUrl.contains("format=full"))
         assertEquals("sender@example.test", message.from)
-        assertTrue(message.bodyText.isBlank())
-        assertEquals("untrusted email snippet", message.snippet)
+        assertEquals("Subject", message.subject)
+        assertFalse(message.toString().contains("untrusted email body"))
+        assertFalse(message.toString().contains("untrusted email snippet"))
     }
 
     private class FakeCredentialStore : ConnectorCredentialStore {
