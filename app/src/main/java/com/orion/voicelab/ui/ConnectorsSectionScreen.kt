@@ -334,8 +334,8 @@ fun ConnectorsSectionScreen(
                 onStartSession = { repository, base, branch, task, confirmed ->
                     viewModel.startCodeEngineeringSession(repository, base, branch, task, confirmed)
                 },
-                onPrepare = { session, task, paths ->
-                    viewModel.prepareCodeEngineeringChange(session, task, paths, true)
+                onPrepare = { session, task, paths, confirmed ->
+                    viewModel.prepareCodeEngineeringChange(session, task, paths, confirmed)
                 },
                 onCommit = { session, digest, confirmed ->
                     viewModel.commitApprovedCodeEngineeringChange(session, digest, confirmed)
