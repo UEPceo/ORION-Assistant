@@ -20,11 +20,17 @@ class GitHubCodeWorkspace(private val api:GitHubApiClient,private val limits:Cod
         require(selectedPaths.distinct().size==selectedPaths.size) { "Hay rutas duplicadas." }
         selectedPaths.forEach { require(CodeChangeValidator.isSafePath(it)) { "Ruta no permitida: ${it.take(120)}." } }
         val head:GitHubBranchSummary=api.getBranchHead(repository,branch).getOrThrow()
-        val files=selectedPaths.map { path -> api.getFile(repository,path,branch).getOrThrow().also {
-            require(it.sizeBytes<=limits.maxFileBytes) { "El archivo ${it.path} supera el límite." }
-        } }
-        val total=files.sumOf { it.sizeBytes }
-        require(total<=limits.maxTotalBytes) { "El contexto supera el límite total." }
+        val files=mutableListOf<GitHubFileContent>()
+        var total=0
+        for(path in selectedPaths) {
+            val file=api.getFile(repository,path,branch).getOrThrow()
+            require(file.sizeBytes<=limits.maxFileBytes) { "El archivo ${file.path} supera el límite." }
+            total+=file.sizeBytes
+            require(total<=limits.maxTotalBytes) { "El contexto supera el límite total." }
+            files+=file
+        }
+        val verifiedHead=api.getBranchHead(repository,branch).getOrThrow()
+        require(verifiedHead.sha.equals(head.sha,true)) { "La rama cambió durante la inspección; vuelve a abrir el workspace." }
         CodeWorkspaceSnapshot(repository,branch,head.sha,files,total)
     }
 }
