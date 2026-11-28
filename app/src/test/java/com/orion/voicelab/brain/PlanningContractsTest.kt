@@ -162,7 +162,7 @@ class PlanningContractsTest {
         val plan = OrionPlan("chain", "read and use output", listOf(
             PlannedStep("lookup", PlanStepKind.READ, "Lookup", "", PlanRisk.LOW),
             PlannedStep("create", PlanStepKind.CREATE_DRAFT, "Draft", "", PlanRisk.HIGH,
-                dependsOn = setOf("lookup"), connectorArguments = mapOf("body" to "Found \\${lookup.output}"))
+                dependsOn = setOf("lookup"), connectorArguments = mapOf("body" to "Found \${lookup.output}"))
         ))
         var passed = ""
         val result = runBlocking {
@@ -182,7 +182,7 @@ class PlanningContractsTest {
         val badChain = OrionPlan("bad-chain", "bad", listOf(
             PlannedStep("source", PlanStepKind.READ, "Source", "", PlanRisk.LOW),
             PlannedStep("target", PlanStepKind.READ, "Target", "", PlanRisk.LOW,
-                connectorArguments = mapOf("query" to "\\${source.output}"))
+                connectorArguments = mapOf("query" to "\${source.output}"))
         ))
         assertTrue(PlanValidator.validate(badChain).errors.any { it.contains("dependencia") })
 
