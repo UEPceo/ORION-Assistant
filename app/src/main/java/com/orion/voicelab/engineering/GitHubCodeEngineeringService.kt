@@ -85,6 +85,61 @@ class GitHubCodeEngineeringService(
         PreparedCodeChange(task, snapshot, proposal, CodeEngineeringSessionAuthority.proposalDigest(proposal), validation)
     }
 
+    suspend fun prepareRepair(
+        session: CodeEngineeringSession,
+        inspection: CodeEngineeringCiInspection,
+        attempt: Int,
+        selectedPaths: List<String>
+    ): Result<PreparedCodeChange> = runCatching {
+        require(CodeRepairBudget.canPrepareRepair(attempt - 1, inspection)) {
+            "La reparación requiere una ejecución fallida del SHA actual, logs disponibles y presupuesto de intentos."
+        }
+        require(attempt in 1..CodeRepairBudget.MAX_ATTEMPTS) { "Se ha agotado el presupuesto de reparación." }
+        require(authority.isTaskAuthorized(session.grant.id, session.grant.task)) {
+            "La sesión de ingeniería ya no autoriza esta tarea."
+        }
+        val failedRun = inspection.run ?: error("No existe una ejecución CI asociada.")
+        require(failedRun.branch == session.grant.workBranch) {
+            "La ejecución fallida pertenece a otra rama."
+        }
+        val snapshot = workspace.open(session.grant.repository, session.grant.workBranch, selectedPaths).getOrThrow()
+        require(snapshot.headSha.equals(failedRun.headSha, true)) {
+            "La rama ha cambiado desde la ejecución fallida. Consulta CI de nuevo antes de reparar."
+        }
+        val diagnostics = CodeRepairBudget.summarizeLogs(inspection.failureLogs.orEmpty())
+        require(diagnostics.isNotBlank()) { "Los logs no contienen diagnósticos utilizables." }
+        val proposal = generator.generateRepair(
+            task = session.grant.task,
+            snapshot = snapshot,
+            baseBranch = session.baseBranch,
+            diagnosticContext = diagnostics,
+            attempt = attempt
+        ).getOrThrow()
+        val validation = CodeChangeValidator.validate(proposal)
+        require(validation.valid) { validation.errors.joinToString(" ") }
+        require(proposal.repository == session.grant.repository &&
+            proposal.workBranch == session.grant.workBranch) {
+            "El modelo ha propuesto cambios fuera de la sesión autorizada."
+        }
+        require(proposal.baseBranch == session.baseBranch) {
+            "La propuesta de reparación usa una rama base distinta de la autorizada."
+        }
+        val selected = snapshot.files.associateBy { it.path }
+        proposal.changes.filter { it.operation != CodeFileOperation.CREATE }.forEach { change ->
+            val original = selected[change.path] ?: error("El archivo ${change.path} no forma parte del workspace inspeccionado.")
+            require(original.sha.equals(change.expectedBlobSha, true)) {
+                "El SHA de ${change.path} no coincide con el archivo inspeccionado."
+            }
+        }
+        PreparedCodeChange(
+            session.grant.task,
+            snapshot,
+            proposal,
+            CodeEngineeringSessionAuthority.proposalDigest(proposal),
+            validation
+        )
+    }
+
     suspend fun commitApproved(
         session: CodeEngineeringSession,
         prepared: PreparedCodeChange,
