@@ -49,7 +49,7 @@ class ConnectorActionGateTest {
     @Test
     fun implementedProviderOperationsRemainReadOnly() {
         listOf(
-            ConnectorId.GITHUB to listOf("list_commits", "list_workflow_runs", "list_files", "get_issue"),
+            ConnectorId.GITHUB to listOf("list_commits", "list_workflow_runs", "list_files", "get_file", "get_issue"),
             ConnectorId.GMAIL to listOf("get_message", "search_messages", "read_latest_message"),
             ConnectorId.GOOGLE_MAPS to listOf("search_place", "navigate"),
             ConnectorId.PESCAIA to listOf("search_public")
