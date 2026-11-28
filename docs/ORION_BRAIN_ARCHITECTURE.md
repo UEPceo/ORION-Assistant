@@ -418,7 +418,7 @@ La presencia del artefacto y la compatibilidad del código no sustituyen un benc
 
 Se incorpora una capa de ejecución híbrida con tres modos configurables:
 
-- **Automático**: el modelo local ligero atiende peticiones sencillas; una política determinista deriva tareas complejas (programación, auditoría, arquitectura, investigación, análisis y planificación) a un endpoint remoto compatible con OpenAI.
+- **Automático**: el perfil local se selecciona según RAM física, RAM disponible, instalación y política de memoria. Ligero atiende voz, intenciones, tareas, confirmaciones y respuestas rápidas; Equilibrado/Potente/Flagship atienden código y razonamiento medio cuando caben con margen. Una política determinista reserva el remoto para investigación profunda, planes largos multi-fase y análisis expertos; el perfil Ligero también puede delegar código/razonamiento medio si el usuario ha consentido el remoto.
 - **Solo local**: no transmite mensajes ni contexto a un servidor remoto.
 - **Solo remoto**: evita inicializar el LLM local. Si el servidor no responde, la petición falla de forma explícita y no se deriva silenciosamente a otro motor.
 
@@ -426,6 +426,14 @@ El cliente remoto no requiere SDK ni proveedor comercial: utiliza HTTP JSON comp
 
 **Privacidad y seguridad**: el uso remoto exige activar el motor y aceptar expresamente el envío del mensaje y del contexto de sistema necesario. No se envía la memoria completa ni el historial íntegro. Las claves API se cifran con Android Keystore. Se exige HTTPS para hosts externos y solo se permite HTTP en localhost o rangos privados. Las solicitudes tienen límites de contexto y tamaño, timeout y máximo de salida. El modo automático vuelve al modelo local si falla el servidor; nunca cambia de proveedor ni comparte datos adicionales.
 
-Al activar el modo automático o solo remoto, ORION selecciona el perfil local Ligero como respaldo y no carga los perfiles 3B/7B/14B en el móvil. Los perfiles avanzados siguen disponibles para ejecución local cuando el usuario elige Solo local y el dispositivo supera las comprobaciones de memoria. El enrutamiento remoto es por capacidad lógica, no una promesa de rendimiento: depende del modelo y recursos del servidor configurado.
+En modo Automático, ORION conserva el mejor perfil local que el dispositivo pueda ejecutar con margen de seguridad y solo deriva al remoto las clases de trabajo que la política marca como superiores a esa capacidad. En modo Solo remoto, el LLM local no se carga; los perfiles avanzados siguen disponibles para ejecución local cuando el usuario elige Solo local y el dispositivo supera las comprobaciones de memoria. El enrutamiento remoto es por capacidad lógica, no una promesa de rendimiento: depende del modelo y recursos del servidor configurado.
 
 **Estado de esta fase**: cliente HTTP compatible, almacenamiento cifrado de clave, controles de modo/consentimiento, enrutamiento por complejidad e integración con el motor conversacional añadidos. Pendiente: ejecutar CI, probar interoperabilidad real contra llama.cpp/vLLM y verificar la experiencia en dispositivo. La cancelación de solicitudes remotas ya desconecta la conexión activa. No se considera validado en producción hasta superar esas pruebas.
+
+
+### Siguiente bloque de optimización de ejecución
+
+1. **Wake word offline**: activar detección local de palabra de activación, con umbral configurable, ventana de escucha limitada, protección frente a falsos positivos y control visible de micrófono. No se enviará audio a servidores para detectar la activación.
+2. **Aceleración Snapdragon**: auditar la versión de llama.cpp y sus backends Android antes de tocar el runtime. Medir Vulkan/Adreno y evaluar NPU/Hexagon solo mediante un backend soportado y verificable; no prometer aceleración por NPU sin integración real.
+3. **Backend alternativo LiteRT-LM + Gemma**: crear una prueba de concepto aislada y comparar calidad, latencia, memoria pico, consumo, temperatura, compatibilidad de dispositivos, licencias y tamaño de APK/modelos frente a llama.cpp. No sustituir el backend actual hasta superar pruebas reproducibles y conservar un fallback estable.
+4. **Planificador multipaso**: auditar el chaining de salidas reales, handlers locales de tareas/notas/recordatorios, aprobación contextual de un solo uso, pausa/reanudación y recuperación tras cierre. Los pasos que escriben en servicios externos deben seguir bloqueados hasta aprobación individual explícita.
