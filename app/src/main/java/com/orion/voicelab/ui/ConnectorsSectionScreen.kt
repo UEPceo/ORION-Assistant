@@ -72,7 +72,7 @@ fun ConnectorsSectionScreen(
                     ?: 3_600L
                 gmailCredentials.save(accessToken, expiresIn)
                 gmailConnected = true
-                gmailStatus = "Gmail autorizado para lectura. El acceso caduca y puede requerir renovar el permiso."
+                gmailStatus = "Gmail autorizado para lectura. ORION renovará el token silenciosamente cuando Google lo permita."
             } catch (_: Exception) {
                 gmailConnected = false
                 gmailStatus = "No se pudo guardar la autorización de Gmail."
