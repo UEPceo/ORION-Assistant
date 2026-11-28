@@ -55,7 +55,7 @@ class OrionBrainRuntime(
             id = page.canonicalUrl,
             title = page.title,
             canonicalUrl = page.canonicalUrl,
-            publisherId = seed?.id ?: host,
+            publisherId = seed?.id ?: (java.net.URI(page.canonicalUrl).host?.lowercase() ?: "unknown"),
             domain = query.domain,
             authority = authority,
             retrievedAtMs = System.currentTimeMillis(),
