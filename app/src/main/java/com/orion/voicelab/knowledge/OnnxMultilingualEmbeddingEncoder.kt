@@ -17,13 +17,31 @@ class OnnxMultilingualEmbeddingEncoder(context: Context) : Closeable {
     private val manager = NeuralEmbeddingModelManager(context)
     private val lock = Any()
     private var session: OrtSession? = null
+    @Volatile private var smokeTestPassed = false
+    @Volatile var lastInitializationError: String? = null
+        private set
     private val environment: OrtEnvironment by lazy { OrtEnvironment.getEnvironment() }
 
     suspend fun isAvailable(): Boolean {
         if (!manager.isInstalled()) return false
-        val vector = encode("ORION local embedding encoder health check.") ?: return false
+        if (smokeTestPassed) return true
+        val vector = try {
+            encode("ORION local embedding encoder health check.")
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            lastInitializationError = error.message?.take(240) ?: error.javaClass.simpleName
+            return false
+        } ?: return false
         val norm = kotlin.math.sqrt(vector.sumOf { it.toDouble() * it.toDouble() })
-        return vector.size == 512 && norm.isFinite() && kotlin.math.abs(norm - 1.0) < 0.02
+        val passed = vector.size == 512 && norm.isFinite() && kotlin.math.abs(norm - 1.0) < 0.02
+        if (passed) {
+            smokeTestPassed = true
+            lastInitializationError = null
+        } else {
+            lastInitializationError = "El encoder devolvió una dimensión o norma inesperada."
+        }
+        return passed
     }
 
     suspend fun encode(text: String): FloatArray? = withContext(Dispatchers.Default) {
