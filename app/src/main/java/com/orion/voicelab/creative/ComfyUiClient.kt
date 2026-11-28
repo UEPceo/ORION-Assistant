@@ -82,7 +82,7 @@ data class ComfyUiWorkflowTemplate(
             val node=root.optJSONObject(durationNodeId)?:throw IllegalArgumentException("Nodo de duración inexistente.")
             val nodeInputs=node.optJSONObject("inputs")?:throw IllegalArgumentException("Nodo de duración sin inputs.")
             require(nodeInputs.has(durationInput)) { "Input de frames/duración no configurado." }
-            nodeInputs.put(durationInput,seconds*framesPerSecond)
+            nodeInputs.put(durationInput,seconds*framesPerSecond+1)
         }
         require(uploadedReferences.size<=referenceImageNodeIds.size) { "No hay nodos configurados para todas las referencias." }
         uploadedReferences.forEachIndexed { index,filename ->
