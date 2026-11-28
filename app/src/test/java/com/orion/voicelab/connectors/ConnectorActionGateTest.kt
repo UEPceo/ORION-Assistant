@@ -93,7 +93,7 @@ class ConnectorActionGateTest {
     fun unimplementedGithubOperationsAreNotWhitelisted() {
         listOf("get_repository", "get_file", "list_pull_requests", "get_pull_request").forEach { operation ->
             assertEquals(
-                ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION,
+                ConnectorAuthorizationDecision.DENY,
                 ConnectorActionGate.evaluate(
                     ConnectorAction(ConnectorId.GITHUB, operation),
                     userRequestedExactAction = true,
@@ -121,7 +121,7 @@ class ConnectorActionGateTest {
     fun genericPlaceholderOperationsAreNotWhitelisted() {
         listOf("search", "read", "list", "get", "fetch", "inspect", "profile", "status").forEach { operation ->
             assertEquals(
-                ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION,
+                ConnectorAuthorizationDecision.DENY,
                 ConnectorActionGate.evaluate(
                     ConnectorAction(ConnectorId.GITHUB, operation),
                     userRequestedExactAction = true,
