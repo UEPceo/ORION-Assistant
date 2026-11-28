@@ -240,7 +240,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         val memoryInfo = ActivityManager.MemoryInfo()
         activityManager.getMemoryInfo(memoryInfo)
         val remoteSettings = RemoteInferenceSettings.read(appContext)
-        val requestedId = if (remoteSettings.isConfigured && remoteSettings.mode == RemoteInferenceSettings.MODE_REMOTE_ONLY) {
+        val requestedId = if (remoteSettings.isConfigured) {
             "lite"
         } else if (automatic) {
             LanguageModelProfileCatalog.recommendForDevice(memoryInfo.totalMem / (1024L * 1024L)).id
