@@ -36,7 +36,8 @@ data class GitHubFileSummary(val name: String, val path: String, val type: Strin
  */
 class GitHubApiClient(
     private val credentials: GitHubCredentialManager,
-    private val authenticator: GitHubDeviceFlowAuthenticator
+    private val authenticator: GitHubDeviceFlowAuthenticator,
+    private val requestOverride: (suspend (path: String) -> Any)? = null
 ) {
     suspend fun listRepositories(page: Int = 1, perPage: Int = 20): Result<List<GitHubRepositorySummary>> =
         withContext(Dispatchers.IO) {
@@ -188,6 +189,7 @@ class GitHubApiClient(
 
     private suspend fun requestAny(path: String): Any {
         val token = try { credentials.getValidAccessToken(authenticator) } catch (_: GitHubCredentialManager.ReauthorizationRequiredException) { throw ReauthorizationRequiredException() } ?: throw ReauthorizationRequiredException()
+        requestOverride?.let { return it(path) }
         val connection = (URL("$API_BASE$path").openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = TIMEOUT_MS
