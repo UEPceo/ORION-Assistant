@@ -95,6 +95,28 @@ class LocalTaskPlanStepHandlerTest {
         assertEquals("Tarea autorizada", tasks.getAllTasks().single().title)
     }
 
+    @Test fun postponingCompletedTaskDoesNotReactivateReminder() = runBlocking {
+        val dueDay = LocalDate.of(2027, 3, 10).toEpochDay()
+        val created = tasks.createTask(
+            title = "Tarea completada",
+            reminderAtMs = System.currentTimeMillis() + 3_600_000L,
+            reminderActive = true
+        )
+        tasks.completeTask(created.id)
+
+        val result = tasks.postponeTask(
+            id = created.id,
+            newDueDateEpochDay = dueDay,
+            newDueTimeMinutes = 600,
+            newReminderAtMs = System.currentTimeMillis() + 7_200_000L
+        )
+
+        assertNotNull(result)
+        assertEquals(TaskStatus.COMPLETED, result?.status)
+        assertEquals(false, result?.reminderActive)
+        assertEquals(null, result?.reminderAtMs)
+    }
+
     @Test fun validatorRejectsMalformedDateAndTimeInsteadOfSilentlyIgnoringThem() {
         val invalidDate = PlannedStep(
             id = "date", kind = PlanStepKind.LOCAL_CREATE_TASK, title = "Tarea",
