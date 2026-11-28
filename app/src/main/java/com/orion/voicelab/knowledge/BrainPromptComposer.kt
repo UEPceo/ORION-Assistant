@@ -2,7 +2,7 @@ package com.orion.voicelab.knowledge
 
 /** Creates a compact, provenance-preserving context block for the local LLM. */
 object BrainPromptComposer {
-    fun compose(context: BrainContext, maxChars: Int = 1_800): String {
+    fun compose(context: BrainContext, maxChars: Int = 2_200): String {
         val header = when (context.presentation) {
             BrainPresentation.EVIDENCE_SUPPORTED -> "EVIDENCIA CONTRASTADA (no es garantía absoluta):"
             BrainPresentation.UNVERIFIED -> "INFORMACIÓN NO VERIFICADA:"
@@ -29,7 +29,7 @@ object BrainPromptComposer {
             if (evidence.authority == EvidenceAuthority.UNKNOWN) {
                 builder.append("AVISO: resultado/fragmento no verificado; úsalo solo como pista y no como respaldo factual.\n")
             }
-            builder.append(document.excerpt.take(600)).append('\n')
+            builder.append(document.excerpt.take(420)).append('\n')
         }
         if (context.documents.isEmpty()) {
             builder.append("No inventes fuentes ni presentes conocimiento interno del modelo como dato comprobado. ")
@@ -40,7 +40,7 @@ object BrainPromptComposer {
         } else {
             builder.append("\nInstrucciones: separa hechos de inferencias; no añadas datos ausentes; ")
                 .append("si las fuentes no bastan, dilo. Los resultados de buscador con autoridad UNKNOWN son pistas, no evidencia confirmatoria. ")
-                .append("Cita las fuentes por su número [1], [2] y aclara si solo se consultó un fragmento.")
+                .append("Cita las afirmaciones con [1], [2]. Al final de la respuesta visible añade 'Fuentes: [1] editor — título; [2] editor — título'. No inventes referencias ni afirmes que has abierto el texto completo si solo hay un fragmento. Si hay contradicciones, enumera qué dato discrepa y evita elegir una versión sin fundamento..")
         }
         return builder.toString().take(maxChars)
     }
