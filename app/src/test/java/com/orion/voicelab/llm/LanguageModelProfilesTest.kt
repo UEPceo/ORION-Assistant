@@ -4,18 +4,34 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LanguageModelProfilesTest {
-    @Test fun lightweightOfflineModelRemainsDefaultOperationalProfile() {
+    @Test fun lightweightOfflineModelRemainsOnlyOperationalProfile() {
         val current = LanguageModelProfileCatalog.available(ModelExecutionMode.ON_DEVICE_OFFLINE)
-        assertEquals(listOf("qwen2.5-1.5b-local"), current.map { it.id })
+        assertEquals(listOf("lite"), current.map { it.id })
         assertTrue(current.first().capabilities.contains(ModelCapability.GENERAL_CHAT))
     }
+
+    @Test fun selectsRecommendationFromPhysicalRamBands() {
+        assertEquals("lite", LanguageModelProfileCatalog.recommendForDevice(5_500L * 1024L * 1024L).id)
+        assertEquals("balanced", LanguageModelProfileCatalog.recommendForDevice(8_000L * 1024L * 1024L).id)
+        assertEquals("powerful", LanguageModelProfileCatalog.recommendForDevice(12_000L * 1024L * 1024L).id)
+        assertEquals("flagship", LanguageModelProfileCatalog.recommendForDevice(16_000L * 1024L * 1024L).id)
+    }
+
+    @Test fun unavailableRequestedTierSafelyFallsBackToLite() {
+        assertEquals("lite", LanguageModelProfileCatalog.effectiveProfile("flagship", 16_000L * 1024L * 1024L).id)
+        assertEquals("lite", LanguageModelProfileCatalog.effectiveProfile("balanced", 6_000L * 1024L * 1024L).id)
+        assertEquals("lite", LanguageModelProfileCatalog.effectiveProfile("unknown", 8_000L * 1024L * 1024L).id)
+    }
+
     @Test fun selectionDoesNotPromiseUnavailableReasoningCapability() {
         assertNull(LanguageModelProfileCatalog.select(ModelExecutionMode.ON_DEVICE_OFFLINE, setOf(ModelCapability.MULTI_STEP_REASONING)))
         assertNotNull(LanguageModelProfileCatalog.select(ModelExecutionMode.ON_DEVICE_OFFLINE, setOf(ModelCapability.GENERAL_CHAT), 1600))
         assertNull(LanguageModelProfileCatalog.select(ModelExecutionMode.ON_DEVICE_OFFLINE, setOf(ModelCapability.GENERAL_CHAT), 512))
     }
-    @Test fun advancedAndRemoteProfilesAreNotFalselyMarkedOperational() {
-        assertFalse(LanguageModelProfileCatalog.profiles.first { it.id == "local-advanced" }.operational)
-        assertFalse(LanguageModelProfileCatalog.profiles.first { it.id == "remote-consented" }.operational)
+
+    @Test fun candidateTiersAreNotMarkedOperationalBeforeTheirArtifactsAreValidated() {
+        assertFalse(LanguageModelProfileCatalog.byId("balanced")!!.operational)
+        assertFalse(LanguageModelProfileCatalog.byId("powerful")!!.operational)
+        assertFalse(LanguageModelProfileCatalog.byId("flagship")!!.operational)
     }
 }
