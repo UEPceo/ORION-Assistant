@@ -16,7 +16,7 @@ import kotlinx.coroutines.withContext
 /** User-configured ComfyUI endpoint. External HTTP is rejected; LAN/local HTTP is allowed. */
 data class ComfyUiEndpointConfig(val baseUrl:String, val bearerToken:String?=null) {
     fun normalizedBaseUrl():String {
-        val uri=Uri.parse(baseUrl.trim())
+        val uri=java.net.URI(baseUrl.trim())
         require(uri.scheme=="https" || (uri.scheme=="http" && isLocalOrPrivateHost(uri.host.orEmpty()))) {
             "ComfyUI requiere HTTPS salvo un endpoint local/privado."
         }
@@ -24,10 +24,10 @@ data class ComfyUiEndpointConfig(val baseUrl:String, val bearerToken:String?=nul
             "Endpoint no válido: no incluyas credenciales, query ni fragmento en la URL."
         }
         require(uri.port==-1 || uri.port in 1..65535)
-        return baseUrl.trim().trimEnd('/')
+        return uri.toASCIIString().trimEnd('/')
     }
     private fun isLocalOrPrivateHost(host:String):Boolean {
-        val h=host.lowercase().trimEnd('.')
+        val h=host.lowercase().trimEnd('.').removeSurrounding("[","]")
         if(h=="localhost" || h.endsWith(".localhost") || h.endsWith(".local")) return true
         val parts=h.split(".")
         if(parts.size!=4 || parts.any { it.toIntOrNull() !in 0..255 }) return h=="::1" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80:")
