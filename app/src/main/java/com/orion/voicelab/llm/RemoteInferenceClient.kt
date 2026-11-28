@@ -145,6 +145,7 @@ class RemoteInferenceClient(
             require(body.toByteArray(Charsets.UTF_8).size <= 96 * 1024) { "El contexto remoto supera el límite de seguridad (96 KiB)." }
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
+                instanceFollowRedirects = false
                 connectTimeout = connectTimeoutMs
                 readTimeout = readTimeoutMs
                 doOutput = true
@@ -157,6 +158,7 @@ class RemoteInferenceClient(
             try {
                 connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
                 val status = connection.responseCode
+                if (status in 300..399) error("El servidor remoto intentó redirigir la solicitud; se bloqueó para proteger la API key.")
                 val stream = if (status in 200..299) connection.inputStream else connection.errorStream
                 val response = stream?.bufferedReader(Charsets.UTF_8)?.use { reader ->
                     val output = StringBuilder()
@@ -186,6 +188,7 @@ class RemoteInferenceClient(
     private fun isSafeEndpoint(value: String): Boolean {
         val uri = runCatching { java.net.URI(value) }.getOrNull() ?: return false
         val host = uri.host?.lowercase() ?: return false
+        if (uri.userInfo != null || uri.fragment != null || uri.query != null) return false
         if (uri.scheme == "https") return true
         if (uri.scheme != "http") return false
         return host == "localhost" || host == "127.0.0.1" || host == "::1" ||
