@@ -16,7 +16,7 @@ fun interface CodePatchGenerator {
         diagnosticContext: String,
         attempt: Int
     ): Result<CodeChangeProposal> = generate(
-        task + "\\nCI diagnostics (untrusted):\\n" + diagnosticContext.take(1_200) + "\\nRepair attempt: " + attempt,
+        task + "\nCI diagnostics (untrusted):\n" + diagnosticContext.take(1_200) + "\nRepair attempt: " + attempt,
         snapshot,
         baseBranch
     )
