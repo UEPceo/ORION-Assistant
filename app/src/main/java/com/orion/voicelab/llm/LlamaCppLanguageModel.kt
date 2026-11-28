@@ -60,9 +60,9 @@ object ChatPromptFormatter {
             if (content.length < message.content.length) break
         }
         return buildString {
-            append("<|im_start|>system\\n")
+            append("<|im_start|>system\n")
             append(safeSystem)
-            append("<|im_end|>\\n")
+            append("<|im_end|>\n")
             for (msg in selected.asReversed()) {
                 val roleTag = when (msg.role) {
                     ChatRole.SYSTEM -> "system"
@@ -71,18 +71,18 @@ object ChatPromptFormatter {
                 }
                 append("<|im_start|>")
                 append(roleTag)
-                append('\\n')
+                append('\n')
                 append(msg.content.trim())
-                append("<|im_end|>\\n")
+                append("<|im_end|>\n")
             }
-            append("<|im_start|>assistant\\n")
+            append("<|im_start|>assistant\n")
         }
     }
 
     private fun truncateMiddle(value: String, maxChars: Int): String {
         if (value.length <= maxChars) return value
         if (maxChars <= 32) return value.take(maxChars)
-        val marker = "\\n[CONTENIDO RECORTADO]\\n"
+        val marker = "\n[CONTENIDO RECORTADO]\n"
         val remaining = maxChars - marker.length
         val head = (remaining * 0.65).toInt()
         return value.take(head) + marker + value.takeLast(remaining - head)
