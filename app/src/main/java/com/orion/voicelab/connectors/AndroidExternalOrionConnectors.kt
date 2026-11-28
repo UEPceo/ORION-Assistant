@@ -145,13 +145,13 @@ class PescaIAOrionConnector : OrionConnector {
                     output.toByteArray()
                 }
                 return String(bytes, Charsets.UTF_8)
-                    .replace(Regex("(?is)<(script|style|noscript)[^>]*>.*?</\1>"), " ")
+                    .replace(Regex("""(?is)<(script|style|noscript)[^>]*>.*?</\1>"""), " ")
                     .replace(Regex("(?s)<[^>]+>"), " ")
                     .replace("&nbsp;", " ")
                     .replace("&amp;", "&")
                     .replace("&quot;", "\"")
                     .replace("&#39;", "'")
-                    .replace(Regex("\s+"), " ")
+                    .replace(Regex("""\s+"""), " ")
                     .take(MAX_TEXT_CHARS)
             } finally {
                 connection.disconnect()
