@@ -72,7 +72,7 @@ object ComfyUiCredentialStore {
     }
 
     private fun validateToken(token: String) {
-        require(token.length <= MAX_TOKEN_CHARS && token.none(Char::isISOControl)) {
+        require(token.length <= MAX_TOKEN_CHARS && token.none { Character.isISOControl(it) }) {
             "El token ComfyUI contiene caracteres no permitidos o supera el límite."
         }
     }
