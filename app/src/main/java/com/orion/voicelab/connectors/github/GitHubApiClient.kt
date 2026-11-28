@@ -229,7 +229,7 @@ class GitHubApiClient(
                 require(!branch.equals("main", true) && !branch.equals("master", true)) {
                     "ORION no puede crear cambios directamente en main/master."
                 }
-                val base = requestObject("/repos/$repository/branches/${encodePathSegment(baseBranch)}")
+                val base = requestObject("/repos/$repository/branches/${encodeBranchPath(baseBranch)}")
                 val baseSha = base.optJSONObject("commit")?.optString("sha").orEmpty()
                 require(baseSha.matches(Regex("[a-fA-F0-9]{40}"))) { "GitHub no devolvió el SHA de la rama base." }
                 val payload = JSONObject()
@@ -261,7 +261,7 @@ class GitHubApiClient(
             }
 
             val branchRef = requestObject(
-                "/repos/${proposal.repository}/git/ref/heads/${encodePathSegment(proposal.workBranch)}"
+                "/repos/${proposal.repository}/git/ref/heads/${encodeBranchPath(proposal.workBranch)}"
             )
             val currentHead = branchRef.optJSONObject("object")?.optString("sha").orEmpty()
             require(currentHead.equals(expectedHeadSha, ignoreCase = true)) {
@@ -344,7 +344,7 @@ class GitHubApiClient(
             require(newCommitSha.matches(Regex("[a-fA-F0-9]{40}"))) { "GitHub no confirmó el commit." }
 
             requestObject(
-                "/repos/${proposal.repository}/git/refs/heads/${encodePathSegment(proposal.workBranch)}",
+                "/repos/${proposal.repository}/git/refs/heads/${encodeBranchPath(proposal.workBranch)}",
                 "PATCH",
                 JSONObject().put("sha", newCommitSha).put("force", false)
             )
@@ -393,6 +393,9 @@ class GitHubApiClient(
 
     private fun encodePathSegment(value: String): String =
         java.net.URLEncoder.encode(value, Charsets.UTF_8.name()).replace("+", "%20")
+
+    private fun encodeBranchPath(value: String): String =
+        value.split('/').joinToString("/") { encodePathSegment(it) }
 
     private suspend fun requestJson(path: String): JSONArray {
         val value = requestAny(path)
