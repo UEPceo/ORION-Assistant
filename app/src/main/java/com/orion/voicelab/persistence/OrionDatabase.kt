@@ -14,6 +14,7 @@ import com.orion.voicelab.brain.PlanExecutionEntity
 import com.orion.voicelab.brain.PlanExecutionDao
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
@@ -553,14 +554,17 @@ abstract class OrionDatabase : RoomDatabase() {
 
         fun getInstance(context: Context): OrionDatabase =
             instance ?: synchronized(this) {
-                instance ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    OrionDatabase::class.java,
-                    DB_NAME
-                )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
-                    .build()
-                    .also { instance = it }
+                instance ?: run {
+                    val appContext = context.applicationContext
+                    System.loadLibrary("sqlcipher")
+                    val passphrase = OrionDatabaseEncryption.getOrCreatePassphrase(appContext)
+                    OrionDatabaseEncryption.encryptLegacyDatabaseIfNeeded(appContext, passphrase)
+                    Room.databaseBuilder(appContext, OrionDatabase::class.java, DB_NAME)
+                        .openHelperFactory(SupportOpenHelperFactory(passphrase))
+                        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                        .build()
+                        .also { instance = it }
+                }
             }
     }
 }

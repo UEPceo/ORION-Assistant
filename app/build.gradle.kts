@@ -136,6 +136,7 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
+    implementation(libs.sqlcipher.android)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.onnxruntime.android)
     implementation(libs.onnxruntime.extensions.android)
