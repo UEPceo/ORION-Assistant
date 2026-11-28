@@ -111,8 +111,7 @@ class PescaIAOrionConnector : OrionConnector {
     private fun fetchText(address: String): String? {
         var current = URL(address)
         repeat(MAX_REDIRECTS + 1) {
-            require(current.protocol.equals("https", ignoreCase = true) &&
-                current.host.lowercase() in ALLOWED_HOSTS) {
+            require(isAllowedPescaIaUrl(current.toString())) {
                 "Redirección fuera del dominio autorizado de PescaIA"
             }
             val connection = (current.openConnection() as HttpURLConnection).apply {
@@ -144,7 +143,7 @@ class PescaIAOrionConnector : OrionConnector {
                     }
                     output.toByteArray()
                 }
-                return String(bytes, Charsets.UTF_8)
+                val extracted = String(bytes, Charsets.UTF_8)
                     .replace(Regex("""(?is)<(script|style|noscript)[^>]*>.*?</\1>"""), " ")
                     .replace(Regex("(?s)<[^>]+>"), " ")
                     .replace("&nbsp;", " ")
@@ -153,6 +152,7 @@ class PescaIAOrionConnector : OrionConnector {
                     .replace("&#39;", "'")
                     .replace(Regex("""\s+"""), " ")
                     .take(MAX_TEXT_CHARS)
+                return extracted.takeIf { it.length >= MIN_EXTRACTED_TEXT_CHARS }
             } finally {
                 connection.disconnect()
             }
@@ -166,8 +166,14 @@ class PescaIAOrionConnector : OrionConnector {
     private companion object {
         const val MAX_REDIRECTS = 5
         val REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
-        val ALLOWED_HOSTS = setOf("pescaisurfcasting.company", "www.pescaisurfcasting.company")
+        const val MIN_EXTRACTED_TEXT_CHARS = 120
         const val MAX_HTML_BYTES = 1_000_000
         const val MAX_TEXT_CHARS = 100_000
     }
 }
+
+internal fun isAllowedPescaIaUrl(address: String): Boolean = runCatching {
+    val parsed = URL(address)
+    parsed.protocol.equals("https", ignoreCase = true) &&
+        parsed.host.lowercase() in setOf("pescaisurfcasting.company", "www.pescaisurfcasting.company")
+}.getOrDefault(false)
