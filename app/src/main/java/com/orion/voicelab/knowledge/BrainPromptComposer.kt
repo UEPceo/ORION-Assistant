@@ -43,7 +43,7 @@ object BrainPromptComposer {
         } else {
             builder.append("\nInstrucciones: separa hechos de inferencias; no añadas datos ausentes; ")
                 .append("si las fuentes no bastan, dilo. Los resultados de buscador con autoridad UNKNOWN son pistas, no evidencia confirmatoria. ")
-                .append("Cita las afirmaciones con [1], [2]. Al final de la respuesta visible añade 'Fuentes: [1] editor — título; [2] editor — título'. No inventes referencias ni afirmes que has abierto el texto completo si solo hay un fragmento. Si hay contradicciones, enumera qué dato discrepa y evita elegir una versión sin fundamento..")
+                .append("Cita las afirmaciones con [1], [2]. Al final de la respuesta visible añade 'Fuentes: [1] editor — título; [2] editor — título'. En voz, no recites URLs ni metadatos: mantén la respuesta natural y la lista breve visible en el texto. No inventes referencias ni afirmes que has abierto el texto completo si solo hay un fragmento. Si hay contradicciones, enumera qué dato discrepa y evita elegir una versión sin fundamento.")
         }
         return builder.toString().take(maxChars)
     }
