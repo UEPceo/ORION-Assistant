@@ -42,22 +42,30 @@ object ChatPromptFormatter {
         require(safeSystem.length + SYSTEM_OVERHEAD_CHARS <= promptBudget) {
             "El prompt de sistema supera el presupuesto del contexto efectivo; reduce contexto antes de generar."
         }
+        require(maxTurns > 0) { "El número de turnos debe ser positivo." }
+        val recentHistory = history.takeLast(maxTurns)
         val selected = mutableListOf<ChatMessage>()
         var usedChars = safeSystem.length + SYSTEM_OVERHEAD_CHARS
-        for (message in history.takeLast(maxTurns).asReversed()) {
+        for ((reverseIndex, message) in recentHistory.asReversed().withIndex()) {
             val overhead = MESSAGE_OVERHEAD_CHARS
             val available = promptBudget - usedChars - overhead
-            if (available <= 0) break
-            val content = if (message.content.length <= available) {
-                message.content
-            } else if (selected.isEmpty()) {
-                truncateMiddle(message.content, available)
-            } else {
+            if (available <= 0) {
+                if (reverseIndex == 0 && message.role == ChatRole.USER) {
+                    error("El mensaje actual supera el presupuesto del contexto efectivo; no se recortará ni se enviará incompleto.")
+                }
                 break
             }
-            selected += message.copy(content = content)
-            usedChars += content.length + overhead
-            if (content.length < message.content.length) break
+            if (message.content.length > available) {
+                if (reverseIndex == 0 && message.role == ChatRole.USER) {
+                    error("El mensaje actual supera el presupuesto del contexto efectivo; reduce su longitud o usa un perfil con más contexto.")
+                }
+                break
+            }
+            selected += message
+            usedChars += message.content.length + overhead
+        }
+        if (recentHistory.lastOrNull()?.role == ChatRole.USER && selected.none { it === recentHistory.last() }) {
+            error("No se pudo conservar íntegro el mensaje actual dentro del contexto efectivo.")
         }
         return buildString {
             append("<|im_start|>system\n")
@@ -77,15 +85,6 @@ object ChatPromptFormatter {
             }
             append("<|im_start|>assistant\n")
         }
-    }
-
-    private fun truncateMiddle(value: String, maxChars: Int): String {
-        if (value.length <= maxChars) return value
-        if (maxChars <= 32) return value.take(maxChars)
-        val marker = "\n[CONTENIDO RECORTADO]\n"
-        val remaining = maxChars - marker.length
-        val head = (remaining * 0.65).toInt()
-        return value.take(head) + marker + value.takeLast(remaining - head)
     }
 
     private const val SYSTEM_OVERHEAD_CHARS = 56
