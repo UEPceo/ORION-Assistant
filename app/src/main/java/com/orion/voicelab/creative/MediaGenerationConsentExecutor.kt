@@ -12,8 +12,8 @@ class MediaGenerationConsentExecutor(
         require(request.prompt.take(12000)==approval.prompt) { "El prompt cambió desde la autorización; solicita confirmación de nuevo." }
         val policy=MediaRoutingPolicy(allowRemoteProcessing=true,networkAvailable=networkAvailable())
         return when(approval.kind) {
-            MediaGenerationKind.IMAGE -> runtime.generateImage(request,policy)
-            MediaGenerationKind.VIDEO -> runtime.generateVideo(request,policy)
+            MediaGenerationKind.IMAGE -> runtime.generateImage(request,policy,approval.providerId)
+            MediaGenerationKind.VIDEO -> runtime.generateVideo(request,policy,approval.providerId)
         }
     }
 }
