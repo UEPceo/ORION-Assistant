@@ -331,10 +331,16 @@ fun ConnectorsSectionScreen(
         item {
             CodeEngineeringCard(
                 state = codeEngineeringState,
-                onStartSession = viewModel::startCodeEngineeringSession,
-                onPrepare = viewModel::prepareCodeEngineeringChange,
-                onCommit = viewModel::commitApprovedCodeEngineeringChange,
-                onRevoke = viewModel::revokeCodeEngineeringSession
+                onStartSession = { repository, base, branch, task, confirmed ->
+                    viewModel.startCodeEngineeringSession(repository, base, branch, task, confirmed)
+                },
+                onPrepare = { session, task, paths ->
+                    viewModel.prepareCodeEngineeringChange(session, task, paths)
+                },
+                onCommit = { session, digest, confirmed ->
+                    viewModel.commitApprovedCodeEngineeringChange(session, digest, confirmed)
+                },
+                onRevoke = { session -> viewModel.revokeCodeEngineeringSession(session) }
             )
         }
     }
