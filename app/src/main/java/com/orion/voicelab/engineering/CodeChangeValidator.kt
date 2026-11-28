@@ -52,7 +52,8 @@ object CodeChangeValidator {
         Regex("\\bAKIA[0-9A-Z]{16}\\b"),
         Regex("\\bsk-[A-Za-z0-9_-]{20,}\\b"),
         Regex("\\bAIza[0-9A-Za-z_-]{30,}\\b"),
-        Regex("(?i)(?:api[_-]?key|client[_-]?secret|access[_-]?token|password|passwd|secret)\\s*[:=]\\s*[\"'][^\"']{8,}[\"']"),
+        Regex("(?i)(?:api[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|password|passwd|secret)\\s*[:=]\\s*[\"'][^\"']{8,}[\"']"),
+        Regex("(?i)\\b(?:api[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|password|passwd|secret)\\b\\s*[:=]\\s*[^,\\s]{8,}"),
         Regex("(?i)authorization\\s*[:=]\\s*[\"']?Bearer\\s+[A-Za-z0-9._~+/-]{16,}")
     )
 
@@ -78,6 +79,11 @@ object CodeChangeValidator {
 
         val duplicatePaths = proposal.changes.groupBy { it.path }.filterValues { it.size > 1 }.keys
         if (duplicatePaths.isNotEmpty()) errors += "La propuesta contiene rutas duplicadas."
+        val proposedPaths = proposal.changes.map { it.path }.filter { isSafePath(it) }
+        val ancestorConflicts = proposedPaths.filter { path ->
+            proposedPaths.any { other -> other != path && other.startsWith(path + "/") }
+        }
+        if (ancestorConflicts.isNotEmpty()) errors += "La propuesta contiene conflictos entre archivo y directorio: ${ancestorConflicts.joinToString()}."
 
         var totalBytes = 0L
         proposal.changes.forEach { change ->
@@ -143,13 +149,15 @@ object CodeChangeValidator {
         val normalized = path.lowercase()
         if (Regex("""(^|/)\.env(?:\.[^/]*)?$""").containsMatchIn(normalized)) return true
         val sensitiveNames = setOf(
-            "local.properties", ".npmrc", ".pypirc", ".aws", ".ssh", "secrets", "secret", "credentials", "credential",
-            "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"
+            "local.properties", ".npmrc", ".pypirc", ".aws", ".ssh", ".docker", ".kube", ".terraform", ".vault",
+            ".git-credentials", ".envrc", "secrets", "secret", "credentials", "credential", "token", "tokens",
+            "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa", "terraform.tfstate", "terraform.tfstate.backup"
         )
         if (segments.any { it.lowercase() in sensitiveNames }) return true
         return segments.any { segment ->
             val name = segment.lowercase()
-            name.matches(Regex("""(?:secrets?|credentials?)\.(?:json|ya?ml|properties|toml|txt)""")) ||
+            name.matches(Regex("""(?:secrets?|credentials?|tokens?)\.(?:json|ya?ml|properties|toml|txt)""")) ||
+                name.matches(Regex("""(?:terraform\.tfstate(?:\.backup)?|[^/]+\.tfvars(?:\.json)?)""")) ||
                 (name.startsWith("client_secret") || name.startsWith("service-account") ||
                     name.startsWith("firebase-adminsdk")) && name.endsWith(".json") ||
                 listOf(".jks", ".keystore", ".p12", ".pfx", ".pem", ".key", ".p8").any(name::endsWith)
