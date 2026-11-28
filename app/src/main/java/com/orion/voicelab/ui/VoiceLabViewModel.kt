@@ -908,6 +908,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     private suspend fun installAsrSuspend(throwOnError: Boolean) {
         val downloadJob = currentCoroutineContext()[Job]
+        val downloadGuard = DownloadCancellationGuard(downloadJob)
         asrDownloadMutex.withLock {
             if (ModelManager.isAsrInstalled(appContext.filesDir)) {
                 refreshModelState()
@@ -923,7 +924,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 MoonshineModelManager.downloadAndInstall(
                     filesDir = appContext.filesDir,
                     cacheDir = appContext.cacheDir,
-                    shouldCancel = { DownloadCancellationGuard(downloadJob).shouldCancel() },
+                    shouldCancel = downloadGuard::shouldCancel,
                     onProgress = { percent ->
                         _uiState.update {
                             it.copy(modelState = ModelInstallState.Downloading(percent))
@@ -967,6 +968,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     private suspend fun installLlmSuspend(throwOnError: Boolean) {
         val downloadJob = currentCoroutineContext()[Job]
+        val downloadGuard = DownloadCancellationGuard(downloadJob)
         llmDownloadMutex.withLock {
             if (ModelManager.isLlmInstalled(appContext.filesDir)) {
                 refreshModelState()
@@ -1028,6 +1030,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     private suspend fun installTtsSuspend(throwOnError: Boolean) {
         val downloadJob = currentCoroutineContext()[Job]
+        val downloadGuard = DownloadCancellationGuard(downloadJob)
         ttsDownloadMutex.withLock {
             if (ModelManager.isTtsInstalled(appContext.filesDir)) {
                 refreshModelState()
