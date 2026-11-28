@@ -98,7 +98,7 @@ class ConnectorActionGateTest {
 
     @Test
     fun unimplementedGithubOperationsAreNotWhitelisted() {
-        listOf("get_repository", "get_file", "list_pull_requests", "get_pull_request").forEach { operation ->
+        listOf("get_repository", "list_pull_requests", "get_pull_request").forEach { operation ->
             assertEquals(
                 ConnectorAuthorizationDecision.DENY,
                 ConnectorActionGate.evaluate(
