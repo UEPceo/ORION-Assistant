@@ -127,7 +127,7 @@ class GitHubOrionConnector(
                 api.getFile(repository, filePath, action.arguments["branch"]).fold(
                     onSuccess = { file ->
                         ConnectorResult.Success(
-                            "Archivo ${file.path} (${file.sizeBytes} bytes, SHA ${file.sha}). Contenido:\\n${file.content}",
+                            "Archivo ${file.path} leído (${file.sizeBytes} bytes). El contenido queda disponible para el motor de ingeniería, no se vuelca en la respuesta hablada.",
                             file.sha
                         )
                     },
