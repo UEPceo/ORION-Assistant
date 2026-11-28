@@ -200,21 +200,21 @@ fun OrionSettingsScreen(
                                 plan.steps.forEach { step ->
                                     val result = results[step.id]
                                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text("\${step.title} · \${result?.status ?: StepStatus.PENDING}", style = MaterialTheme.typography.bodyMedium)
+                                        Text("${step.title} · ${result?.status ?: StepStatus.PENDING}", style = MaterialTheme.typography.bodyMedium)
                                         if (!result?.summary.isNullOrBlank()) {
                                             Text(result!!.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                         if (!result?.outputReference.isNullOrBlank()) {
-                                            Text("Salida disponible: \${result!!.outputReference}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                            Text("Salida disponible: ${result!!.outputReference}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                                         }
                                         if ((step.requiresApproval || step.risk >= PlanRisk.MEDIUM) && result?.status != StepStatus.SUCCEEDED) {
                                             if (step.inputSummary.isNotBlank()) {
                                                 val preview = PlanOutputReferences.resolve(step.inputSummary, results)
-                                                Text("Contexto: \${preview ?: "Pendiente de salida de pasos anteriores"}", style = MaterialTheme.typography.bodySmall)
+                                                Text("Contexto: ${preview ?: "Pendiente de salida de pasos anteriores"}", style = MaterialTheme.typography.bodySmall)
                                             }
                                             step.connectorArguments.forEach { (key, rawValue) ->
                                                 val preview = PlanOutputReferences.resolve(rawValue, results)
-                                                Text("$key: \${preview ?: "Pendiente de salida de pasos anteriores"}", style = MaterialTheme.typography.bodySmall)
+                                                Text("$key: ${preview ?: "Pendiente de salida de pasos anteriores"}", style = MaterialTheme.typography.bodySmall)
                                             }
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Checkbox(
