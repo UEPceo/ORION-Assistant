@@ -449,3 +449,10 @@ La dependencia sherpa-onnx existente incluye API Kotlin para keyword spotting en
 Se ha localizado un candidato KWS español compatible con sherpa-onnx: jguerrisi/sherpa-onnx-kws-zipformer-es-3M-2026-08-08. Su licencia declarada es Apache-2.0 y permite palabras configurables mediante BPE, pero su evaluación publicada es pequeña y no incluye «ORION». Quedan pendientes fijar revisión inmutable, hashes, tokenización BPE, pruebas de falsos disparos y validación acústica peninsular/andaluza. No activar el micrófono en segundo plano hasta cerrar esas comprobaciones y el flujo de consentimiento. Ver WAKE_WORD_READINESS.md.
 
 La implementación actual de LlamaCppLanguageModel solicita n_gpu_layers=0; por tanto, usa CPU. No se debe cambiar ese valor sin confirmar que el AAR/JNI incorpora un backend GPU. La ruta de mejora prioriza auditar y habilitar KleidiAI en arm64, y después prototipar Vulkan/OpenCL para Adreno con detección real, fallback y mediciones. LiteRT-LM dispone de API Kotlin estable y backends CPU/GPU/NPU en Android, así que se evaluará como backend alternativo en un prototipo separado, sin sustituir llama.cpp hasta superar pruebas comparativas. Hexagon/NPU no se declarará compatible sin runtime y pruebas concretas. Ver LLAMA_ANDROID_ACCELERATION_AUDIT.md.
+
+
+## Privacidad de inferencia remota — revisión 2026-11-28
+
+La interfaz de consentimiento se ha ajustado para describir el payload real del cliente remoto: prompt de sistema y hasta los últimos 12 mensajes, con límite de 8.000 caracteres por mensaje. El prompt de sistema puede contener instrucciones y contexto que ORION haya preparado para la consulta. No se envía el historial completo ni archivos adjuntos. La autorización sigue siendo explícita y persistente hasta que el usuario la desactive; el modo Solo local no transmite contenido.
+
+La ruta remota continúa siendo opcional. No se requiere proveedor comercial: puede apuntar a un servidor autoalojado compatible. Antes de activar la delegación automática en producción, quedan pendientes pruebas de redacción/minimización del prompt y pruebas unitarias que inspeccionen el JSON exacto transmitido.
