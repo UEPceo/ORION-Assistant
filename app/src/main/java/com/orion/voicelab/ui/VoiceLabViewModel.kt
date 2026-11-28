@@ -59,6 +59,8 @@ import com.orion.voicelab.engine.MoonshineModelManager
 import com.orion.voicelab.engine.OrionVoiceEngine
 import com.orion.voicelab.llm.LlamaCppLanguageModel
 import com.orion.voicelab.llm.ModelProfilePromptComposer
+import com.orion.voicelab.llm.ModelMemoryPolicy
+import com.orion.voicelab.llm.ModelMemorySnapshot
 import com.orion.voicelab.llm.LanguageModelProfileCatalog
 import com.orion.voicelab.knowledge.OrionBrainRuntime
 import com.orion.voicelab.brain.PlanningPromptComposer
@@ -242,7 +244,14 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         }
         val artifact = ModelManager.profileArtifact(requestedId)
         val candidateFile = artifact?.let { ModelManager.profileModelFile(appContext.filesDir, it.profileId) }
-        if (artifact != null && candidateFile?.isFile == true && ModelManager.hasGgufMagicHeader(candidateFile)) {
+        val hasSafeMemory = artifact != null && candidateFile?.isFile == true && runCatching {
+            ModelMemoryPolicy.evaluate(
+                ModelMemorySnapshot(memoryInfo.totalMem, memoryInfo.availMem),
+                candidateFile.length(),
+                artifact.contextTokens
+            ).allowed
+        }.getOrDefault(false)
+        if (artifact != null && candidateFile?.isFile == true && hasSafeMemory && ModelManager.hasGgufMagicHeader(candidateFile)) {
             LlamaCppLanguageModel.forProfile(appContext, appContext.filesDir, artifact)
         } else {
             LlamaCppLanguageModel(context = appContext, modelFile = ModelManager.llmModelFile(appContext.filesDir))
