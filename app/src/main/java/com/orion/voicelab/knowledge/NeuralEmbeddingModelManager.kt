@@ -24,15 +24,21 @@ class NeuralEmbeddingModelManager(context: Context) {
     val modelFile: File get() = File(directory, MODEL_FILE)
     private val partialFile: File get() = File(directory, "$MODEL_FILE.part")
     @Volatile private var verifiedLength: Long = -1L
+    @Volatile private var verifiedLastModified: Long = -1L
     private val downloadMutex = DOWNLOAD_MUTEX
 
     suspend fun isInstalled(): Boolean = withContext(Dispatchers.IO) {
         if (!modelFile.isFile) return@withContext false
         val length = modelFile.length()
         if (length !in MIN_MODEL_BYTES..MAX_MODEL_BYTES) return@withContext false
-        if (verifiedLength == length) return@withContext true
-        val valid = sha256(modelFile) == MODEL_SHA256
-        if (valid) verifiedLength = length
+        val modified = modelFile.lastModified()
+        if (verifiedLength == length && verifiedLastModified == modified) return@withContext true
+        val valid = sha256(modelFile) == MODEL_SHA256 &&
+            modelFile.length() == length && modelFile.lastModified() == modified
+        if (valid) {
+            verifiedLength = length
+            verifiedLastModified = modified
+        }
         valid
     }
 
@@ -100,6 +106,7 @@ class NeuralEmbeddingModelManager(context: Context) {
                 "No se pudo finalizar la instalación del encoder."
             }
             verifiedLength = modelFile.length()
+            verifiedLastModified = modelFile.lastModified()
             modelFile
         } catch (error: Exception) {
             // Keep a valid partial file for a later Range request; never expose it as installed.
@@ -114,6 +121,7 @@ class NeuralEmbeddingModelManager(context: Context) {
         partialFile.delete()
         modelFile.delete()
         verifiedLength = -1L
+        verifiedLastModified = -1L
     }
 
     private fun openConnection(rawUrl: String, offset: Long): HttpURLConnection {
