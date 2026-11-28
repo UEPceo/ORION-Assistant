@@ -17,6 +17,15 @@ class LanguageModelProfilesTest {
         assertEquals("flagship", LanguageModelProfileCatalog.recommendForDevice(16_000L).id)
     }
 
+    @Test fun ramThresholdsSwitchOnlyAtConfiguredBoundaries() {
+        assertEquals("lite", LanguageModelProfileCatalog.recommendForDevice(7_599L).id)
+        assertEquals("balanced", LanguageModelProfileCatalog.recommendForDevice(7_600L).id)
+        assertEquals("balanced", LanguageModelProfileCatalog.recommendForDevice(11_399L).id)
+        assertEquals("powerful", LanguageModelProfileCatalog.recommendForDevice(11_400L).id)
+        assertEquals("powerful", LanguageModelProfileCatalog.recommendForDevice(15_199L).id)
+        assertEquals("flagship", LanguageModelProfileCatalog.recommendForDevice(15_200L).id)
+    }
+
     @Test fun unavailableRequestedTierSafelyFallsBackToLite() {
         assertEquals("lite", LanguageModelProfileCatalog.effectiveProfile("flagship", 16_000L).id)
         assertEquals("lite", LanguageModelProfileCatalog.effectiveProfile("balanced", 6_000L, setOf("lite", "balanced")).id)
