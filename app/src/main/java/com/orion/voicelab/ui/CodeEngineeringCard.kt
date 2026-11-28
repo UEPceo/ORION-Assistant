@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import com.orion.voicelab.engineering.CodeEngineeringSession
 import com.orion.voicelab.engineering.CodeEngineeringUiState
 import com.orion.voicelab.engineering.CodeFileOperation
+import com.orion.voicelab.engineering.CodeRepairBudget
 
 @Composable
 fun CodeEngineeringCard(
@@ -22,6 +23,7 @@ fun CodeEngineeringCard(
     onCommit: (CodeEngineeringSession,String,Boolean)->Unit,
     onCreatePullRequest: (CodeEngineeringSession,String,String,Boolean)->Unit,
     onInspectCi: (CodeEngineeringSession)->Unit,
+    onPrepareRepair: (CodeEngineeringSession,List<String>)->Unit,
     onRevoke: (CodeEngineeringSession)->Unit
 ) {
     var repository by remember { mutableStateOf("") }
@@ -90,6 +92,20 @@ fun CodeEngineeringCard(
                         Text("Logs recuperados (secretos conocidos redactados)",style=MaterialTheme.typography.labelMedium,fontWeight=FontWeight.SemiBold)
                         Column(Modifier.fillMaxWidth().heightIn(max=260.dp).verticalScroll(rememberScrollState())) {
                             Text(logs.take(8_000),style=MaterialTheme.typography.bodySmall)
+                        }
+                        Text("Reparaciones propuestas: ${state.repairAttemptsUsed}/${CodeRepairBudget.MAX_ATTEMPTS}",style=MaterialTheme.typography.bodySmall)
+                        if (inspection.failed && state.repairAttemptsUsed < CodeRepairBudget.MAX_ATTEMPTS) {
+                            Text("ORION puede preparar una corrección basada en estos errores. El nuevo diff necesitará revisión y aprobación independientes.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            Button(
+                                onClick = {
+                                    onPrepareRepair(
+                                        session,
+                                        selectedPaths.split(',', '\\n').map { it.trim() }.filter { it.isNotBlank() }
+                                    )
+                                },
+                                enabled = !state.isWorking && selectedPaths.isNotBlank(),
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Preparar corrección acotada con logs") }
                         }
                     }
                 }
