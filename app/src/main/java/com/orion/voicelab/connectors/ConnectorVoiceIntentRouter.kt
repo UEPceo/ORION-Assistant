@@ -86,8 +86,8 @@ object ConnectorVoiceIntentRouter {
             val destination = text
                 .replace(Regex("""(?i)\\bgoogle\\s+maps\\b|\\bmaps\\b"""), " ")
                 .replace(Regex("""(?i)\\b(?:llévame|llevame|abre|abrir|busca|buscar|navega|navegar|quiero|ponme|ruta|cómo\\s+llego|como\\s+llego|mapa)\\b"""), " ")
-                .replace(Regex("""(?i)\\b(?:en|a|hasta|hacia|para)\\b"""), " ")
                 .replace(Regex("""(?i)\\s+(?:a pie|andando|caminando|en coche|en transporte público|en transporte publico)$"""), " ")
+                .replace(Regex("""(?i)\\b(?:en|a|hasta|hacia|para)\\b"""), " ")
                 .replace(Regex("""\\s+"""), " ")
                 .trim()
             return RoutedAction(ConnectorAction(
