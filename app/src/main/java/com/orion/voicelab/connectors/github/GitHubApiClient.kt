@@ -64,7 +64,7 @@ class GitHubApiClient(
     suspend fun listIssues(repository: String, state: String = "open", page: Int = 1): Result<List<GitHubIssueSummary>> =
         withContext(Dispatchers.IO) {
             runCatching {
-                require(REPOSITORY_PATTERN.matches(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
+                require(isValidRepository(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
                 val safeState = state.takeIf { it in setOf("open", "closed", "all") } ?: "open"
                 val safePage = page.coerceIn(1, MAX_PAGE)
                 val json = requestJson("/repos/$repository/issues?state=$safeState&per_page=$MAX_PER_PAGE&page=$safePage")
@@ -153,7 +153,7 @@ class GitHubApiClient(
         withContext(Dispatchers.IO) {
             runCatching {
                 require(REPOSITORY_PATTERN.matches(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
-                require(path.length <= 300 && !path.split('/').any { it == ".." }) { "Ruta de repositorio no válida." }
+                require(path.length <= 300 && path.split('/').none { it == ".." || it == "." }) { "Ruta de repositorio no válida." }
                 val safePath = path.trim('/').split('/').filter { it.isNotBlank() }
                     .joinToString("/") { java.net.URLEncoder.encode(it, Charsets.UTF_8.name()).replace("+", "%20") }
                 val safeBranch = branch?.takeIf { it.isNotBlank() }?.let {
@@ -187,7 +187,7 @@ class GitHubApiClient(
     }
 
     private suspend fun requestAny(path: String): Any {
-        val token = credentials.getValidAccessToken(authenticator) ?: throw ReauthorizationRequiredException()
+        val token = try { credentials.getValidAccessToken(authenticator) } catch (_: GitHubCredentialManager.ReauthorizationRequiredException) { throw ReauthorizationRequiredException() } ?: throw ReauthorizationRequiredException()
         val connection = (URL("$API_BASE$path").openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = TIMEOUT_MS
@@ -222,6 +222,7 @@ class GitHubApiClient(
         const val MAX_TITLE_LENGTH = 300
         const val TIMEOUT_MS = 15_000
         val REPOSITORY_PATTERN = Regex("[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}")
+        fun isValidRepository(value: String): Boolean = REPOSITORY_PATTERN.matches(value) && value.split('/').none { it == "." || it == ".." }
     }
 }
 
