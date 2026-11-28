@@ -325,7 +325,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                     null
                 }
             }
-            val promptBundle = turnBrainContext?.let(BrainPromptComposer::composeBundle)
+            val promptBundle = turnBrainContext?.let { context -> BrainPromptComposer.composeBundle(context) }
             latestTurnBrainContext = promptBundle?.evidenceContext
             val brainPrompt = promptBundle?.prompt
                 ?: "CONOCIMIENTO LOCAL NO DISPONIBLE EN ESTE TURNO: continúa la conversación con el contexto disponible, no afirmes haber consultado fuentes y comunica la limitación solo si afecta a la respuesta."
