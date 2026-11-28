@@ -102,6 +102,7 @@ class ComfyUiClient(private val context:Context, private val config:ComfyUiEndpo
     private fun connection(path:String,method:String="GET"):HttpURLConnection {
         val conn=URL(base+path).openConnection() as HttpURLConnection
         conn.requestMethod=method
+        conn.instanceFollowRedirects=false
         conn.connectTimeout=15000
         conn.readTimeout=30000
         conn.setRequestProperty("Accept","application/json")
@@ -182,6 +183,7 @@ class ComfyUiClient(private val context:Context, private val config:ComfyUiEndpo
     }
     private fun readResponse(conn:HttpURLConnection):JSONObject {
         val code=conn.responseCode
+        if(code in 300..399) { conn.disconnect(); throw IOException("ComfyUI redirect bloqueado por seguridad.") }
         val stream=if(code in 200..299) conn.inputStream else conn.errorStream
         val text=stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText().take(2*1024*1024) }.orEmpty()
         conn.disconnect()
