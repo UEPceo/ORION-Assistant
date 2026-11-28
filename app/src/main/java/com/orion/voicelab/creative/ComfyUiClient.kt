@@ -1,7 +1,6 @@
 package com.orion.voicelab.creative
 
 import android.content.Context
-import android.net.Uri
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
@@ -127,7 +126,7 @@ class ComfyUiClient(private val context:Context, private val config:ComfyUiEndpo
             }
         } }
         require(total>0L) { "Archivo multimedia vacío." }
-        ComfyUiOutput(file,mimeForExtension(ext),filename,subfolder)
+        download.disconnect()\n        ComfyUiOutput(file,mimeForExtension(ext),filename,subfolder)
     }
     suspend fun uploadReference(asset:MediaAsset):String=withContext(Dispatchers.IO) {
         val resolver=context.contentResolver
