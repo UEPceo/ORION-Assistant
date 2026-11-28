@@ -12,8 +12,9 @@ class GitHubApiClientValidationTest {
 
     @Test
     fun rejectsTraversalSegmentsAndExtraPathComponents() {
-        listOf("../owner/repo", "owner/..", "./owner/repo", "owner/repo/../../other", "owner/.", "owner/repo?x=1").forEach {
+        listOf("../owner/repo", "../owner", "owner/..", "./owner/repo", "owner/repo/../../other", "owner/.", "owner/repo?x=1").forEach {
             assertFalse("Should reject $it", GitHubApiClient.isValidRepository(it))
+            assertFalse("Pattern must not accept $it", GitHubApiClient.REPOSITORY_PATTERN.matches(it))
         }
     }
 }
