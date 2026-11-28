@@ -40,4 +40,11 @@ class ComfyUiWorkflowTemplateTest {
   assertEquals(512,result.getJSONObject("2").getJSONObject("inputs").getInt("height"))
  }
 
+ @Test fun workflowMustPassStructuralValidationBeforeProviderCanBeMarkedReady() {
+  val valid=ComfyUiWorkflowTemplate("""{"1":{"inputs":{"text":"prompt"}}}""","1")
+  val invalid=ComfyUiWorkflowTemplate("""{"1":{"inputs":{"other":"x"}}}""","1")
+  assertTrue(valid.isValid())
+  assertFalse(invalid.isValid())
+ }
+
 }
