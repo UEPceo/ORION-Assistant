@@ -18,7 +18,7 @@ class KnowledgeRegressionEvaluatorTest {
         val c=KnowledgeRegressionCase("case","query",setOf("expected"),KnowledgeDomain.PROGRAMMING)
         val o=KnowledgeRegressionObservation("case",setOf("retrieved"),setOf("invented"),listOf(evidence("retrieved")),"Answer")
         val r=KnowledgeRegressionEvaluator.evaluate(c,o,now)
-        assertFalse(r.passed); assertEquals(setOf("expected"),r.missingExpectedEvidence); assertEquals(setOf("invented"),r.unsupportedCitations)
+        assertFalse(r.passed); assertEquals(setOf("expected"),r.missingExpectedEvidence); assertEquals(setOf("expected"),r.missingExpectedCitations); assertEquals(setOf("invented"),r.unsupportedCitations)
     }
     @Test fun detectsStaleAndWrongDomainEvidence() {
         val c=KnowledgeRegressionCase("fresh","query",setOf("old"),KnowledgeDomain.LAW_AND_REGULATION,true,true,100)
