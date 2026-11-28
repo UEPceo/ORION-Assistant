@@ -983,7 +983,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             try {
                 ModelManager.downloadAndInstallLlm(
                     filesDir = appContext.filesDir,
-                    shouldCancel = { downloadJob?.isActive != true }
+                    shouldCancel = downloadGuard::shouldCancel
                 ) { percent, downMb, totalMb ->
                     _uiState.update {
                         it.copy(
