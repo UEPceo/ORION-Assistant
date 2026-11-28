@@ -3,6 +3,8 @@ package com.orion.voicelab.connectors.github
 import com.orion.voicelab.connectors.ConnectorCredentialStore
 import com.orion.voicelab.connectors.ConnectorId
 import org.json.JSONObject
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Persists GitHub App user access and refresh tokens through the Keystore-backed store.
@@ -12,6 +14,7 @@ class GitHubCredentialManager(
     private val credentialStore: ConnectorCredentialStore,
     private val nowMs: () -> Long = System::currentTimeMillis
 ) {
+    private val refreshMutex = Mutex()
     suspend fun save(result: GitHubDeviceAuthorizationResult.Authorized) {
         val now = nowMs()
         val payload = JSONObject()
@@ -45,16 +48,16 @@ class GitHubCredentialManager(
     /** Returns a valid access token, rotating it with the GitHub App refresh token if needed. */
     suspend fun getValidAccessToken(
         authenticator: GitHubDeviceFlowAuthenticator
-    ): String? {
-        val stored = readStoredCredential() ?: return null
-        if (stored.accessToken.isNotBlank() && stored.accessExpiresAtMs > nowMs() + TOKEN_EXPIRY_SKEW_MS) {
-            return stored.accessToken
+    ): String? = refreshMutex.withLock {
+        val stored = readStoredCredential() ?: return@withLock null
+        if (stored.accessToken.isNotBlank() && stored.accessExpiresAtMs > nowMs() + TOKEN_EXPIRY_SKEW_MS) return@withLock stored.accessToken
+        if (stored.refreshToken.isBlank() || stored.refreshExpiresAtMs <= nowMs()) return@withLock null
+        val refreshed = authenticator.refreshAccessToken(stored.refreshToken).getOrElse { error ->
+            if (error.message.orEmpty().contains("caducado", ignoreCase = true)) throw ReauthorizationRequiredException()
+            throw error
         }
-        if (stored.refreshToken.isBlank() || stored.refreshExpiresAtMs <= nowMs()) return null
-
-        val refreshed = authenticator.refreshAccessToken(stored.refreshToken).getOrNull() ?: return null
         save(refreshed)
-        return refreshed.accessToken
+        refreshed.accessToken
     }
 
     suspend fun disconnect() {
@@ -84,6 +87,8 @@ class GitHubCredentialManager(
         val accessExpiresAtMs: Long,
         val refreshExpiresAtMs: Long
     )
+
+    class ReauthorizationRequiredException : IllegalStateException("La sesión de GitHub requiere una nueva autorización.")
 
     private companion object {
         const val TOKEN_EXPIRY_SKEW_MS = 60_000L
