@@ -43,14 +43,7 @@ class OrionBrainRuntime(
         val query = BrainQueryRouter.route(request.topic.ifBlank { page.title })
         val seed = KnowledgeSourceCatalog.match(page.canonicalUrl, query.domain)
         val authority = seed?.authority ?: EvidenceAuthority.UNKNOWN
-        val origin = when (authority) {
-            EvidenceAuthority.OFFICIAL_PRIMARY -> LearningOrigin.OFFICIAL_SOURCE
-            EvidenceAuthority.PRIMARY_TECHNICAL -> LearningOrigin.TECHNICAL_SOURCE
-            EvidenceAuthority.PEER_REVIEWED -> LearningOrigin.PEER_REVIEWED_SOURCE
-            EvidenceAuthority.REPUTABLE_SECONDARY -> LearningOrigin.REPUTABLE_SECONDARY
-            EvidenceAuthority.COMMUNITY -> LearningOrigin.COMMUNITY_REPORT
-            EvidenceAuthority.USER_SUPPLIED, EvidenceAuthority.UNKNOWN -> LearningOrigin.REPUTABLE_SECONDARY
-        }
+        val origin = learningOriginForAuthority(authority)
         val evidence = KnowledgeEvidence(
             id = page.canonicalUrl,
             title = page.title,
