@@ -5,6 +5,7 @@ import com.orion.voicelab.creative.ComfyUiVideoGenerationProvider
 import com.orion.voicelab.creative.ComfyUiImageGenerationProvider
 import com.orion.voicelab.creative.ComfyUiClient
 import com.orion.voicelab.creative.OrionMediaRuntime
+import com.orion.voicelab.creative.MediaAsset
 import com.orion.voicelab.creative.GeneratedMedia
 import com.orion.voicelab.creative.MediaGenerationKind
 import com.orion.voicelab.creative.MediaGenerationConsentExecutor
@@ -543,10 +544,12 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
     var imageNode by remember { mutableStateOf(prefs.getString("image_prompt_node","").orEmpty()) }
     var imageNegativeNode by remember { mutableStateOf(prefs.getString("image_negative_node","").orEmpty()) }
     var imageDimensionNode by remember { mutableStateOf(prefs.getString("image_dimension_node","").orEmpty()) }
+    var imageReferenceNodes by remember { mutableStateOf(prefs.getString("image_reference_nodes","").orEmpty()) }
     var videoWorkflow by remember { mutableStateOf(prefs.getString("video_workflow","").orEmpty()) }
     var videoNode by remember { mutableStateOf(prefs.getString("video_prompt_node","").orEmpty()) }
     var videoNegativeNode by remember { mutableStateOf(prefs.getString("video_negative_node","").orEmpty()) }
     var videoDimensionNode by remember { mutableStateOf(prefs.getString("video_dimension_node","").orEmpty()) }
+    var videoReferenceNodes by remember { mutableStateOf(prefs.getString("video_reference_nodes","").orEmpty()) }
     var videoDurationNode by remember { mutableStateOf(prefs.getString("video_duration_node","").orEmpty()) }
     var videoDurationInput by remember { mutableStateOf(prefs.getString("video_duration_input","length").orEmpty()) }
     var videoFps by remember { mutableStateOf(prefs.getString("video_fps","16").orEmpty()) }
@@ -577,6 +580,7 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
         }
         Button(onClick={imagePicker.launch(arrayOf("application/json","text/plain"))},modifier=Modifier.fillMaxWidth()) { Text(if(imageWorkflow.isBlank()) "Importar workflow API de imagen" else "Cambiar workflow de imagen") }
         OutlinedTextField(imageDimensionNode,onValueChange={imageDimensionNode=it},label={Text("Nodo dimensiones (opcional)")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+        OutlinedTextField(imageReferenceNodes,onValueChange={imageReferenceNodes=it},label={Text("Nodos de imagen de referencia (IDs separados por coma)")},modifier=Modifier.fillMaxWidth(),singleLine=true)
         Text("Configura el nodo que contiene width y height para que ORION ajuste la relación de aspecto.",style=MaterialTheme.typography.bodySmall)
         Text(if(imageWorkflow.isBlank()) "No se ha importado workflow de imagen." else "Workflow de imagen importado (${imageWorkflow.length} caracteres).",style=MaterialTheme.typography.bodySmall)
         Text("Vídeo · Wan",fontWeight=FontWeight.SemiBold)
@@ -586,6 +590,7 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
         }
         Button(onClick={videoPicker.launch(arrayOf("application/json","text/plain"))},modifier=Modifier.fillMaxWidth()) { Text(if(videoWorkflow.isBlank()) "Importar workflow API de vídeo" else "Cambiar workflow de vídeo") }
         OutlinedTextField(videoDimensionNode,onValueChange={videoDimensionNode=it},label={Text("Nodo dimensiones (opcional)")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+        OutlinedTextField(videoReferenceNodes,onValueChange={videoReferenceNodes=it},label={Text("Nodos de imagen inicial/referencia (IDs separados por coma)")},modifier=Modifier.fillMaxWidth(),singleLine=true)
         OutlinedTextField(videoDurationNode,onValueChange={videoDurationNode=it},label={Text("Nodo duración/frames (opcional)")},modifier=Modifier.fillMaxWidth(),singleLine=true)
         Row(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.fillMaxWidth()) {
             OutlinedTextField(videoDurationInput,onValueChange={videoDurationInput=it},label={Text("Input frames")},modifier=Modifier.weight(1f),singleLine=true)
@@ -596,12 +601,12 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
         Button(onClick={
             runCatching {
                 if(endpoint.isNotBlank()) ComfyUiEndpointConfig(endpoint).normalizedBaseUrl()
-                if(imageWorkflow.isNotBlank()) ComfyUiWorkflowTemplate(imageWorkflow,imageNode,negativePromptNodeId=imageNegativeNode.ifBlank { null },dimensionNodeId=imageDimensionNode.ifBlank { null }).build(MediaGenerationRequest("ORION validation prompt","", "1:1"))
-                if(videoWorkflow.isNotBlank()) ComfyUiWorkflowTemplate(videoWorkflow,videoNode,negativePromptNodeId=videoNegativeNode.ifBlank { null },dimensionNodeId=videoDimensionNode.ifBlank { null },durationNodeId=videoDurationNode.ifBlank { null },durationInput=videoDurationInput.ifBlank { "length" },framesPerSecond=videoFps.toIntOrNull() ?: 16).build(MediaGenerationRequest("ORION validation prompt","", "16:9",5))
+                if(imageWorkflow.isNotBlank()) ComfyUiWorkflowTemplate(imageWorkflow,imageNode,negativePromptNodeId=imageNegativeNode.ifBlank { null },dimensionNodeId=imageDimensionNode.ifBlank { null },referenceImageNodeIds=imageReferenceNodes.split(",").map { it.trim() }.filter { it.isNotBlank() }).build(MediaGenerationRequest("ORION validation prompt","", "1:1"))
+                if(videoWorkflow.isNotBlank()) ComfyUiWorkflowTemplate(videoWorkflow,videoNode,negativePromptNodeId=videoNegativeNode.ifBlank { null },dimensionNodeId=videoDimensionNode.ifBlank { null },referenceImageNodeIds=videoReferenceNodes.split(",").map { it.trim() }.filter { it.isNotBlank() },durationNodeId=videoDurationNode.ifBlank { null },durationInput=videoDurationInput.ifBlank { "length" },framesPerSecond=videoFps.toIntOrNull() ?: 16).build(MediaGenerationRequest("ORION validation prompt","", "16:9",5))
                 prefs.edit().putString("endpoint",endpoint.trim()).putString("bearer_token",bearerToken.trim()).putString("image_workflow",imageWorkflow)
-                    .putString("image_prompt_node",imageNode.trim()).putString("image_negative_node",imageNegativeNode.trim()).putString("image_dimension_node",imageDimensionNode.trim())
+                    .putString("image_prompt_node",imageNode.trim()).putString("image_negative_node",imageNegativeNode.trim()).putString("image_dimension_node",imageDimensionNode.trim()).putString("image_reference_nodes",imageReferenceNodes.trim())
                     .putString("video_workflow",videoWorkflow).putString("video_prompt_node",videoNode.trim())
-                    .putString("video_negative_node",videoNegativeNode.trim()).putString("video_dimension_node",videoDimensionNode.trim()).putString("video_duration_node",videoDurationNode.trim()).putString("video_duration_input",videoDurationInput.trim()).putString("video_fps",videoFps.trim()).apply()
+                    .putString("video_negative_node",videoNegativeNode.trim()).putString("video_dimension_node",videoDimensionNode.trim()).putString("video_reference_nodes",videoReferenceNodes.trim()).putString("video_duration_node",videoDurationNode.trim()).putString("video_duration_input",videoDurationInput.trim()).putString("video_fps",videoFps.trim()).apply()
                 message="Configuración guardada. El endpoint no ejecuta nada hasta que ORION autorice la operación."
             }.onFailure { message="No se guardó: ${it.message ?: "configuración inválida"}" }
         },modifier=Modifier.fillMaxWidth()) { Text("Validar y guardar") }
@@ -609,6 +614,14 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
 
         // Direct generation UI: explicit consent, actual workflow execution, and export.
         var imagePrompt by remember { mutableStateOf("") }
+        var selectedReferenceAssets by remember { mutableStateOf<List<MediaAsset>>(emptyList()) }
+        val referencePicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+            selectedReferenceAssets=uris.take(4).map { uri ->
+                val mime=context.contentResolver.getType(uri) ?: "image/*"
+                val size=runCatching { context.contentResolver.openAssetFileDescriptor(uri,"r")?.use { it.length } }.getOrNull()
+                MediaAsset(uri,mime,uri.lastPathSegment?.substringAfterLast("/") ?: "referencia",sizeBytes=size)
+            }
+        }
         var imageNegativePrompt by remember { mutableStateOf("") }
         var videoPrompt by remember { mutableStateOf("") }
         var videoNegativePrompt by remember { mutableStateOf("") }
@@ -629,6 +642,8 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
             pendingGeneration=MediaGenerationConsentRequestUi(approval.id,kind,prompt,negative,ratio,duration,providerId,label)
         }
         Text("Generación directa",fontWeight=FontWeight.SemiBold)
+        Button(onClick={referencePicker.launch(arrayOf("image/*"))},modifier=Modifier.fillMaxWidth()) { Text("Añadir imágenes de referencia (máx. 4)") }
+        Text(if(selectedReferenceAssets.isEmpty()) "Sin imágenes de referencia seleccionadas." else "Referencias: "+selectedReferenceAssets.joinToString { it.displayName.orEmpty() },style=MaterialTheme.typography.bodySmall)
         Text("Las creaciones se ejecutan en el servidor configurado. ORION no impone cuotas ni créditos; los límites dependen del servidor, GPU, workflow, modelo y almacenamiento.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedTextField(imagePrompt,onValueChange={imagePrompt=it},label={Text("Prompt de imagen")},modifier=Modifier.fillMaxWidth(),minLines=2)
         OutlinedTextField(imageNegativePrompt,onValueChange={imageNegativePrompt=it},label={Text("Prompt negativo (opcional)")},modifier=Modifier.fillMaxWidth(),minLines=1)
@@ -685,7 +700,7 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
             AlertDialog(
                 onDismissRequest={consentGate.cancel(pending.id);pendingGeneration=null},
                 title={Text("Confirmar generación remota")},
-                text={Text("ORION enviará el prompt a ${pending.destination}. Operación: ${if(pending.kind==MediaGenerationKind.IMAGE)"generar imagen" else "generar vídeo"}. No se envían archivos de referencia en esta fase. ¿Confirmas?")},
+                text={Text("ORION enviará el prompt a ${pending.destination}. Operación: ${if(pending.kind==MediaGenerationKind.IMAGE)"generar imagen" else "generar vídeo"}. Se enviarán también ${selectedReferenceAssets.size} imagen(es) de referencia si has seleccionado alguna. ¿Confirmas?")},
                 confirmButton={TextButton(onClick={
                     pendingGeneration=null
                     generating=true
@@ -699,7 +714,7 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
                                 OrionMediaRuntime(imageProviders=images,videoProviders=videos)
                             }
                             val executor=MediaGenerationConsentExecutor(runtime,consentGate,{ val manager=context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as ConnectivityManager; val active=manager.activeNetwork; manager.getNetworkCapabilities(active)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)==true })
-                            val request=MediaGenerationRequest(pending.prompt,pending.negative.ifBlank { null },pending.ratio,pending.duration)
+                            val request=MediaGenerationRequest(pending.prompt,pending.negative.ifBlank { null },pending.ratio,pending.duration,selectedReferenceAssets)
                             val result=executor.execute(pending.id,true,request)
                             generated=result;savedResultUri=null
                             generationStatus="Generación completada. El resultado está en almacenamiento temporal; guárdalo para conservarlo."
