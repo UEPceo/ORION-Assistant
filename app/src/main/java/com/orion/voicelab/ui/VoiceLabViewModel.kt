@@ -301,7 +301,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                     append("\n\n")
                     append(BrainPromptComposer.compose(brainContext))
                     append("\\n\\n")
-                    append(ModelProfilePromptComposer.compose())
+                    append(ModelProfilePromptComposer.compose(LanguageModelProfileCatalog.byId(languageModel.profileId) ?: LanguageModelProfileCatalog.profiles.first()))
                     val planningGuidance = PlanningPromptComposer.compose(userText)
                     if (planningGuidance.isNotBlank()) {
                         append("\\n\\n")
