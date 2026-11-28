@@ -20,10 +20,16 @@ class GitHubCodeWorkspace(private val api:GitHubApiClient,private val limits:Cod
         require(selectedPaths.distinct().size==selectedPaths.size) { "Hay rutas duplicadas." }
         selectedPaths.forEach { require(CodeChangeValidator.isSafePath(it)) { "Ruta no permitida: ${it.take(120)}." } }
         val head:GitHubBranchSummary=api.getBranchHead(repository,branch).getOrThrow()
+        val metadata=api.getFileTreeMetadata(repository,branch,selectedPaths).getOrThrow()
         val files=mutableListOf<GitHubFileContent>()
         var total=0
         for(path in selectedPaths) {
+            val entry=metadata[path] ?: error("No se pudo verificar el tipo del archivo $path.")
+            require(entry.type=="blob" && entry.mode in setOf("100644","100755")) {
+                "Se rechaza leer enlaces simbólicos, submódulos o entradas no regulares: $path."
+            }
             val file=api.getFile(repository,path,branch).getOrThrow()
+            require(file.sha.equals(entry.sha,true)) { "El archivo cambió durante la lectura: $path." }
             require(file.sizeBytes<=limits.maxFileBytes) { "El archivo ${file.path} supera el límite." }
             require(!CodeChangeValidator.containsPotentialSecret(file.content)) {
                 "El archivo ${file.path} contiene un posible secreto y no se enviará al modelo."
