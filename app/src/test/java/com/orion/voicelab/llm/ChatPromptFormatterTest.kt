@@ -30,6 +30,26 @@ class ChatPromptFormatterTest {
         }.isFailure)
     }
 
+    @Test fun refusesToTruncateAnOversizedCurrentUserMessage() {
+        val latest = ChatMessage(ChatRole.USER, "CURRENT_REQUEST " + "x".repeat(4_000))
+        assertTrue(runCatching {
+            ChatPromptFormatter.formatChatMl("system", listOf(latest), maxContextTokens = 512)
+        }.isFailure)
+    }
+
+    @Test fun preservesLatestUserMessageAndDropsOlderHistoryFirst() {
+        val latest = ChatMessage(ChatRole.USER, "CURRENT_REQUEST_INTACT")
+        val history = listOf(
+            ChatMessage(ChatRole.USER, "OLD_CONTEXT " + "x".repeat(2_000)),
+            ChatMessage(ChatRole.ASSISTANT, "OLD_REPLY " + "y".repeat(1_000)),
+            latest
+        )
+        val prompt = ChatPromptFormatter.formatChatMl("system", history, maxContextTokens = 512)
+        assertTrue(prompt.contains("CURRENT_REQUEST_INTACT"))
+        assertFalse(prompt.contains("OLD_CONTEXT"))
+        assertFalse(prompt.contains("OLD_REPLY"))
+    }
+
     @Test fun keepsRecentTurnsInChronologicalOrder() {
         val prompt = ChatPromptFormatter.formatChatMl(
             systemPrompt = "system",
