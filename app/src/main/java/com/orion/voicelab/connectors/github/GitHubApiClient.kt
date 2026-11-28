@@ -8,6 +8,10 @@ import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import android.util.Base64
+import com.orion.voicelab.engineering.CodeChangeProposal
+import com.orion.voicelab.engineering.CodeChangeValidator
+import com.orion.voicelab.engineering.CodeFileOperation
 
 data class GitHubRepositorySummary(
     val fullName: String,
@@ -29,15 +33,22 @@ data class GitHubIssueDetail(val number: Int, val title: String, val state: Stri
 data class GitHubCommitSummary(val sha: String, val message: String, val author: String, val committedAt: String, val htmlUrl: String)
 data class GitHubWorkflowRunSummary(val name: String, val status: String, val conclusion: String, val branch: String, val htmlUrl: String, val updatedAt: String)
 data class GitHubFileSummary(val name: String, val path: String, val type: String, val htmlUrl: String)
+data class GitHubBranchSummary(val name: String, val sha: String)
+data class GitHubCommitResult(val commitSha: String, val branch: String)
+data class GitHubPullRequestSummary(val number: Int, val title: String, val url: String, val draft: Boolean)
 
 /**
- * Minimal read-only GitHub REST adapter for an authorized GitHub App user token.
- * Write endpoints are deliberately not implemented here.
+ * GitHub REST adapter for an authorized GitHub App user token.
+ *
+ * Repository writes are restricted to explicit branch/commit/PR operations. Multi-file
+ * patches use the Git Data API and update the branch ref only after the complete commit
+ * has been created, avoiding a partially applied set of Contents API writes.
  */
 class GitHubApiClient(
     private val credentials: GitHubCredentialManager,
     private val authenticator: GitHubDeviceFlowAuthenticator,
-    private val requestOverride: (suspend (path: String) -> Any)? = null
+    private val requestOverride: (suspend (path: String) -> Any)? = null,
+    private val transportOverride: (suspend (method: String, path: String, body: JSONObject?) -> Any)? = null
 ) {
     suspend fun listRepositories(page: Int = 1, perPage: Int = 30): Result<List<GitHubRepositorySummary>> =
         withContext(Dispatchers.IO) {
@@ -177,6 +188,171 @@ class GitHubApiClient(
             }
         }
 
+    suspend fun createBranch(repository: String, branch: String, baseBranch: String): Result<GitHubBranchSummary> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                require(isValidRepository(repository)) { "Repositorio no válido." }
+                require(isSafeBranch(branch) && isSafeBranch(baseBranch)) { "Nombre de rama no válido." }
+                require(!branch.equals("main", true) && !branch.equals("master", true)) {
+                    "ORION no puede crear cambios directamente en main/master."
+                }
+                val base = requestObject("/repos/$repository/branches/${encodePathSegment(baseBranch)}")
+                val baseSha = base.optJSONObject("commit")?.optString("sha").orEmpty()
+                require(baseSha.matches(Regex("[a-fA-F0-9]{40}"))) { "GitHub no devolvió el SHA de la rama base." }
+                val payload = JSONObject()
+                    .put("ref", "refs/heads/$branch")
+                    .put("sha", baseSha)
+                val created = requestObject("/repos/$repository/git/refs", "POST", payload)
+                val objectSha = created.optJSONObject("object")?.optString("sha").orEmpty()
+                require(objectSha.isNotBlank()) { "GitHub no confirmó la creación de la rama." }
+                GitHubBranchSummary(created.optString("ref").removePrefix("refs/heads/"), objectSha)
+            }
+        }
+
+    /**
+     * Applies a validated multi-file patch as one Git commit on an existing work branch.
+     * expectedHeadSha prevents applying a proposal to a branch that changed after review.
+     * expectedBlobSha prevents overwriting/deleting files whose content changed meanwhile.
+     */
+    suspend fun commitChanges(
+        proposal: CodeChangeProposal,
+        expectedHeadSha: String
+    ): Result<GitHubCommitResult> = withContext(Dispatchers.IO) {
+        runCatching {
+            val validation = CodeChangeValidator.validate(proposal)
+            require(validation.valid) { validation.errors.joinToString(" ") }
+            require(isValidRepository(proposal.repository)) { "Repositorio no válido." }
+            require(expectedHeadSha.matches(Regex("[a-fA-F0-9]{40}"))) { "SHA base no válido." }
+            require(proposal.workBranch != "main" && proposal.workBranch != "master") {
+                "Los cambios deben aplicarse en una rama de trabajo."
+            }
+
+            val branchRef = requestObject(
+                "/repos/${proposal.repository}/git/ref/heads/${encodePathSegment(proposal.workBranch)}"
+            )
+            val currentHead = branchRef.optJSONObject("object")?.optString("sha").orEmpty()
+            require(currentHead.equals(expectedHeadSha, ignoreCase = true)) {
+                "La rama ha cambiado desde la revisión. Actualiza la propuesta antes de escribir."
+            }
+
+            val commit = requestObject("/repos/${proposal.repository}/git/commits/$currentHead")
+            val baseTreeSha = commit.optJSONObject("tree")?.optString("sha").orEmpty()
+            require(baseTreeSha.matches(Regex("[a-fA-F0-9]{40}"))) { "No se pudo leer el árbol base." }
+            val baseTree = requestObject("/repos/${proposal.repository}/git/trees/$baseTreeSha?recursive=1")
+            val existing = mutableMapOf<String, String>()
+            val treeItems = baseTree.optJSONArray("tree") ?: JSONArray()
+            for (index in 0 until treeItems.length()) {
+                val item = treeItems.optJSONObject(index) ?: continue
+                if (item.optString("type") == "blob") {
+                    existing[item.optString("path")] = item.optString("sha")
+                }
+            }
+
+            val entries = JSONArray()
+            proposal.changes.forEach { change ->
+                val currentBlob = existing[change.path]
+                when (change.operation) {
+                    CodeFileOperation.CREATE -> require(currentBlob == null) {
+                        "El archivo ya existe y no puede crearse encima: ${change.path}."
+                    }
+                    CodeFileOperation.UPDATE, CodeFileOperation.DELETE -> require(
+                        currentBlob != null && currentBlob.equals(change.expectedBlobSha, ignoreCase = true)
+                    ) { "El archivo cambió desde la revisión: ${change.path}." }
+                }
+
+                val entry = JSONObject()
+                    .put("path", change.path)
+                    .put("mode", "100644")
+                    .put("type", "blob")
+                if (change.operation == CodeFileOperation.DELETE) {
+                    entry.put("sha", JSONObject.NULL)
+                } else {
+                    val bytes = change.content.orEmpty().toByteArray(Charsets.UTF_8)
+                    val blob = requestObject(
+                        "/repos/${proposal.repository}/git/blobs",
+                        "POST",
+                        JSONObject()
+                            .put("content", Base64.encodeToString(bytes, Base64.NO_WRAP))
+                            .put("encoding", "base64")
+                    )
+                    bytes.fill(0)
+                    val blobSha = blob.optString("sha")
+                    require(blobSha.matches(Regex("[a-fA-F0-9]{40}"))) { "GitHub no confirmó el blob de ${change.path}." }
+                    entry.put("sha", blobSha)
+                }
+                entries.put(entry)
+            }
+
+            val newTree = requestObject(
+                "/repos/${proposal.repository}/git/trees",
+                "POST",
+                JSONObject().put("base_tree", baseTreeSha).put("tree", entries)
+            )
+            val newTreeSha = newTree.optString("sha")
+            require(newTreeSha.matches(Regex("[a-fA-F0-9]{40}"))) { "GitHub no confirmó el árbol de cambios." }
+
+            val newCommit = requestObject(
+                "/repos/${proposal.repository}/git/commits",
+                "POST",
+                JSONObject()
+                    .put("message", proposal.title.take(120))
+                    .put("tree", newTreeSha)
+                    .put("parents", JSONArray().put(currentHead))
+            )
+            val newCommitSha = newCommit.optString("sha")
+            require(newCommitSha.matches(Regex("[a-fA-F0-9]{40}"))) { "GitHub no confirmó el commit." }
+
+            requestObject(
+                "/repos/${proposal.repository}/git/refs/heads/${encodePathSegment(proposal.workBranch)}",
+                "PATCH",
+                JSONObject().put("sha", newCommitSha).put("force", false)
+            )
+            GitHubCommitResult(newCommitSha, proposal.workBranch)
+        }
+    }
+
+    suspend fun createPullRequest(
+        repository: String,
+        title: String,
+        body: String,
+        head: String,
+        base: String,
+        draft: Boolean = true
+    ): Result<GitHubPullRequestSummary> = withContext(Dispatchers.IO) {
+        runCatching {
+            require(isValidRepository(repository)) { "Repositorio no válido." }
+            require(isSafeBranch(head) && isSafeBranch(base)) { "Rama no válida." }
+            require(!head.equals(base, true)) { "La rama de origen y destino deben ser distintas." }
+            require(title.isNotBlank() && title.length <= 256) { "Título de pull request no válido." }
+            val payload = JSONObject()
+                .put("title", title)
+                .put("body", body.take(20_000))
+                .put("head", head)
+                .put("base", base)
+                .put("draft", draft)
+            val result = requestObject("/repos/$repository/pulls", "POST", payload)
+            val number = result.optInt("number")
+            val url = result.optString("html_url")
+            require(number > 0 && url.startsWith("https://github.com/")) {
+                "GitHub no confirmó la creación del pull request."
+            }
+            GitHubPullRequestSummary(number, result.optString("title"), url, result.optBoolean("draft", draft))
+        }
+    }
+
+    private fun isSafeBranch(branch: String): Boolean {
+        if (branch.isBlank() || branch.length > 120 || branch.startsWith("/") || branch.endsWith("/") ||
+            branch.contains("..") || branch.contains("//") || branch.contains("@{") ||
+            branch.endsWith(".") || branch.endsWith(".lock")
+        ) return false
+        return branch.split('/').all { segment ->
+            segment.isNotBlank() && !segment.startsWith('.') && !segment.endsWith('.')
+        } && branch.matches(Regex("[A-Za-z0-9][A-Za-z0-9._/-]{0,119}"))
+    }
+
+    private fun encodePathSegment(value: String): String =
+        java.net.URLEncoder.encode(value, Charsets.UTF_8.name()).replace("+", "%20")
+
     private suspend fun requestJson(path: String): JSONArray {
         val value = requestAny(path)
         return value as? JSONArray ?: throw IllegalStateException("Respuesta inesperada de GitHub.")
@@ -187,32 +363,53 @@ class GitHubApiClient(
         return value as? JSONObject ?: throw IllegalStateException("Respuesta inesperada de GitHub.")
     }
 
-    private suspend fun requestAny(path: String): Any {
+    private suspend fun requestObject(path: String, method: String, body: JSONObject): JSONObject {
+        val value = requestAny(path, method, body)
+        return value as? JSONObject ?: throw IllegalStateException("Respuesta inesperada de GitHub.")
+    }
+
+    private suspend fun requestAny(path: String, method: String = "GET", body: JSONObject? = null): Any {
+        if (method == "GET") requestOverride?.let { return it(path) }
+        transportOverride?.let { return it(method, path, body) }
         val token = try { credentials.getValidAccessToken(authenticator) } catch (_: GitHubCredentialManager.ReauthorizationRequiredException) { throw ReauthorizationRequiredException() } ?: throw ReauthorizationRequiredException()
-        requestOverride?.let { return it(path) }
         val connection = (URL("$API_BASE$path").openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
+            requestMethod = method
             connectTimeout = TIMEOUT_MS
             readTimeout = TIMEOUT_MS
             setRequestProperty("Authorization", "Bearer $token")
             setRequestProperty("Accept", "application/vnd.github+json")
             setRequestProperty("X-GitHub-Api-Version", API_VERSION)
             setRequestProperty("User-Agent", "ORION-Android")
+            if (body != null) {
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            }
         }
         return try {
+            if (body != null) {
+                val payload = body.toString().toByteArray(Charsets.UTF_8)
+                connection.outputStream.use { it.write(payload) }
+            }
             val status = connection.responseCode
             if (status == 401) throw ReauthorizationRequiredException()
-            if (status !in 200..299) throw GitHubApiException(status)
-            val body = connection.inputStream.use { it.readBounded(MAX_RESPONSE_BYTES) }
-            val text = String(body, Charsets.UTF_8)
-            if (text.trimStart().startsWith("[")) JSONArray(text) else JSONObject(text)
+            if (status !in 200..299) {
+                val errorBody = connection.errorStream?.use { it.readBounded(8_192) }
+                throw GitHubApiException(status, errorBody?.let { String(it, Charsets.UTF_8) }.orEmpty())
+            }
+            val responseBytes = connection.inputStream.use { it.readBounded(MAX_RESPONSE_BYTES) }
+            val responseText = String(responseBytes, Charsets.UTF_8)
+            if (responseText.isBlank()) JSONObject()
+            else if (responseText.trimStart().startsWith("[")) JSONArray(responseText) else JSONObject(responseText)
         } finally {
             connection.disconnect()
         }
     }
 
     class ReauthorizationRequiredException : IllegalStateException("La autorización de GitHub ha caducado. Vuelve a conectar la cuenta.")
-    class GitHubApiException(status: Int) : IllegalStateException("GitHub no pudo completar la consulta (HTTP $status).")
+    class GitHubApiException(status: Int, detail: String = "") : IllegalStateException(
+        "GitHub no pudo completar la operación (HTTP $status)." +
+            if (detail.isBlank()) "" else " ${detail.take(300)}"
+    )
 
     internal companion object {
         const val API_BASE = "https://api.github.com"
