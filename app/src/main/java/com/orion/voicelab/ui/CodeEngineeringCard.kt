@@ -99,10 +99,10 @@ fun CodeEngineeringCard(
                             Button(
                                 onClick = {
                                     val paths = selectedPaths.split(',', '\n').map { it.trim() }.filter { it.isNotBlank() }
-                                    onPrepareRepair(session, paths, sourceContextConfirmed)
+                                    session?.let { activeSession -> onPrepareRepair(activeSession, paths, sourceContextConfirmed) }
                                     sourceContextConfirmed = false
                                 },
-                                enabled = !state.isWorking && selectedPaths.isNotBlank() && sourceContextConfirmed,
+                                enabled = session != null && !state.isWorking && selectedPaths.isNotBlank() && sourceContextConfirmed,
                                 modifier = Modifier.fillMaxWidth()
                             ) { Text("Preparar corrección acotada con logs") }
                         }
