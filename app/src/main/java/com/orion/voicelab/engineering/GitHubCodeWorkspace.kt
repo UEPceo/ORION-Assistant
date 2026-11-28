@@ -25,6 +25,9 @@ class GitHubCodeWorkspace(private val api:GitHubApiClient,private val limits:Cod
         for(path in selectedPaths) {
             val file=api.getFile(repository,path,branch).getOrThrow()
             require(file.sizeBytes<=limits.maxFileBytes) { "El archivo ${file.path} supera el límite." }
+            require(!CodeChangeValidator.containsPotentialSecret(file.content)) {
+                "El archivo ${file.path} contiene un posible secreto y no se enviará al modelo."
+            }
             total+=file.sizeBytes
             require(total<=limits.maxTotalBytes) { "El contexto supera el límite total." }
             files+=file
