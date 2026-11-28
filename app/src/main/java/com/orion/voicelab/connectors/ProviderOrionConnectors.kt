@@ -36,7 +36,6 @@ class GmailOrionConnector(
                         onSuccess = { message ->
                             ConnectorResult.Success(
                                 "Correo más reciente. De: ${message.from}. Asunto: ${message.subject}. Fecha: ${message.date}. " +
-                                    (message.bodyText.ifBlank { message.snippet }).take(3_000)
                             )
                         },
                         onFailure = {
@@ -56,7 +55,6 @@ class GmailOrionConnector(
                 onSuccess = { message ->
                     ConnectorResult.Success(
                         "De: ${message.from}. Asunto: ${message.subject}. Fecha: ${message.date}. " +
-                            (message.bodyText.ifBlank { message.snippet }).take(3_000)
                     )
                 },
                 onFailure = {
@@ -77,7 +75,7 @@ class GmailOrionConnector(
                     if (messages.isEmpty()) ConnectorResult.Success("No he encontrado correos que coincidan.")
                     else ConnectorResult.Success(
                         messages.take(5).joinToString("\n") {
-                            "De: ${it.from.ifBlank { "remitente desconocido" }}. Asunto: ${it.subject.ifBlank { "sin asunto" }}. Fecha: ${it.date}. Resumen: ${it.snippet}"
+                            "De: ${it.from.ifBlank { "remitente desconocido" }}. Asunto: ${it.subject.ifBlank { "sin asunto" }}. Fecha: ${it.date}."
                         }
                     )
                 },
