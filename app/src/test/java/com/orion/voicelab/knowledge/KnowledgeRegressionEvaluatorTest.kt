@@ -39,5 +39,6 @@ class KnowledgeRegressionEvaluatorTest {
         val o=KnowledgeRegressionObservation("empty",emptySet(),emptySet(),emptyList()," ")
         val r=KnowledgeRegressionEvaluator.evaluate(c,o,now)
         assertTrue(r.answerEmpty); assertEquals(0.0,KnowledgeRegressionEvaluator.score(listOf(r)),0.0)
+        assertEquals(0.0,KnowledgeRegressionEvaluator.score(emptyList()),0.0)
     }
 }
