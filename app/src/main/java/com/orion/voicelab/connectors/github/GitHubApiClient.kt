@@ -166,13 +166,14 @@ class GitHubApiClient(
         withContext(Dispatchers.IO) {
             runCatching {
                 require(isValidRepository(repository)) { "Indica un repositorio válido con formato propietario/nombre." }
-                require(path.length <= 300 && path.split('/').none { it == ".." || it == "." } && !path.contains('%') && !path.contains(92.toChar())) { "Ruta de repositorio no válida." }
+                require(path.isBlank() || CodeChangeValidator.isSafePath(path)) { "Ruta de repositorio no válida." }
+                branch?.takeIf { it.isNotBlank() }?.let { require(isSafeBranch(it)) { "Rama no válida." } }
                 val safePath = path.trim('/').split('/').filter { it.isNotBlank() }
                     .joinToString("/") { java.net.URLEncoder.encode(it, Charsets.UTF_8.name()).replace("+", "%20") }
-                val safeBranch = branch?.takeIf { it.isNotBlank() }?.let {
-                    "&ref=" + java.net.URLEncoder.encode(it.take(120), Charsets.UTF_8.name())
+                val query = branch?.takeIf { it.isNotBlank() }?.let {
+                    "?ref=" + java.net.URLEncoder.encode(it, Charsets.UTF_8.name())
                 }.orEmpty()
-                val endpoint = "/repos/$repository/contents${if (safePath.isBlank()) "" else "/$safePath"}?$safeBranch"
+                val endpoint = "/repos/$repository/contents${if (safePath.isBlank()) "" else "/$safePath"}$query"
                 val json = requestAny(endpoint)
                 val entries = if (json is JSONArray) json else JSONArray().put(json)
                 buildList {
@@ -287,35 +288,43 @@ class GitHubApiClient(
             require(!baseTree.optBoolean("truncated")) {
                 "El árbol del repositorio supera el límite de inspección; no se aplicarán cambios parciales."
             }
-            val existing = mutableMapOf<String, Pair<String, String>>()
+            data class TreeEntry(val type: String, val mode: String, val sha: String)
+            val existing = mutableMapOf<String, TreeEntry>()
             val treeItems = baseTree.optJSONArray("tree") ?: JSONArray()
             for (index in 0 until treeItems.length()) {
                 val item = treeItems.optJSONObject(index) ?: continue
-                if (item.optString("type") == "blob") {
-                    existing[item.optString("path")] = item.optString("sha") to item.optString("mode")
-                }
+                val path = item.optString("path")
+                if (path.isNotBlank()) existing[path] = TreeEntry(item.optString("type"), item.optString("mode"), item.optString("sha"))
             }
 
             val entries = JSONArray()
             proposal.changes.forEach { change ->
-                val currentBlob = existing[change.path]
+                val currentEntry = existing[change.path]
+                val segments = change.path.split('/')
+                segments.indices.dropLast(1).forEach { index ->
+                    val ancestor = segments.take(index + 1).joinToString("/")
+                    val parent = existing[ancestor]
+                    require(parent == null || (parent.type == "tree" && parent.mode == "040000")) {
+                        "La ruta atraviesa un archivo, enlace simbólico o submódulo existente: $ancestor."
+                    }
+                }
                 when (change.operation) {
-                    CodeFileOperation.CREATE -> require(currentBlob == null) {
-                        "El archivo ya existe y no puede crearse encima: ${change.path}."
-                    }
-                    CodeFileOperation.UPDATE, CodeFileOperation.DELETE -> {
-                        require(currentBlob != null && currentBlob.first.equals(change.expectedBlobSha, ignoreCase = true)) {
-                            "El archivo cambió desde la revisión: ${change.path}."
-                        }
-                        require(currentBlob.second == "100644" || currentBlob.second == "100755") {
-                            "ORION solo modifica archivos regulares; se rechaza enlace simbólico o submódulo: ${change.path}."
+                    CodeFileOperation.CREATE -> {
+                        require(currentEntry == null) { "La ruta ya existe: ${change.path}." }
+                        require(existing.keys.none { it.startsWith(change.path + "/") }) {
+                            "La ruta ya contiene un directorio con archivos: ${change.path}."
                         }
                     }
+                    CodeFileOperation.UPDATE, CodeFileOperation.DELETE -> require(
+                        currentEntry != null && currentEntry.type == "blob" &&
+                            (currentEntry.mode == "100644" || currentEntry.mode == "100755") &&
+                            currentEntry.sha.equals(change.expectedBlobSha, ignoreCase = true)
+                    ) { "El archivo cambió o no es un archivo regular desde la revisión: ${change.path}." }
                 }
 
                 val entry = JSONObject()
                     .put("path", change.path)
-                    .put("mode", currentBlob?.second ?: "100644")
+                    .put("mode", currentEntry?.mode ?: "100644")
                     .put("type", "blob")
                 if (change.operation == CodeFileOperation.DELETE) {
                     entry.put("sha", JSONObject.NULL)
