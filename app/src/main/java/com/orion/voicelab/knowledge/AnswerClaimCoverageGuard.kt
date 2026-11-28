@@ -34,22 +34,54 @@ object AnswerClaimCoverageGuard {
         val invalid = factualClaims.filter { claim ->
             claim.sourceSpan.isNullOrBlank() ||
                 claim.sourceSpan.orEmpty().length > MAX_SPAN_CHARS ||
-                !draft.contains(claim.sourceSpan)
+                !draft.contains(claim.sourceSpan.orEmpty())
         }.map { it.id }.toSet()
         if (invalid.isNotEmpty()) return AnswerClaimCoverageCheck(false, emptyList(), invalid)
 
-        val coveredTokens = factualClaims.flatMap { tokens(it.sourceSpan.orEmpty()) }.toSet()
-        val codeFence = "\\u0060\\u0060\\u0060"
-        val bibliographyStart = Regex("(?im)^\\s*(?:fuentes|sources)\\s*:").find(draft)?.range?.first ?: draft.length
-        val prose = draft.substring(0, bibliographyStart)
-            .replace(Regex("(?s)" + codeFence + ".*?" + codeFence), " ")
-            .replace(Regex("https?://\\S+"), " ")
-            .replace(Regex("\\[\\d{1,2}\\]"), " ")
-        val uncovered = prose.split(sentenceBoundary)
-            .map { it.trim().replace(Regex("^[#>*\\-\\d.)\\s]+"), "") }
-            .filter { tokens(it).size >= MIN_CONTENT_TOKENS }
-            .filter { segment -> !coveredTokens.containsAll(tokens(segment)) }
-            .map { it.take(MAX_SEGMENT_CHARS) }
+        val bibliographyStart = Regex("(?im)^\\s*(?:fuentes|sources)\\s*:")
+            .find(draft)?.range?.first ?: draft.length
+        val prose = draft.substring(0, bibliographyStart).replace(
+            Regex("(?s)" + CODE_FENCE + ".*?" + CODE_FENCE)
+        ) { match -> " ".repeat(match.value.length) }
+
+        // Map each exact span to a distinct occurrence so a repeated sentence cannot be
+        // considered covered twice by one single claim.
+        val usedRanges = mutableListOf<IntRange>()
+        val spanRanges = factualClaims.mapNotNull { claim ->
+            val span = claim.sourceSpan.orEmpty()
+            val range = draft.indices.firstOrNull { index ->
+                index + span.length <= bibliographyStart &&
+                    draft.regionMatches(index, span, 0, span.length) &&
+                    usedRanges.none { index <= it.last && index + span.length - 1 >= it.first }
+            }?.let { it until (it + span.length) }
+            if (range != null) usedRanges += range
+            range
+        }
+
+        val uncovered = mutableListOf<String>()
+        var segmentStart = 0
+        val boundaries = sentenceBoundary.findAll(prose).toList()
+        val segmentRanges = boundaries.map { boundary ->
+            val range = segmentStart until boundary.range.first
+            segmentStart = boundary.range.last + 1
+            range
+        } + (segmentStart until prose.length)
+
+        for (range in segmentRanges) {
+            if (range.isEmpty()) continue
+            val segment = prose.substring(range.first, range.last + 1)
+                .replace(Regex("https?://\\S+"), " ")
+                .replace(Regex("\\[\\d{1,2}\\]"), " ")
+                .trim()
+                .replace(Regex("^[#>*\\-\\d.)\\s]+"), "")
+            val requiredTokens = tokens(segment)
+            if (requiredTokens.size < MIN_CONTENT_TOKENS) continue
+            val coveredTokens = spanRanges
+                .filter { it.first >= range.first && it.last <= range.last }
+                .flatMap { spanRange -> tokens(draft.substring(spanRange.first, spanRange.last + 1)) }
+                .toSet()
+            if (!coveredTokens.containsAll(requiredTokens)) uncovered += segment.take(MAX_SEGMENT_CHARS)
+        }
         return AnswerClaimCoverageCheck(uncovered.isEmpty(), uncovered, emptySet())
     }
 
@@ -62,6 +94,7 @@ object AnswerClaimCoverageGuard {
             .toSet()
     }
 
+    private const val CODE_FENCE = "\\u0060\\u0060\\u0060"
     private const val MAX_SPAN_CHARS = 700
     private const val MAX_SEGMENT_CHARS = 240
     private const val MIN_CONTENT_TOKENS = 3
