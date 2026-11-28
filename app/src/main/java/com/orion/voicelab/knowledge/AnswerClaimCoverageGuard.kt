@@ -99,6 +99,6 @@ object AnswerClaimCoverageGuard {
     private const val CODE_FENCE = "\\u0060\\u0060\\u0060"
     private const val MAX_SPAN_CHARS = 700
     private const val MAX_SEGMENT_CHARS = 240
-    private val NUMERIC_FACT = Regex("""(?<!\\w)\\d+(?:[.,]\\d+)?(?:\\s?(?:%|€|\\$|km|m|cm|mm|kg|g|l|ml|°c|°f|años|días|horas|minutos|segundos))?(?!\\w)""", RegexOption.IGNORE_CASE)
+    private val NUMERIC_FACT = Regex("""(?<!\w)\d+(?:[.,]\d+)?(?:\s?(?:%|€|\$|km|m|cm|mm|kg|g|l|ml|°c|°f|años|días|horas|minutos|segundos))?(?!\w)""", RegexOption.IGNORE_CASE)
     private const val MIN_CONTENT_TOKENS = 2
 }
