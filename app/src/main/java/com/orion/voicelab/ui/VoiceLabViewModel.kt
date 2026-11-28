@@ -533,8 +533,12 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         selectedPaths: List<String>,
         userConfirmedSourceContext: Boolean
     ): Job = viewModelScope.launch(Dispatchers.IO) {
+        if (!userConfirmedSourceContext) {
+            _codeEngineeringState.value = _codeEngineeringState.value.copy(error = "Autoriza expresamente el uso del contexto de código antes de generar la propuesta.")
+            return@launch
+        }
         _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = true, error = null)
-        codeEngineeringService.prepare(session, task, selectedPaths).fold(
+        codeEngineeringService.prepare(session, task, selectedPaths, userConfirmedSourceContext).fold(
             onSuccess = { prepared -> _codeEngineeringState.value = CodeEngineeringUiState(session = session, preparedChange = prepared) },
             onFailure = { error -> _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = false, error = error.message ?: "No se pudo preparar el cambio.") }
         )
