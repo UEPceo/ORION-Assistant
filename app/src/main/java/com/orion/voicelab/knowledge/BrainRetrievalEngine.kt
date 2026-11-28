@@ -99,18 +99,23 @@ class BrainRetrievalEngine(
     }
 
     private fun freshnessWindowMs(domain: KnowledgeDomain): Long = when (domain) {
-        KnowledgeDomain.LAW_AND_REGULATION -> 30L * DAY
-        KnowledgeDomain.MARINE_WEATHER -> DAY
+        KnowledgeDomain.MARINE_WEATHER -> 6L * HOUR
+        KnowledgeDomain.LAW_AND_REGULATION -> 7L * DAY
+        KnowledgeDomain.FISHING -> 14L * DAY
+        KnowledgeDomain.SURFCASTING -> 30L * DAY
+        KnowledgeDomain.SOCIAL_MEDIA -> 7L * DAY
         KnowledgeDomain.HEALTH_AND_SAFETY -> 90L * DAY
         KnowledgeDomain.PROGRAMMING,
         KnowledgeDomain.COMPUTER_SCIENCE,
         KnowledgeDomain.CYBERSECURITY,
-        KnowledgeDomain.INTERNET -> 365L * DAY
+        KnowledgeDomain.INTERNET -> 180L * DAY
+        KnowledgeDomain.PERSONAL_PRODUCTIVITY -> 365L * DAY
         else -> 730L * DAY
     }
 
     private companion object {
         const val DAY = 24L * 60L * 60L * 1000L
+        const val HOUR = 60L * 60L * 1000L
     }
 }
 
