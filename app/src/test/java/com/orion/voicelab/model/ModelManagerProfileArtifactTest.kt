@@ -43,4 +43,8 @@ class ModelManagerProfileArtifactTest {
     @Test fun unknownProfileCannotResolveAnArtifact() {
         assertNull(ModelManager.profileArtifact("unknown"))
     }
+
+    @Test fun emptyInstallDoesNotReportCoreOfflineStackReady() {
+        assertFalse(ModelManager.areCoreModelsInstalled(temporaryFolder.root))
+    }
 }
