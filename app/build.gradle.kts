@@ -57,6 +57,7 @@ android {
                 !ciDebugKeyPassword.isNullOrBlank()
             ) {
                 storeFile = ciDebugKeystore
+                storeType = "PKCS12"
                 storePassword = ciDebugStorePassword
                 keyAlias = ciDebugKeyAlias
                 keyPassword = ciDebugKeyPassword
