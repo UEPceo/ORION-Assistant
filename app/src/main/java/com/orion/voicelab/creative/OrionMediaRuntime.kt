@@ -27,12 +27,12 @@ class OrionMediaRuntime(
  }
  suspend fun generateImage(request:MediaGenerationRequest,policy:MediaRoutingPolicy=MediaRoutingPolicy()):GeneratedMedia {
   val p=MediaProviderRouter.select(imageProviders,{it.kind},{it.capability()},policy)
-   ?:throw MediaCapabilityUnavailableException(imageGenerationStatus(policy).message())
+   ?:throw MediaCapabilityUnavailableException(MediaProviderRouter.status(selectedProviders,{it.kind},{it.capability()},policy).message())
   return p.generate(request)
  }
  suspend fun generateVideo(request:MediaGenerationRequest,policy:MediaRoutingPolicy=MediaRoutingPolicy()):GeneratedMedia {
   val p=MediaProviderRouter.select(videoProviders,{it.kind},{it.capability()},policy)
-   ?:throw MediaCapabilityUnavailableException(videoGenerationStatus(policy).message())
+   ?:throw MediaCapabilityUnavailableException(MediaProviderRouter.status(selectedProviders,{it.kind},{it.capability()},policy).message())
   return p.generate(request)
  }
  companion object { const val MAX_VIDEO_FRAMES=24 }
