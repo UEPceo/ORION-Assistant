@@ -55,13 +55,13 @@ class HybridLanguageModel(
     ): LlmGenerationResult {
         val config = settings()
         val remoteAllowed = config.isConfigured && config.mode != RemoteInferenceSettings.MODE_LOCAL
-        val remotePreferred = HybridRoutingPolicy.shouldUseRemote(
-            mode = config.mode,
-            request = history.lastOrNull()?.content.orEmpty()
+        val decision = InferenceRoutingPolicy.decide(
+            localProfileId = local.profileId,
+            userText = history.lastOrNull()?.content.orEmpty(),
+            remoteConfiguredAndConsented = remoteAllowed
         )
-        if (config.mode == RemoteInferenceSettings.MODE_REMOTE_ONLY && !remoteAllowed) {
-            error("El modo Solo remoto necesita endpoint, modelo y consentimiento de contexto configurados.")
-        }
+        val remotePreferred = config.mode == RemoteInferenceSettings.MODE_REMOTE_ONLY ||
+            (config.mode == RemoteInferenceSettings.MODE_AUTO && decision.route == InferenceRoute.REMOTE)
         if (remoteAllowed && remotePreferred) {
             val client = RemoteInferenceClient(
                 endpoint = config.endpoint,
