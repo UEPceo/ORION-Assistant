@@ -223,7 +223,7 @@ class GitHubApiClient(
         const val MAX_DESCRIPTION_LENGTH = 500
         const val MAX_TITLE_LENGTH = 300
         const val TIMEOUT_MS = 15_000
-        val REPOSITORY_PATTERN = Regex("[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}")
+        val REPOSITORY_PATTERN = Regex("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}")
         fun isValidRepository(value: String): Boolean = REPOSITORY_PATTERN.matches(value) && value.split('/').none { it == "." || it == ".." }
     }
 }
