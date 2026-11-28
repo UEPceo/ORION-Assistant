@@ -149,6 +149,12 @@ class LocalSemanticAnswerEvaluatorTest {
         assertTrue(AnswerClaimCoverageGuard.check(draft, claims).passed)
     }
 
+    @Test fun omittedShortNumericFactCannotEscapeClaimCoverage() {
+        val result = AnswerClaimCoverageGuard.check("25. [1]", emptyList())
+        assertFalse(result.passed)
+        assertTrue(result.uncoveredSegments.isNotEmpty())
+    }
+
     @Test fun oneClaimCannotCoverRepeatedFactualSentenceTwice() {
         val draft = "The documented limit is 25. The documented limit is 25. [1]"
         val claims = listOf(
