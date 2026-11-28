@@ -65,6 +65,9 @@ import com.orion.voicelab.brain.CapabilityBaseline
 import com.orion.voicelab.brain.PlanExecutionEntity
 import com.orion.voicelab.brain.PlanExecutionJsonCodec
 import com.orion.voicelab.brain.PlanRisk
+import com.orion.voicelab.brain.PlanOutputReferences
+import com.orion.voicelab.brain.PlanStepKind
+import com.orion.voicelab.brain.PlanValidator
 import com.orion.voicelab.brain.StepStatus
 import com.orion.voicelab.brain.CapabilityArea
 import com.orion.voicelab.data.AssistantIdentity
@@ -197,11 +200,22 @@ fun OrionSettingsScreen(
                                 plan.steps.forEach { step ->
                                     val result = results[step.id]
                                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text("${step.title} · ${result?.status ?: StepStatus.PENDING}", style = MaterialTheme.typography.bodyMedium)
+                                        Text("\${step.title} · \${result?.status ?: StepStatus.PENDING}", style = MaterialTheme.typography.bodyMedium)
                                         if (!result?.summary.isNullOrBlank()) {
                                             Text(result!!.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
+                                        if (!result?.outputReference.isNullOrBlank()) {
+                                            Text("Salida disponible: \${result!!.outputReference}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                        }
                                         if ((step.requiresApproval || step.risk >= PlanRisk.MEDIUM) && result?.status != StepStatus.SUCCEEDED) {
+                                            if (step.inputSummary.isNotBlank()) {
+                                                val preview = PlanOutputReferences.resolve(step.inputSummary, results)
+                                                Text("Contexto: \${preview ?: "Pendiente de salida de pasos anteriores"}", style = MaterialTheme.typography.bodySmall)
+                                            }
+                                            step.connectorArguments.forEach { (key, rawValue) ->
+                                                val preview = PlanOutputReferences.resolve(rawValue, results)
+                                                Text("$key: \${preview ?: "Pendiente de salida de pasos anteriores"}", style = MaterialTheme.typography.bodySmall)
+                                            }
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Checkbox(
                                                     checked = step.id in approvedIds,
@@ -212,7 +226,7 @@ fun OrionSettingsScreen(
                                                 Text("Autorizar este paso para esta ejecución", style = MaterialTheme.typography.bodySmall)
                                             }
                                         }
-                                        if (result?.status == StepStatus.FAILED) {
+if (result?.status == StepStatus.FAILED) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Checkbox(
                                                     checked = step.id in retryIds,
@@ -225,16 +239,20 @@ fun OrionSettingsScreen(
                                         }
                                     }
                                 }
-                                val connectorOnly = plan.steps.all { it.kind in setOf(
-                                    com.orion.voicelab.brain.PlanStepKind.CONNECTOR_READ,
-                                    com.orion.voicelab.brain.PlanStepKind.CONNECTOR_WRITE,
-                                    com.orion.voicelab.brain.PlanStepKind.SEND_MESSAGE,
-                                    com.orion.voicelab.brain.PlanStepKind.PLACE_CALL,
-                                    com.orion.voicelab.brain.PlanStepKind.DELETE_DATA,
-                                    com.orion.voicelab.brain.PlanStepKind.PURCHASE
-                                ) }
+                                val executablePlan = plan.steps.all { it.kind in setOf(
+                                    PlanStepKind.CONNECTOR_READ,
+                                    PlanStepKind.CONNECTOR_WRITE,
+                                    PlanStepKind.SEND_MESSAGE,
+                                    PlanStepKind.PLACE_CALL,
+                                    PlanStepKind.DELETE_DATA,
+                                    PlanStepKind.PURCHASE,
+                                    PlanStepKind.LOCAL_CREATE_TASK,
+                                    PlanStepKind.LOCAL_CREATE_NOTE,
+                                    PlanStepKind.LOCAL_CREATE_REMINDER
+                                ) } && PlanValidator.validate(plan).valid
                                 Button(
-                                    enabled = connectorOnly && record.status !in setOf("COMPLETED", "RUNNING"),
+                                    enabled = executablePlan && record.status !in setOf("COMPLETED", "RUNNING"),
+
                                     onClick = {
                                         onExecutePlan(record.id, approvedIds, retryIds)
                                         approvedIds = emptySet()
@@ -242,8 +260,8 @@ fun OrionSettingsScreen(
                                     },
                                     modifier = Modifier.fillMaxWidth()
                                 ) { Text("Ejecutar / reanudar") }
-                                if (!connectorOnly) {
-                                    Text("Este plan contiene pasos locales cuyo ejecutor aún no está integrado; no se puede ejecutar desde esta pantalla.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (!executablePlan) {
+                                    Text("Este plan contiene pasos sin ejecutor o validación. No se puede ejecutar desde esta pantalla.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -256,7 +274,7 @@ fun OrionSettingsScreen(
                     }
                 }
             }
-            Text("La generación automática de planes desde la conversación y los ejecutores locales siguen pendientes; esta pantalla no presenta un plan como ejecutado por el mero hecho de guardarlo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Los pasos de escritura se detienen hasta que se revisen sus entradas resueltas y se autoricen para esa ejecución. Los pasos no compatibles no se ejecutan.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         SettingsSection(title = "Búsqueda semántica neuronal", subtitle = "Embeddings multilingües ONNX para mejorar la recuperación de conocimiento local.") {
