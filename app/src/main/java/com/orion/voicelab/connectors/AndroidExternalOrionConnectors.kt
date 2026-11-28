@@ -162,6 +162,7 @@ class PescaIAOrionConnector : OrionConnector {
 internal fun isAllowedPescaIaUrl(address: String): Boolean = runCatching {
     val parsed = URL(address)
     parsed.protocol.equals("https", ignoreCase = true) &&
+        (parsed.port == -1 || parsed.port == 443) &&
         parsed.host.lowercase() in setOf("pescaisurfcasting.company", "www.pescaisurfcasting.company")
 }.getOrDefault(false)
 
