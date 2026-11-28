@@ -2047,6 +2047,13 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 if (phoneCallManager.hasPhoneStatePermission()) {
                     activeTelephonyCallRecordId = rec.id
                     activeTelephonyStartedAtMs = null
+                    // ACTION_CALL can transition to OFFHOOK before its listener callback arrives.
+                    // Query the current state after creating the record to close that race.
+                    val currentState = phoneCallManager.currentCallState()
+                    if (currentState == SystemTelephonyState.OFFHOOK) {
+                        _uiState.update { it.copy(systemTelephonyState = currentState) }
+                        handleTelephonyTransition(currentState)
+                    }
                 }
                 _uiState.update {
                     it.copy(phoneStatusMessage = "Llamando a ${pending.contactName} (${result.sanitizedNumber})…")

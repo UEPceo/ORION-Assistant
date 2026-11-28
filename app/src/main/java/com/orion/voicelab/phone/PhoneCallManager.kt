@@ -60,6 +60,22 @@ class PhoneCallManager(private val context: Context) {
             Manifest.permission.READ_PHONE_STATE
         ) == PackageManager.PERMISSION_GRANTED
 
+    /**
+     * Reconciles call state immediately after ACTION_CALL dispatch. A telephony callback can
+     * arrive before the call record is created, so the caller must query current state too.
+     */
+    fun currentCallState(): SystemTelephonyState {
+        if (!hasPhoneStatePermission()) return SystemTelephonyState.UNAVAILABLE
+        val tm = telephonyManager ?: return SystemTelephonyState.UNAVAILABLE
+        return try {
+            mapTelephonyState(tm.callState)
+        } catch (_: SecurityException) {
+            SystemTelephonyState.UNAVAILABLE
+        } catch (_: Exception) {
+            SystemTelephonyState.UNAVAILABLE
+        }
+    }
+
     fun dispatchCall(phoneNumber: String, preferDirectCall: Boolean): CallDispatchResult {
         val sanitized = sanitizeDialString(phoneNumber)
         if (sanitized.isEmpty() || sanitized.none { it.isDigit() }) {
