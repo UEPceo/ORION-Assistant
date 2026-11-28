@@ -62,14 +62,16 @@ jobs:
             # Remove whitespace before decoding; never print the secret or decoded keystore.
             KEYSTORE_BASE64="$(printf '%s' "$ORION_DEBUG_KEYSTORE_BASE64" | tr -d '[:space:]')"
             if [[ -z "$KEYSTORE_BASE64" || ! "$KEYSTORE_BASE64" =~ ^[A-Za-z0-9+/]*={0,2}$ || $(("${#KEYSTORE_BASE64}" % 4)) -ne 0 ]]; then
-              echo "::error::ORION_DEBUG_KEYSTORE_BASE64 is not valid standard Base64. Regenerate it from the .p12 file and replace the GitHub secret."
-              exit 1
+              echo "::warning::ORION_DEBUG_KEYSTORE_BASE64 is malformed. Continuing with Gradle's generated debug key; Gmail OAuth will remain unavailable in this CI APK until the PKCS12 secret is corrected."
+            elif printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH" &&
+                 test -s "$KEYSTORE_PATH" &&
+                 keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$ORION_DEBUG_STORE_PASSWORD" -alias "$ORION_DEBUG_KEY_ALIAS" | grep -E "Alias name:|SHA1:"; then
+              echo "ORION_DEBUG_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+            else
+              echo "::warning::The configured PKCS12 keystore could not be decoded or opened. Continuing with Gradle's generated debug key; Gmail OAuth will remain unavailable in this CI APK until signing secrets are corrected."
+              rm -f "$KEYSTORE_PATH"
             fi
-            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
             unset KEYSTORE_BASE64
-            test -s "$KEYSTORE_PATH"
-            keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$ORION_DEBUG_STORE_PASSWORD" -alias "$ORION_DEBUG_KEY_ALIAS" | grep -E "Alias name:|SHA1:"
-            echo "ORION_DEBUG_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
           fi
 
       - name: Configure Android SDK
