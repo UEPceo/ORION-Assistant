@@ -71,11 +71,11 @@ object ConnectorVoiceIntentRouter {
 
         val pescaiaMention = containsAny(normalized, "pescaia", "pesca ia", "en la web de pesca")
         if (pescaiaMention) {
-            val brand = Regex("""(?i)\\b(?:pescaia(?:\\s+surfcasting)?|pesca\\s+ia|la\\s+web\\s+de\\s+pesca)\\b""").find(text)
+            val brand = Regex("""(?i)\b(?:pescaia(?:\s+surfcasting)?|pesca\s+ia|la\s+web\s+de\s+pesca)\b""").find(text)
             val before = brand?.let { text.substring(0, it.range.first) }.orEmpty()
             val after = brand?.let { text.substring(it.range.last + 1) }.orEmpty()
-            val prefixQuery = before.replace(Regex("""(?i)^\\s*(?:(?:consulta|busca|mira|revisa|abre)\\s+)?"""), "").trim()
-            val suffixQuery = after.replace(Regex("""(?i)^\\s*(?:sobre|acerca\\s+de|de|:|,)\\s*"""), "").trim()
+            val prefixQuery = before.replace(Regex("""(?i)^\s*(?:(?:consulta|busca|mira|revisa|abre)\s+)?"""), "").trim()
+            val suffixQuery = after.replace(Regex("""(?i)^\s*(?:sobre|acerca\s+de|de|:|,)\s*"""), "").trim()
             val query = (suffixQuery.ifBlank { prefixQuery }).ifBlank { "playas y metodología" }
             return RoutedAction(ConnectorAction(ConnectorId.PESCAIA, "search_public", mapOf("query" to query.take(240))))
         }
@@ -84,11 +84,11 @@ object ConnectorVoiceIntentRouter {
         if (mapsMention) {
             val navigate = containsAny(normalized, "navega", "llévame", "llevame", "cómo llego", "como llego", "ruta")
             val destination = text
-                .replace(Regex("""(?i)\\bgoogle\\s+maps\\b|\\bmaps\\b"""), " ")
-                .replace(Regex("""(?i)\\b(?:llévame|llevame|abre|abrir|busca|buscar|navega|navegar|quiero|ponme|ruta|cómo\\s+llego|como\\s+llego|mapa)\\b"""), " ")
-                .replace(Regex("""(?i)\\s+(?:a pie|andando|caminando|en coche|en transporte público|en transporte publico)$"""), " ")
-                .replace(Regex("""(?i)\\b(?:en|a|hasta|hacia|para)\\b"""), " ")
-                .replace(Regex("""\\s+"""), " ")
+                .replace(Regex("""(?i)\bgoogle\s+maps\b|\bmaps\b"""), " ")
+                .replace(Regex("""(?i)\b(?:llévame|llevame|abre|abrir|busca|buscar|navega|navegar|quiero|ponme|ruta|cómo\s+llego|como\s+llego|mapa)\b"""), " ")
+                .replace(Regex("""(?i)\s+(?:a pie|andando|caminando|en coche|en transporte público|en transporte publico)$"""), " ")
+                .replace(Regex("""(?i)\b(?:en|a|hasta|hacia|para)\b"""), " ")
+                .replace(Regex("""\s+"""), " ")
                 .trim()
             return RoutedAction(ConnectorAction(
                 ConnectorId.GOOGLE_MAPS,
