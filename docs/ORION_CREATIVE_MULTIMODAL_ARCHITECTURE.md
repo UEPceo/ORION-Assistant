@@ -61,3 +61,10 @@ El permiso es temporal y en memoria. Tras reiniciar la app debe solicitarse de n
 Se incorpora un cliente HTTP que puede enviar workflows JSON a un endpoint ComfyUI configurado, hacer polling de la cola, detectar errores, recuperar la salida y guardarla en caché privada. Permite upload multipart de referencias con límite de 25 MB; el adaptador de generación aún rechaza referencias porque la autorización de subida no está conectada al selector/UI. Las plantillas mapean nodo/input de prompt positivo y opcionalmente negativo; los nodos de referencia son un contrato preparado, no una ruta activa. Se añaden adaptadores de generación de imagen y vídeo que requieren endpoint y workflow suministrados en runtime. No se incluyen modelos ni endpoint preconfigurado. HTTPS obligatorio fuera de localhost/LAN privada; no se aceptan credenciales embebidas en URL.
 
 Pendiente: formulario de endpoint y almacenamiento seguro de credenciales, selector/importador de workflows, mapping visual de nodos, consentimiento UI para referencias, configuración de providers en OrionMediaRuntime, cancelación/progreso persistente y pruebas de integración contra servidor ComfyUI real.
+
+
+## Consentimiento para generación remota
+
+Se añade un gate de aprobación efímero (5 minutos, una sola ejecución) que liga la aprobación al tipo de operación, identificador del proveedor y prompt concreto. El executor consume la aprobación antes de ejecutar y transmite el consentimiento explícito al router de proveedores; si no hay red, falla sin generar. El provider seleccionado queda ligado al ID aprobado. Esta capa todavía no está conectada a un diálogo o flujo de voz/UI de confirmación, por lo que la generación no está disponible como acción directa de usuario dentro de la app.
+
+La aplicación permite cleartext para endpoints HTTP de LAN; el validador del ajuste multimedia limita HTTP a hosts locales/privados, aunque el permiso de Android es global para el proceso y no constituye una whitelist de red. Para despliegues públicos debe usarse HTTPS.
