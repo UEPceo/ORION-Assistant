@@ -69,7 +69,7 @@ Aprender significa actualizar el corpus recuperable, registrar correcciones y me
 ## Líneas prioritarias de evolución (28/11/2026)
 
 - La aceleración GPU/NPU se desarrollará como backend alternativo LiteRT-LM, conservando llama.cpp GGUF CPU como fallback. No se dará por compatible una NPU hasta verificar el SoC concreto y ejecutar una inferencia real. Diseño: `docs/ORION_ACCELERATED_INFERENCE_BACKEND.md`.
-- La ingeniería de software es una capacidad central en construcción: GitHub tiene workspace acotado, generación de parches estructurados, autorización temporal y commits aprobados; GitHub Actions valida ORION en runner efímero. El diff y la aprobación están en la pantalla Conectores; el bucle de reparación y un runner universal siguen pendientes. Diseño: `docs/ORION_CODE_ENGINEERING.md`.
+- La ingeniería de software ya cuenta con workspace acotado, generador JSON local/híbrido, autorización temporal, revisión visual y commits aprobados; la pantalla Conectores crea PR draft. Workflows aislados ejecutan checks de Android/Python/Node sin secretos y con permisos read-only. Falta integrar consulta automática de resultados/logs, bucle de reparación y ampliar/medir los checks por stack. Diseño: `docs/ORION_CODE_ENGINEERING.md`.
 - El aprendizaje continuo se organizará como captura, cuarentena, verificación, revisión, publicación, versionado y evaluación de regresiones. No implica autoentrenar pesos del LLM. Estado y brechas: `docs/ORION_CONTINUOUS_LEARNING.md`.
 
 ## Capacidad de programación y autonomía
@@ -224,7 +224,7 @@ La arquitectura está bien separada en recuperación, verificación, memoria, di
 | Autodiagnóstico | Registro local y heurísticas | No captura todos los errores ni analiza automáticamente todo el código |
 | Tareas y recordatorios | Operaciones deterministas | Falta planificación de varios pasos y seguimiento de resultados |
 | Conectores | Integraciones acotadas | Faltan acciones completas de escritura y más proveedores |
-| Programación | Workspace, generador JSON, diff UI, autorización y commits aprobados | Falta seguimiento CI/repair loop y runner universal de proyectos |
+| Programación | Workspace, generador JSON, diff UI, autorización, commits y PR draft; runner básico Android/Python/Node | Falta recuperar resultados CI y loop de reparación, además de ampliar cobertura |
 | Diseño y estrategia creativa | Router y prompts | No hay motores multimedia conectados |
 | Comprensión/generación de imagen y vídeo | Contratos y consentimiento | Sin proveedores operativos en el runtime |
 | Memoria personal | Local y separada del corpus | Falta mejor extracción, consolidación y control de caducidad |
