@@ -400,6 +400,10 @@ object ModelManager {
 
     fun asrDirectory(filesDir: File): File = MoonshineModelManager.modelDirectory(filesDir)
 
+    /** True only when the three mandatory offline voice components are installed and structurally valid. */
+    fun areCoreModelsInstalled(filesDir: File): Boolean =
+        isTtsInstalled(filesDir) && isAsrInstalled(filesDir) && isLlmInstalled(filesDir)
+
     fun llmDirectory(filesDir: File): File = File(filesDir, "models/$LLM_DIR_NAME")
 
     fun llmModelFile(filesDir: File): File = File(llmDirectory(filesDir), LLM_FILE_NAME)
