@@ -8,6 +8,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.orion.voicelab.model.ModelManager
 import androidx.work.CoroutineWorker
 
 /** Downloads the optional multilingual encoder by default, but only on unmetered, battery-safe networks. */
@@ -22,6 +23,11 @@ object NeuralEmbeddingAutoInstallScheduler {
 
     fun schedule(context: Context) {
         if (!enabled(context)) return
+        // The optional 136 MB encoder must not compete with first-run voice model downloads.
+        if (!ModelManager.areCoreModelsInstalled(context.applicationContext.filesDir)) {
+            WorkManager.getInstance(context.applicationContext).cancelUniqueWork(UNIQUE_WORK)
+            return
+        }
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.UNMETERED)
             .setRequiresBatteryNotLow(true)
