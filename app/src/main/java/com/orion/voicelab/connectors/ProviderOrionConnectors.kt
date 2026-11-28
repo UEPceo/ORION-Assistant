@@ -118,6 +118,22 @@ class GitHubOrionConnector(
             return ConnectorResult.Failure("Operación de GitHub no disponible.", false)
         }
         return when (action.operation) {
+            "get_file" -> {
+                val repository = action.arguments["repository"].orEmpty()
+                val filePath = action.arguments["path"].orEmpty()
+                if (repository.isBlank() || filePath.isBlank()) {
+                    return ConnectorResult.NeedsUserInput("Indica el repositorio y la ruta exacta del archivo.")
+                }
+                api.getFile(repository, filePath, action.arguments["branch"]).fold(
+                    onSuccess = { file ->
+                        ConnectorResult.Success(
+                            "Archivo ${file.path} (${file.sizeBytes} bytes, SHA ${file.sha}). Contenido:\\n${file.content}",
+                            file.sha
+                        )
+                    },
+                    onFailure = { githubFailure(it) }
+                )
+            }
             "create_branch" -> {
                 val repository = action.arguments["repository"].orEmpty()
                 val branch = action.arguments["branch"].orEmpty()
