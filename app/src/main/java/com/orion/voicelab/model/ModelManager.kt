@@ -557,7 +557,7 @@ object ModelManager {
             if (!actual.equals(LLM_SHA256, ignoreCase = true)) return false
             return runCatching {
                 ModelIntegrityManifest.createSingleFileManifest(integrityRoot, targetFile, LLM_SHA256)
-                ModelIntegrityManifest.verifySingleLargeFile(integrityRoot)
+                ModelIntegrityManifest.verifySingleLargeFile(integrityRoot, LLM_SHA256)
             }.getOrDefault(false)
         }
         return ModelIntegrityManifest.verifySingleLargeFile(integrityRoot)
