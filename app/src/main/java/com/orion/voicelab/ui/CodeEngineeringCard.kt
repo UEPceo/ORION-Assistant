@@ -28,6 +28,7 @@ fun CodeEngineeringCard(
     var workBranch by remember { mutableStateOf("orion/task") }
     var task by remember { mutableStateOf("") }
     var selectedPaths by remember { mutableStateOf("") }
+    var sourceContextConfirmed by remember(selectedPaths) { mutableStateOf(false) }
     var sessionConfirmed by remember(state.session?.grant?.id) { mutableStateOf(false) }
     var diffConfirmed by remember(state.preparedChange?.diffDigest) { mutableStateOf(false) }
     val session=state.session
@@ -54,7 +55,11 @@ fun CodeEngineeringCard(
             } else {
                 Text("Sesión activa: ${session.grant.repository} · ${session.grant.workBranch}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)
                 OutlinedTextField(selectedPaths,{selectedPaths=it},label={Text("Archivos a inspeccionar (separados por comas)")},modifier=Modifier.fillMaxWidth(),minLines=2)
-                Button(onClick={onPrepare(session,task.trim(),selectedPaths.split(',', '\n').map{it.trim()}.filter{it.isNotBlank()})},enabled=!state.isWorking&&task.isNotBlank()&&selectedPaths.isNotBlank(),modifier=Modifier.fillMaxWidth()) {
+                Row(verticalAlignment=Alignment.CenterVertically) {
+                    Checkbox(sourceContextConfirmed,{sourceContextConfirmed=it})
+                    Text("Autorizo usar estos archivos como contexto del modelo. Si la inferencia remota está activa, el contenido podrá enviarse al proveedor autorizado.",style=MaterialTheme.typography.bodySmall)
+                }
+                Button(onClick={onPrepare(session,task.trim(),selectedPaths.split(',', '\n').map{it.trim()}.filter{it.isNotBlank()})},enabled=!state.isWorking&&task.isNotBlank()&&selectedPaths.isNotBlank()&&sourceContextConfirmed,modifier=Modifier.fillMaxWidth()) {
                     Text("Inspeccionar y preparar propuesta")
                 }
                 OutlinedButton(onClick={onRevoke(session)},enabled=!state.isWorking,modifier=Modifier.fillMaxWidth()) { Text("Revocar sesión") }
