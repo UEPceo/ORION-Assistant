@@ -52,6 +52,7 @@ class AnswerGroundingBenchmarkRunner(
         var tpContradiction = 0
         var fnContradiction = 0
         var abstentionCorrect = 0
+        var totalCases = 0
         var invalidCitationExpected = 0
         var invalidCitationRejected = 0
         var criticalFalsePositives = 0
@@ -60,6 +61,7 @@ class AnswerGroundingBenchmarkRunner(
         var abstentionCases = 0
 
         for (case in cases) {
+            totalCases++
             val report = auditor.audit(case.claims, case.evidence)
             reports[case.id] = report
             val actualById = report.claims.associateBy { it.claimId }
@@ -76,10 +78,8 @@ class AnswerGroundingBenchmarkRunner(
                     if (actual == ClaimSupportStatus.CONTRADICTED) tpContradiction++ else fnContradiction++
                 }
             }
-            if (case.expectedAbstention) {
-                abstentionCases++
-                if (report.requiresAbstention) abstentionCorrect++
-            }
+            if (case.expectedAbstention) abstentionCases++
+            if (report.requiresAbstention == case.expectedAbstention) abstentionCorrect++
             val unknownIds = case.claims.filter { it.isFactual }
                 .flatMap { it.citedEvidenceIds }
                 .filter { id -> case.evidence.none { it.id == id } }.toSet()
@@ -91,7 +91,7 @@ class AnswerGroundingBenchmarkRunner(
         val metrics = GroundingBenchmarkMetrics(
             factualClaims, ratio(tpSupported, tpSupported + fpSupported),
             ratio(tpContradiction, tpContradiction + fnContradiction),
-            ratio(abstentionCorrect, abstentionCases),
+            ratio(abstentionCorrect, totalCases),
             if (invalidCitationExpected == 0) 1.0 else ratio(invalidCitationRejected, invalidCitationExpected),
             criticalFalsePositives, contradictionCases, abstentionCases
         )

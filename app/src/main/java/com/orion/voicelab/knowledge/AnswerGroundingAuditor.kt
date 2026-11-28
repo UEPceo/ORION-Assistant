@@ -1,5 +1,7 @@
 package com.orion.voicelab.knowledge
 
+import kotlinx.coroutines.CancellationException
+
 /** Claim-level audit. The semantic judge is untrusted and constrained by deterministic policy. */
 enum class ClaimSupportStatus { SUPPORTED, CONTRADICTED, INSUFFICIENT, UNVERIFIABLE }
 enum class AnswerGroundingStatus { VERIFIED, PARTIALLY_SUPPORTED, ABSTAIN }
@@ -83,6 +85,8 @@ class AnswerGroundingAuditor(
 
             val assessment = try {
                 judge.assess(claim, evidence)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (error: Exception) {
                 claimResults += ClaimGroundingResult(
                     claim.id, ClaimSupportStatus.UNVERIFIABLE, 0.0, emptySet(), emptySet(),
