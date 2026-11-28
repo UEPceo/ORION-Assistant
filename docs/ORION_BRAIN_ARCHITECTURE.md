@@ -1,6 +1,6 @@
 # ORION — Arquitectura del cerebro autónomo y conocimiento verificable
 
-Estado: núcleo local, recuperación híbrida y corpus offline multidisciplinar implementados; el encoder ONNX opcional está integrado con validación en dispositivo pendiente. Los proveedores multimedia siguen sin configuración.
+Estado: núcleo local, planificación por etapas, acciones locales con confirmación, recuperación híbrida y corpus offline de dieciséis packs implementados. El encoder ONNX multilingüe se instala por defecto cuando hay Wi-Fi sin batería baja y espacio suficiente; validación en dispositivo pendiente. Los proveedores multimedia siguen sin configuración.
 
 ## Objetivo
 
@@ -32,7 +32,7 @@ ORION no puede garantizar verdad absoluta ni prometer que nunca cometerá errore
 - Si no hay evidencia suficiente, ORION dice «no lo he podido verificar» y no completa huecos inventando.
 - Cada dato dinámico (tiempo, mareas, tráfico, disponibilidad, calendario, CI) lleva fecha/hora de consulta y zona geográfica cuando corresponda.
 
-Se han incorporado contratos de evidencia, enrutador determinista por dominio, repositorio local privado persistente, motor de recuperación, composición de contexto con procedencia y política de aprendizaje. Los veredictos incluyen SUPPORTED, NEEDS_CORROBORATION, PRIMARY_SOURCE_REQUIRED, STALE, AGE_UNCONFIRMED, CONFLICTING, NO_EVIDENCE e INVALID_TIMESTAMP. El núcleo ya se invoca desde el contexto de cada turno de voz. El corpus local se inicializa automáticamente en el primer uso con quince paquetes y treinta y cuatro documentos incluidos en los assets. Se guarda en almacenamiento privado mediante escritura atómica y la recuperación combina índice semántico disperso y ranking léxico; no presenta el conocimiento del modelo como evidencia. La búsqueda web solo se activa ante una petición explícita. El contexto RAG se limita a 1.800 caracteres para proteger la ventana reducida del modelo local.
+Se han incorporado contratos de evidencia, enrutador determinista por dominio, repositorio local privado persistente, motor de recuperación, composición de contexto con procedencia y política de aprendizaje. Los veredictos incluyen SUPPORTED, NEEDS_CORROBORATION, PRIMARY_SOURCE_REQUIRED, STALE, AGE_UNCONFIRMED, CONFLICTING, NO_EVIDENCE e INVALID_TIMESTAMP. El núcleo ya se invoca desde el contexto de cada turno de voz. El corpus local se inicializa automáticamente en el primer uso con dieciséis paquetes, incluidos pesca Andalucía, Android/Kotlin, normativa España/UE y calendarios/recordatorios. Se guarda en almacenamiento privado mediante escritura atómica y la recuperación combina índice semántico disperso, ranking léxico y embeddings ONNX multilingües cuando están instalados. El encoder se descarga de forma automática por defecto solo en red no medida, con batería y almacenamiento suficientes; el usuario puede desactivarlo. La búsqueda web solo se activa ante una petición explícita. El contexto RAG se limita a 2.200 caracteres para proteger la ventana reducida del modelo local. La detección de discrepancias compara afirmaciones numéricas asociadas al mismo tema y contrasta metadatos de conflicto; sus alertas son indicios, no una prueba automática.
 
 ## Fuentes por ámbito
 
@@ -362,3 +362,11 @@ La expansión añade 18 documentos y nueve paquetes; no incrementa por sí sola 
 ## Grafo neuronal asociativo — expansión de noviembre de 2026
 
 El recuperador disperso incorpora un grafo curado de conceptos y asociaciones entre dominios. La activación directa reconoce aliases multilingües y una sola expansión de conexiones ponderadas débiles (0,24), por ejemplo pesca↔meteorología/geografía/ciencia; programación↔seguridad/matemáticas/ingeniería/datos; negocio↔finanzas/comunicación/creatividad. La expansión es intencionalmente de un salto para evitar propagación descontrolada y sesgos por asociaciones recursivas. Se usa únicamente para descubrir documentos candidatos: no modifica los veredictos de evidencia, autoridad, actualidad ni verificación. El grafo no se autoentrena; sus relaciones son explícitas, revisables y cubiertas por tests.
+
+## Planificador multipaso y acciones locales
+
+- Las salidas de pasos pueden encadenarse mediante `\u0024{stepId.output}` o `\u0024{stepId.summary}`; cada consumidor debe declarar la dependencia. Solo se interpolan resultados de pasos completados.
+- La ejecución es por etapas: los pasos de lectura previos pueden ejecutarse primero; antes de una escritura no autorizada, ORION se pausa y presenta las entradas resueltas en Ajustes → Planes. La autorización se concede por paso y por ejecución, no se conserva.
+- Acciones locales disponibles: crear tarea, guardar nota como registro local y programar recordatorio. Se almacenan en el repositorio de tareas de Room y usan el planificador de recordatorios Android; no requieren red.
+- Las acciones locales y externas de escritura requieren riesgo MEDIUM o superior y confirmación contextual. Si una salida no se puede resolver, el paso queda bloqueado; un fallo de dependencia también bloquea descendientes.
+- Los pasos no compatibles no se muestran como ejecutables. Los resultados y salidas se guardan para reanudación; tras un cierre, operaciones de resultado incierto requieren revisión explícita.
