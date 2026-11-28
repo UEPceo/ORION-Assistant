@@ -55,6 +55,16 @@ object ModelMemoryPolicy {
         return ModelMemoryDecision(allowed, required, snapshot.availableRamBytes, reason)
     }
 
+    /** Chooses the largest requested context that passes the complete model + native headroom check. */
+    fun chooseSafeContextTokens(
+        snapshot: ModelMemorySnapshot,
+        modelBytes: Long,
+        requested: Int
+    ): Int {
+        val candidates = listOf(8192, 4096, 2048, 1024, 512).filter { it <= requested }
+        return candidates.firstOrNull { evaluate(snapshot, modelBytes, it).allowed } ?: 0
+    }
+
     /** Reduces context before model size is ever compromised. */
     fun safeContextTokens(requested: Int, availableBytes: Long): Int {
         val candidates = listOf(8192, 4096, 2048, 1024, 512).filter { it <= requested }
