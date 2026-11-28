@@ -1,6 +1,6 @@
 {
   "id": "es-eu-law",
-  "version": 1,
+  "version": 2,
   "title": "Orientación jurídica y fuentes oficiales España/UE",
   "documents": [
     {
@@ -22,6 +22,26 @@
       "authority": "OFFICIAL_PRIMARY",
       "jurisdiction": "EU",
       "content": "EUR-Lex ofrece acceso al Diario Oficial de la Unión Europea, legislación, documentos preparatorios, jurisprudencia y versiones consolidadas. Al analizar una disposición europea, identifica el tipo de acto: reglamento, directiva, decisión, recomendación u opinión. Un reglamento es obligatorio en todos sus elementos y directamente aplicable en los Estados miembros; una directiva obliga al Estado destinatario respecto del resultado y normalmente requiere transposición nacional; una decisión es obligatoria para sus destinatarios. Verifica fecha de adopción, publicación, entrada en vigor, aplicación y posibles modificaciones o derogaciones. Comprueba si el documento está marcado como vigente y revisa medidas nacionales de transposición cuando proceda. No confundas una propuesta legislativa con una norma aprobada. Para una cuestión concreta, consulta el texto auténtico publicado en el Diario Oficial y la jurisprudencia pertinente. La aplicación a un caso requiere contexto y puede necesitar asesoramiento jurídico."
+    },
+    {
+      "id": "legal-source-hierarchy-spain",
+      "title": "Jerarquía normativa y verificación de vigencia en España",
+      "url": "https://www.boe.es/buscar/legislacion.php",
+      "publisher": "Boletín Oficial del Estado",
+      "domain": "LAW_AND_REGULATION",
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "ES",
+      "content": "Para una consulta jurídica española, identifica primero la jurisdicción, materia y fecha de los hechos. Distingue Constitución, leyes orgánicas y ordinarias, decretos-leyes y decretos legislativos, reglamentos y disposiciones autonómicas o locales; la jerarquía, competencia y procedimiento importan y no se resuelven solo por el nombre del texto. Consulta el BOE y el boletín autonómico/local competente, revisa entrada en vigor, derogaciones, modificaciones, disposiciones transitorias y jurisprudencia relevante. La versión consolidada es útil para navegar cambios, pero el BOE advierte que es informativa. No presentes un resumen de pack como conclusión jurídica actual sin revisar el texto oficial vigente."
+    },
+    {
+      "id": "legal-calendar-deadlines",
+      "title": "Cómputo de plazos administrativos: cautelas de calendario",
+      "url": "https://www.boe.es/buscar/legislacion.php",
+      "publisher": "Boletín Oficial del Estado",
+      "domain": "LAW_AND_REGULATION",
+      "authority": "OFFICIAL_PRIMARY",
+      "jurisdiction": "ES",
+      "content": "No calcules plazos legales a partir de una regla general sin comprobar la norma aplicable y el tipo de procedimiento. Verifica si el plazo se expresa en horas, días hábiles, días naturales, meses o años; el dies a quo, festivos, calendario oficial, registros y posibles suspensiones o notificaciones electrónicas pueden cambiar el resultado. Para un vencimiento concreto, consulta la regulación del procedimiento y el calendario oficial aplicable, expón el cálculo y advierte si faltan datos. Esta guía no sustituye la comprobación normativa."
     }
   ]
 }
