@@ -184,8 +184,9 @@ fun OrionSettingsScreen(
         var selectedModelProfileId by remember { mutableStateOf(modelPreferences.getString("selected_profile", "lite") ?: "lite") }
         val recommendedModelProfile = remember(totalDeviceRamMb) { LanguageModelProfileCatalog.recommendForDevice(totalDeviceRamMb) }
         val selectedModelProfile = remember(selectedModelProfileId) { LanguageModelProfileCatalog.byId(selectedModelProfileId) ?: LanguageModelProfileCatalog.profiles.first() }
-        val effectiveModelProfile = remember(selectedModelProfileId, totalDeviceRamMb) {
-            LanguageModelProfileCatalog.effectiveProfile(selectedModelProfileId, totalDeviceRamMb)
+        val effectiveModelProfile = remember(selectedModelProfileId, automaticModelProfile, totalDeviceRamMb) {
+            val requestedId = if (automaticModelProfile) recommendedModelProfile.id else selectedModelProfileId
+            LanguageModelProfileCatalog.effectiveProfile(requestedId, totalDeviceRamMb)
         }
         SettingsSection(title = "Perfiles del modelo neuronal", subtitle = "Selección manual o recomendación automática según la RAM física del dispositivo") {
             Text("RAM total detectada: ${totalDeviceRamMb / 1024} GB", style = MaterialTheme.typography.bodyMedium)
