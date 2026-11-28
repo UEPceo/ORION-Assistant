@@ -1046,7 +1046,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 ModelManager.downloadAndInstallTts(
                     filesDir = appContext.filesDir,
                     cacheDir = appContext.cacheDir,
-                    shouldCancel = { downloadJob?.isActive != true },
+                    shouldCancel = downloadGuard::shouldCancel,
                     onProgress = { percent, downMb, totalMb ->
                         _uiState.update {
                             it.copy(
