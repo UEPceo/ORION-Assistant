@@ -166,8 +166,12 @@ object ConnectorVoiceIntentRouter {
             if (repo.isNotBlank()) put("repository", repo)
             if (operation == "get_issue" && issueNumber != null) put("number", issueNumber)
             if (operation == "list_issues") put("state", if (normalized.contains("cerrad")) "closed" else "open")
-            if (operation == "list_files") {
-                val pathMatch = Regex("""(?:en la ruta|en carpeta|carpeta|directorio)\s+([A-Za-z0-9_./-]{1,250})""", RegexOption.IGNORE_CASE).find(text)
+            if (operation == "list_files" || operation == "get_file") {
+                val pathMatch = if (operation == "get_file") {
+                    Regex("""(?:archivo|fichero)(?:\s+llamado)?\s+([A-Za-z0-9_./-]{1,250})""", RegexOption.IGNORE_CASE).find(text)
+                } else {
+                    Regex("""(?:en la ruta|en carpeta|carpeta|directorio)\s+([A-Za-z0-9_./-]{1,250})""", RegexOption.IGNORE_CASE).find(text)
+                }
                 if (pathMatch != null) put("path", pathMatch.groupValues[1].trim('/'))
             }
         }
