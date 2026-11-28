@@ -76,9 +76,7 @@ class KnowledgeReviewQueueStore(
             val index = queue.indexOfFirst { it.id == id && it.status == KnowledgeReviewStatus.PENDING }
             if (index < 0) return@withLock false
             val item = queue[index]
-            if (verified && item.decision != LearningDecision.ACCEPT_FOR_REVIEW) {
-                error("Este candidato no cumple la política para publicarse como verificado.")
-            }
+            if (verified && item.decision != LearningDecision.ACCEPT_FOR_REVIEW) return@withLock false
             if (!verified && item.decision == LearningDecision.REJECT_AS_EVIDENCE) return@withLock false
             val previous = corpus.get(id)
             if (previous != null) appendHistory(id, previous)
@@ -234,7 +232,7 @@ class KnowledgeReviewQueueStore(
             stream.write(value.toByteArray(Charsets.UTF_8))
             file.finishWrite(stream)
         } catch (error: Exception) {
-            stream?.let(file::failWrite)
+            stream?.let { file.failWrite(it) }
             throw IllegalStateException("No se pudo guardar la bandeja de revisión del conocimiento.", error)
         }
     }
