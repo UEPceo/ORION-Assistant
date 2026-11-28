@@ -10,6 +10,13 @@ import com.orion.voicelab.OrionCrashDiagnostics
 import com.orion.voicelab.asr.MoonshineSpeechRecognitionEngine
 import com.orion.voicelab.audio.AudioRoutingController
 import com.orion.voicelab.conversation.ConversationEngine
+import com.orion.voicelab.connectors.github.GitHubApiClient
+import com.orion.voicelab.engineering.CodeEngineeringSession
+import com.orion.voicelab.engineering.CodeEngineeringSessionAuthority
+import com.orion.voicelab.engineering.CodeEngineeringUiState
+import com.orion.voicelab.engineering.GitHubCodeEngineeringService
+import com.orion.voicelab.engineering.GitHubCodeWorkspace
+import com.orion.voicelab.engineering.LocalModelCodePatchGenerator
 import com.orion.voicelab.connectors.ConnectorResult
 import com.orion.voicelab.connectors.ConnectorVoiceIntentRouter
 import com.orion.voicelab.connectors.OrionConnectorRuntime
@@ -127,6 +134,9 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private val appContext = application.applicationContext
     private val settingsPreferences = appContext.getSharedPreferences("orion_user_settings", 0)
     private val connectorRuntime = OrionConnectorRuntime(appContext)
+    private val codeEngineeringAuthority = CodeEngineeringSessionAuthority()
+    private val _codeEngineeringState = MutableStateFlow(CodeEngineeringUiState())
+    val codeEngineeringState: StateFlow<CodeEngineeringUiState> = _codeEngineeringState.asStateFlow()
     private val brainRuntime = OrionBrainRuntime(appContext)
     private fun configuredMediaRuntime(): OrionMediaRuntime {
         val mediaPrefs=appContext.getSharedPreferences("orion_media_settings",0)
@@ -264,6 +274,15 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             LlamaCppLanguageModel(context = appContext, modelFile = ModelManager.llmModelFile(appContext.filesDir))
         }
         HybridLanguageModel(appContext, localModel)
+    }
+    private val codeEngineeringService by lazy {
+        val githubApi = GitHubApiClient(connectorRuntime.githubCredentials, connectorRuntime.githubAuthenticator)
+        GitHubCodeEngineeringService(
+            api = githubApi,
+            workspace = GitHubCodeWorkspace(githubApi),
+            authority = codeEngineeringAuthority,
+            generator = LocalModelCodePatchGenerator(languageModel)
+        )
     }
     private val speechSynthesizer = SherpaOnnxSpeechSynthesizer(
         filesDir = appContext.filesDir
@@ -462,6 +481,58 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             }
             is PlanProposalParseResult.Invalid -> parsed
         }
+    }
+
+    /** Starts a repository-scoped programming session only after explicit user confirmation. */
+    fun startCodeEngineeringSession(
+        repository: String,
+        baseBranch: String,
+        workBranch: String,
+        task: String,
+        userConfirmed: Boolean
+    ): Job = viewModelScope.launch(Dispatchers.IO) {
+        _codeEngineeringState.value = CodeEngineeringUiState(isWorking = true)
+        codeEngineeringService.startSession(repository, baseBranch, workBranch, task, userConfirmed)
+            .fold(
+                onSuccess = { session -> _codeEngineeringState.value = CodeEngineeringUiState(session = session) },
+                onFailure = { error -> _codeEngineeringState.value = CodeEngineeringUiState(error = error.message ?: "No se pudo iniciar la sesión.") }
+            )
+    }
+
+    /** Reads only the selected files and asks the configured local/hybrid model for a typed patch. */
+    fun prepareCodeEngineeringChange(
+        session: CodeEngineeringSession,
+        task: String,
+        selectedPaths: List<String>
+    ): Job = viewModelScope.launch(Dispatchers.IO) {
+        _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = true, error = null)
+        codeEngineeringService.prepare(session, task, selectedPaths).fold(
+            onSuccess = { prepared -> _codeEngineeringState.value = CodeEngineeringUiState(session = session, preparedChange = prepared) },
+            onFailure = { error -> _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = false, error = error.message ?: "No se pudo preparar el cambio.") }
+        )
+    }
+
+    /** The caller must display the prepared diff and pass its digest after a fresh explicit approval. */
+    fun commitApprovedCodeEngineeringChange(
+        session: CodeEngineeringSession,
+        reviewedDiffDigest: String,
+        userConfirmedExactDiff: Boolean
+    ): Job = viewModelScope.launch(Dispatchers.IO) {
+        val prepared = _codeEngineeringState.value.preparedChange
+        if (prepared == null) {
+            _codeEngineeringState.value = _codeEngineeringState.value.copy(error = "No hay ningún diff preparado para aprobar.")
+            return@launch
+        }
+        _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = true, error = null)
+        codeEngineeringService.commitApproved(session, prepared, userConfirmedExactDiff, reviewedDiffDigest).fold(
+            onSuccess = { result -> _codeEngineeringState.value = CodeEngineeringUiState(session = session, lastCommitSha = result.commitSha) },
+            onFailure = { error -> _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = false, error = error.message ?: "No se pudo aplicar el cambio.") }
+        )
+    }
+
+    fun revokeCodeEngineeringSession(session: CodeEngineeringSession) {
+        codeEngineeringService.revoke(session)
+        _codeEngineeringState.value = CodeEngineeringUiState()
     }
 
     /** Each invocation requires fresh approval for every unfinished protected step. */
