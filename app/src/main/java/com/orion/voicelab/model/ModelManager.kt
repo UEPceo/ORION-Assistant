@@ -357,6 +357,19 @@ internal object ResumableHttpDownloader {
     private const val MB = 1024L * 1024L
 }
 
+data class ProfileModelArtifact(
+    val profileId: String,
+    val modelId: String,
+    val directoryName: String,
+    val fileName: String,
+    val downloadUrl: String,
+    val sha256: String,
+    val approximateDownloadBytes: Long,
+    val minimumFreeBytes: Long,
+    val contextTokens: Int,
+    val license: String
+)
+
 object ModelManager {
 
     // 1. ASR: Moonshine Base ES v2 (sherpa-onnx) — sin checksum.txt oficial publicado en tag asr-models
@@ -390,6 +403,110 @@ object ModelManager {
     fun llmDirectory(filesDir: File): File = File(filesDir, "models/$LLM_DIR_NAME")
 
     fun llmModelFile(filesDir: File): File = File(llmDirectory(filesDir), LLM_FILE_NAME)
+
+    /**
+     * Pinned GGUF artifacts for the three upper offline profiles.
+     * SHA-256 is checked before activation; a changed upstream file fails closed.
+     */
+    val PROFILE_LLM_ARTIFACTS: Map<String, ProfileModelArtifact> = listOf(
+        ProfileModelArtifact(
+            profileId = "balanced",
+            modelId = "Qwen2.5-3B-Instruct Q4_K_M",
+            directoryName = "qwen2.5-3b-instruct-q4_k_m",
+            fileName = "qwen2.5-3b-instruct-q4_k_m.gguf",
+            downloadUrl = "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf",
+            sha256 = "626b4a6678b86442240e33df819e00132d3ba7dddfe1cdc4fbb18e0a9615c62d",
+            approximateDownloadBytes = 2_100L * MB,
+            minimumFreeBytes = 3_000L * MB,
+            contextTokens = 4096,
+            license = "Apache 2.0"
+        ),
+        ProfileModelArtifact(
+            profileId = "powerful",
+            modelId = "Qwen2.5-7B-Instruct Q4_K_M",
+            directoryName = "qwen2.5-7b-instruct-q4_k_m",
+            fileName = "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+            downloadUrl = "https://huggingface.co/lmstudio-community/Qwen2.5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+            sha256 = "3e357ab3eda2c442f25c0080bb8998eedc05fd16ce1728eacff9ccc5c3d240c6",
+            approximateDownloadBytes = 4_680L * MB,
+            minimumFreeBytes = 6_000L * MB,
+            contextTokens = 4096,
+            license = "Apache 2.0"
+        ),
+        ProfileModelArtifact(
+            profileId = "flagship",
+            modelId = "Qwen2.5-14B-Instruct Q3_K_M",
+            directoryName = "qwen2.5-14b-instruct-q3_k_m",
+            fileName = "Qwen2.5-14B-Instruct-Q3_K_M.gguf",
+            downloadUrl = "https://huggingface.co/bartowski/Qwen2.5-14B-Instruct-GGUF/resolve/aec812d74efef2791fb7ae2e55d84c14f97ef3fb/Qwen2.5-14B-Instruct-Q3_K_M.gguf",
+            sha256 = "2f68ac3ba018f7de7641229f19adafde5e59d02bbf5651fdbcc510bb9f3facca",
+            approximateDownloadBytes = 7_340L * MB,
+            minimumFreeBytes = 9_000L * MB,
+            contextTokens = 2048,
+            license = "Apache 2.0 (modelo base Qwen2.5)"
+        )
+    ).associateBy { it.profileId }
+
+    fun profileArtifact(profileId: String): ProfileModelArtifact? =
+        PROFILE_LLM_ARTIFACTS[profileId]
+
+    fun profileModelFile(filesDir: File, profileId: String): File {
+        val artifact = requireNotNull(profileArtifact(profileId)) { "Perfil LLM desconocido: $profileId" }
+        return File(File(filesDir, "models/${artifact.directoryName}"), artifact.fileName)
+    }
+
+    fun isProfileLlmInstalled(filesDir: File, profileId: String): Boolean {
+        val artifact = profileArtifact(profileId) ?: return false
+        val target = profileModelFile(filesDir, profileId)
+        if (!hasGgufMagicHeader(target)) return false
+        return runCatching { ResumableHttpDownloader.sha256Hex(target) == artifact.sha256 }.getOrDefault(false)
+    }
+
+    fun downloadAndInstallProfileLlm(
+        filesDir: File,
+        profileId: String,
+        shouldCancel: () -> Boolean = { Thread.currentThread().isInterrupted },
+        onProgress: (percent: Int, downloadedMb: Long, totalMb: Long) -> Unit
+    ) {
+        val artifact = requireNotNull(profileArtifact(profileId)) { "Perfil LLM desconocido: $profileId" }
+        synchronized(modelLock("llm-profile-$profileId")) {
+            if (isProfileLlmInstalled(filesDir, profileId)) return
+            val target = profileModelFile(filesDir, profileId)
+            val directory = target.parentFile ?: error("Directorio del modelo inválido")
+            check(directory.mkdirs() || directory.isDirectory) { "No se pudo crear el directorio del modelo." }
+            val part = File(downloadsDirectory(filesDir), "${artifact.fileName}.part")
+            val backup = File(directory, "${artifact.fileName}.bak")
+            ResumableHttpDownloader.download(
+                spec = DownloadSpec(
+                    url = artifact.downloadUrl,
+                    destinationPartFile = part,
+                    minRequiredFreeBytes = artifact.minimumFreeBytes,
+                    expectedSha256 = artifact.sha256,
+                    connectTimeoutMs = 30_000,
+                    readTimeoutMs = 120_000,
+                    shouldCancel = shouldCancel
+                ),
+                onProgress = onProgress
+            )
+            check(hasGgufMagicHeader(part)) {
+                part.delete()
+                "El archivo del perfil $profileId no contiene una cabecera GGUF válida."
+            }
+            if (target.exists()) {
+                check(target.renameTo(backup)) { "No se pudo proteger el modelo anterior." }
+            }
+            if (!part.renameTo(target)) {
+                if (backup.exists()) backup.renameTo(target)
+                error("No se pudo activar el modelo $profileId.")
+            }
+            backup.delete()
+            check(isProfileLlmInstalled(filesDir, profileId)) {
+                target.delete()
+                if (backup.exists()) backup.renameTo(target)
+                "La verificación final del modelo $profileId ha fallado."
+            }
+        }
+    }
 
     fun llmBackupFile(filesDir: File): File = File(llmDirectory(filesDir), "$LLM_FILE_NAME.bak")
 
