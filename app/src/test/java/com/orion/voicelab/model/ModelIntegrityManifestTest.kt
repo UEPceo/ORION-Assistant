@@ -41,6 +41,6 @@ class ModelIntegrityManifestTest {
         assertTrue(ModelIntegrityManifest.verifySingleLargeFile(root, digest))
 
         model.appendText("-tampered")
-        assertFalse(ModelIntegrityManifest.verifySingleLargeFile(root))
+        assertFalse(ModelIntegrityManifest.verifySingleLargeFile(root, digest))
     }
 }
