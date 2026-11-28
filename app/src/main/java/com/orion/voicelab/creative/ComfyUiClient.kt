@@ -70,9 +70,12 @@ data class ComfyUiWorkflowTemplate(
             val node=root.optJSONObject(dimensionNodeId)?:throw IllegalArgumentException("Nodo de dimensiones inexistente.")
             val nodeInputs=node.optJSONObject("inputs")?:throw IllegalArgumentException("Nodo de dimensiones sin inputs.")
             require(nodeInputs.has(widthInput)&&nodeInputs.has(heightInput)) { "Inputs de anchura/altura no configurados en el workflow." }
-            val width=768
-            val height=width*parts[1].toInt()/parts[0].toInt()
-            nodeInputs.put(widthInput,width);nodeInputs.put(heightInput,height)
+            val ratio=parts[0].toDouble()/parts[1].toDouble()
+            val width=if(ratio>=1.0)768 else (768*ratio).toInt().coerceAtLeast(256)
+            val height=if(ratio>=1.0)(768/ratio).toInt().coerceAtLeast(256) else 768
+            val alignedWidth=(width/8)*8
+            val alignedHeight=(height/8)*8
+            nodeInputs.put(widthInput,alignedWidth);nodeInputs.put(heightInput,alignedHeight)
         }
         request.durationSeconds?.takeIf { durationNodeId!=null }?.let { seconds ->
             require(seconds in 1..60&&framesPerSecond in 1..60) { "Duración/FPS fuera de límites." }
