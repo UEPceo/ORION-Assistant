@@ -30,21 +30,8 @@ class GoogleMapsOrionConnector(private val context: Context) : OrionConnector {
         }
         val destination = action.arguments["destination"]?.trim().orEmpty()
         if (destination.isBlank()) return ConnectorResult.NeedsUserInput("¿Qué lugar o dirección quieres buscar?")
-        val uri = when (action.operation) {
-            "search_place" -> Uri.parse("https://www.google.com/maps/search/?api=1&query=" + Uri.encode(destination))
-            "navigate" -> {
-                val mode = when (action.arguments["mode"]?.lowercase()) {
-                    "walking", "a pie", "andar" -> "walking"
-                    "transit", "transporte", "transporte público" -> "transit"
-                    else -> "driving"
-                }
-                Uri.parse(
-                    "https://www.google.com/maps/dir/?api=1&destination=" + Uri.encode(destination) +
-                        "&travelmode=" + mode
-                )
-            }
-            else -> return ConnectorResult.Failure("Operación de Maps no disponible.", false)
-        }
+        val uri = buildGoogleMapsUri(action.operation, destination, action.arguments["mode"])
+            ?: return ConnectorResult.Failure("Operación de Maps no disponible.", false)
         return try {
             val intent = Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
@@ -177,3 +164,19 @@ internal fun isAllowedPescaIaUrl(address: String): Boolean = runCatching {
     parsed.protocol.equals("https", ignoreCase = true) &&
         parsed.host.lowercase() in setOf("pescaisurfcasting.company", "www.pescaisurfcasting.company")
 }.getOrDefault(false)
+
+internal fun buildGoogleMapsUri(operation: String, destination: String, requestedMode: String?): Uri? {
+    if (destination.isBlank()) return null
+    return when (operation) {
+        "search_place" -> Uri.parse("https://www.google.com/maps/search/?api=1&query=" + Uri.encode(destination))
+        "navigate" -> {
+            val mode = when (requestedMode?.lowercase()) {
+                "walking", "a pie", "andar" -> "walking"
+                "transit", "transporte", "transporte público" -> "transit"
+                else -> "driving"
+            }
+            Uri.parse("https://www.google.com/maps/dir/?api=1&destination=" + Uri.encode(destination) + "&travelmode=" + mode)
+        }
+        else -> null
+    }
+}
