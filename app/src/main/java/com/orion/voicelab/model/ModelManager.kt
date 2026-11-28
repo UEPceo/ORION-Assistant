@@ -553,8 +553,6 @@ object ModelManager {
         val integrityRoot = llmDirectory(filesDir)
         val manifest = File(integrityRoot, ".orion-integrity-v1")
         if (!manifest.isFile) {
-            val actual = runCatching { ResumableHttpDownloader.sha256Hex(targetFile) }.getOrNull() ?: return false
-            if (!actual.equals(LLM_SHA256, ignoreCase = true)) return false
             return runCatching {
                 ModelIntegrityManifest.createSingleFileManifest(integrityRoot, targetFile, LLM_SHA256)
                 ModelIntegrityManifest.verifySingleLargeFile(integrityRoot, LLM_SHA256)
