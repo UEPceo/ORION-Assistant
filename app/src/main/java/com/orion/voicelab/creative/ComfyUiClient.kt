@@ -138,22 +138,30 @@ class ComfyUiClient(private val context:Context, private val config:ComfyUiEndpo
         val type=selected.optString("type","output")
         val query="filename=${encodeQuery(filename)}&subfolder=${encodeQuery(subfolder)}&type=${encodeQuery(type)}"
         val download=connection("/view?$query")
-        val declared=download.getHeaderFieldLong("Content-Length",-1L)
-        require(declared<=MAX_OUTPUT_BYTES) { "La salida supera el límite de descarga." }
-        val ext=filename.substringAfterLast('.', "bin").take(8)
+        val rawExt=filename.substringAfterLast('.',"bin")
+        val ext=rawExt.take(8).filter { it.isLetterOrDigit() }.ifBlank { "bin" }
         val file=File(context.cacheDir,"orion-media-${UUID.randomUUID()}.$ext")
         var total=0L
-        download.inputStream.use { input -> file.outputStream().use { output ->
-            val buffer=ByteArray(8192)
-            while(true) {
-                val count=input.read(buffer); if(count<0) break
-                total+=count
-                require(total<=MAX_OUTPUT_BYTES) { "La salida supera el límite de descarga." }
-                output.write(buffer,0,count)
-            }
-        } }
-        require(total>0L) { "Archivo multimedia vacío." }
-        download.disconnect()
+        try {
+            val code=download.responseCode
+            if(code in 300..399) throw IOException("ComfyUI redirect bloqueado por seguridad.")
+            if(code !in 200..299) throw IOException("ComfyUI HTTP $code al descargar el resultado.")
+            val declared=download.getHeaderFieldLong("Content-Length",-1L)
+            require(declared<=MAX_OUTPUT_BYTES) { "La salida supera el límite de descarga." }
+            download.inputStream.use { input -> file.outputStream().use { output ->
+                val buffer=ByteArray(8192)
+                while(true) {
+                    val count=input.read(buffer); if(count<0) break
+                    total+=count
+                    require(total<=MAX_OUTPUT_BYTES) { "La salida supera el límite de descarga." }
+                    output.write(buffer,0,count)
+                }
+            } }
+            require(total>0L) { "Archivo multimedia vacío." }
+        } catch(error:Throwable) {
+            file.delete()
+            throw error
+        } finally { download.disconnect() }
         ComfyUiOutput(file,mimeForExtension(ext),filename,subfolder)
     }
     suspend fun uploadReference(asset:MediaAsset):String=withContext(Dispatchers.IO) {
