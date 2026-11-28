@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "generatedAt": "2026-11-27",
+  "generatedAt": "2026-11-28",
   "packages": [
     {
       "id": "android-kotlin",
-      "version": 2,
+      "version": 3,
       "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/android-kotlin.json",
-      "sha256": "0f55dce628adebc557b9c28eee1d3f973fbd9eeea9c9860ea63c2644b145e685"
+      "sha256": "247419f9b2a8b4e0151f7d703438b6677dc2bdae969ceff46f7e8232cffd4ec5"
     },
     {
       "id": "python-web",
@@ -22,9 +22,9 @@
     },
     {
       "id": "es-eu-law",
-      "version": 1,
+      "version": 2,
       "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/es-eu-law.json",
-      "sha256": "0ffe3988ac2abdd71c7050a55e78276ae71d37c8ddb6792e199b0d38228a1a2c"
+      "sha256": "36531624e6df26a00d3586279c70b9955d2e0f8f7d41251f9834e0544195e3c3"
     },
     {
       "id": "es-safety",
@@ -34,9 +34,9 @@
     },
     {
       "id": "andalucia-fishing",
-      "version": 2,
+      "version": 3,
       "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/andalucia-fishing.json",
-      "sha256": "43841a4a4637b88cd2d1cdc2e2155c097c6b07bc044e514871d34dc5c4f5f9e9"
+      "sha256": "f633d53b797457c5a13be7477e31e0c03b56dd952aa19fd77f9279c78c21e55c"
     },
     {
       "id": "computer-science",
@@ -91,6 +91,12 @@
       "version": 1,
       "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/general-knowledge.json",
       "sha256": "344de852e0c8bf2ebd9956ea4b6eac56b8902bef42821f871c621484a65f4bac"
+    },
+    {
+      "id": "calendar-productivity",
+      "url": "https://raw.githubusercontent.com/UEPceo/ORION-Assistant/main/app/src/main/assets/knowledge_packs/updates/calendar-productivity.json",
+      "version": 1,
+      "sha256": "c158a808511438cf28d20a94f14da9f69de0e1fd96758cf7b719af8109829ab0"
     }
   ]
 }
