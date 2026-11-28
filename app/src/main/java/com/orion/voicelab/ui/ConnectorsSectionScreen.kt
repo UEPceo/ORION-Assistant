@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,10 +51,12 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun ConnectorsSectionScreen(
+    viewModel: VoiceLabViewModel,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val codeEngineeringState by viewModel.codeEngineeringState.collectAsStateWithLifecycle()
     val credentialStore = remember(context) { AndroidKeystoreConnectorCredentialStore(context) }
     val githubCredentials = remember(credentialStore) { GitHubCredentialManager(credentialStore) }
     val githubAuth = remember { GitHubDeviceFlowAuthenticator() }
@@ -274,7 +277,7 @@ fun ConnectorsSectionScreen(
                                     is GitHubDeviceAuthorizationResult.Authorized -> {
                                         githubCredentials.save(result)
                                         githubConnected = true
-                                        githubStatus = "GitHub App autorizada. ORION puede consultar repositorios, incidencias, commits, archivos y estado de CI en modo lectura."
+                                        githubStatus = "GitHub App autorizada. ORION puede leer repositorios y aplicar cambios revisados en ramas de trabajo, además de abrir pull requests draft."
                                         githubUserCode = null
                                     }
                                     GitHubDeviceAuthorizationResult.AccessDenied -> {
@@ -324,6 +327,15 @@ fun ConnectorsSectionScreen(
             } else {
                 ConnectorProviderCard(connector)
             }
+        }
+        item {
+            CodeEngineeringCard(
+                state = codeEngineeringState,
+                onStartSession = viewModel::startCodeEngineeringSession,
+                onPrepare = viewModel::prepareCodeEngineeringChange,
+                onCommit = viewModel::commitApprovedCodeEngineeringChange,
+                onRevoke = viewModel::revokeCodeEngineeringSession
+            )
         }
     }
 }
