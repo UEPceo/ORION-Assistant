@@ -42,11 +42,7 @@ class OrionBrainRuntime(
         )
         val query = BrainQueryRouter.route(request.topic.ifBlank { page.title })
         val host = java.net.URI(page.canonicalUrl).host?.lowercase().orEmpty()
-        val seed = KnowledgeSourceCatalog.seeds.firstOrNull { candidate ->
-            val seedHost = runCatching { java.net.URI(candidate.url).host?.lowercase().orEmpty() }.getOrDefault("")
-            seedHost.isNotBlank() && (host == seedHost || host.endsWith(".$seedHost")) &&
-                query.domain in candidate.domains
-        }
+        val seed = KnowledgeSourceCatalog.match(page.canonicalUrl, query.domain)
         val authority = seed?.authority ?: EvidenceAuthority.UNKNOWN
         val origin = when (authority) {
             EvidenceAuthority.OFFICIAL_PRIMARY -> LearningOrigin.OFFICIAL_SOURCE
