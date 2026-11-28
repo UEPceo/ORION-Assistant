@@ -61,11 +61,22 @@ class CodeChangeValidatorTest {
     @Test fun blocksCredentialFilesAndPrivateKeyMaterialByPath() {
         listOf(
             ".env", ".env.production", "config/.env.production", "config/local.properties", ".npmrc", "secrets/config.json",
-            ".ssh/id_rsa", ".aws/credentials", "secrets.json",
+            ".ssh/id_rsa", ".aws/credentials", "secrets.json", ".envrc", ".docker/config.json", ".kube/config",
+            ".git-credentials", "terraform.tfstate", "infra/prod.tfvars", "tokens.json",
             "config/service-account-prod.json", "signing/release.p12", "certs/private.pem"
         ).forEach { path ->
             assertFalse("Sensitive path must be blocked: $path", CodeChangeValidator.isSafePath(path))
         }
+    }
+
+    @Test fun rejectsFileDirectoryConflictsInsideSinglePatch() {
+        val proposal = proposal(changes = listOf(
+            CodeFileChange("config", CodeFileOperation.CREATE, "file"),
+            CodeFileChange("config/settings.json", CodeFileOperation.CREATE, "{}")
+        ))
+        val result = CodeChangeValidator.validate(proposal)
+        assertFalse(result.valid)
+        assertTrue(result.errors.any { it.contains("conflictos entre archivo y directorio") })
     }
 
     @Test fun rejectsControlCharactersInPaths() {
