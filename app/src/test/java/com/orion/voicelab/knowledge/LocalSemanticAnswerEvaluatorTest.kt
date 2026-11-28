@@ -119,10 +119,10 @@ class LocalSemanticAnswerEvaluatorTest {
 
     @Test fun duplicateClaimIdsFailClosed() = runBlocking {
         val duplicate = """{"containsFactualClaims":true,"claims":[
-            {"id":"same","text":"Claim one","factual":true,"citationNumbers":[1],"status":"SUPPORTED","confidence":0.99,"supportingSourceNumbers":[1]},
-            {"id":"same","text":"Claim two","factual":true,"citationNumbers":[1],"status":"SUPPORTED","confidence":0.99,"supportingSourceNumbers":[1]}
+            {"id":"same","text":"Claim one","draftSpan":"Claim one","factual":true,"citationNumbers":[1],"status":"SUPPORTED","confidence":0.99,"supportingSourceNumbers":[1]},
+            {"id":"same","text":"Claim two","draftSpan":"Claim two","factual":true,"citationNumbers":[1],"status":"SUPPORTED","confidence":0.99,"supportingSourceNumbers":[1]}
         ]}"""
-        val result = evaluator(duplicate).verify("Question", "Answer [1]", context())
+        val result = evaluator(duplicate).verify("Question", "Claim one. Claim two. [1]", context())
         assertTrue(result.startsWith("No puedo confirmar"))
     }
 
@@ -138,6 +138,15 @@ class LocalSemanticAnswerEvaluatorTest {
         assertEquals("Hola", greeting.verify("Hola", "Hola", context()))
         val omittedFact = greeting.verify("Question", "The documented limit is 25.", context())
         assertTrue(omittedFact.startsWith("No puedo confirmar"))
+    }
+
+    @Test fun twoAtomicClaimsCanCoverOneCompoundSentence() {
+        val draft = "The limit is 25 and the warranty lasts 2 years."
+        val claims = listOf(
+            AtomicAnswerClaim("c1", "The limit is 25", setOf("source-1"), sourceSpan = "The limit is 25"),
+            AtomicAnswerClaim("c2", "The warranty lasts 2 years", setOf("source-1"), sourceSpan = "the warranty lasts 2 years")
+        )
+        assertTrue(AnswerClaimCoverageGuard.check(draft, claims).passed)
     }
 
     @Test fun omittedSecondFactualSentenceFailsClosed() = runBlocking {
