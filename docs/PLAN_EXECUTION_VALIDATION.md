@@ -14,10 +14,10 @@ Este documento separa las garantías cubiertas por código y pruebas automatizad
 - Dependencias: un paso dependiente queda bloqueado si su requisito no termina correctamente.
 - Encadenamiento: `${stepId.output}` y `${stepId.summary}` se resuelven únicamente desde pasos SUCCEEDED; la referencia exige declarar la dependencia y los valores no resolubles bloquean el paso.
 - Revisión previa: el plan se pausa antes de una escritura no autorizada, después de resolver sus entradas, para que el usuario revise el contenido y autorice ese paso.
-- Acciones locales disponibles: creación de tareas, notas y recordatorios mediante el repositorio local, sin necesidad de red y con confirmación contextual.
-- Presupuesto: límite temporal global y reintentos restringidos por idempotencia.
+- Acciones locales disponibles: creación de tareas, notas y recordatorios mediante el repositorio local, sin necesidad de red y con confirmación contextual. Las tareas conservan fecha y hora explícitas; los valores temporales mal formados se rechazan en vez de ignorarse.
+- Presupuesto: límite temporal global; los reintentos automáticos se limitan a razonamiento, búsquedas, lecturas y cálculos. Las escrituras nunca se repiten automáticamente, aunque incluyan una clave de idempotencia.
 
-Los tests de `PlanningContractsTest` cubren encadenamiento de resultados, referencias sin dependencia, pausa para aprobación con entradas resueltas, bloqueo de dependientes y reanudación sin repetir pasos completados.
+Los tests de `PlanningContractsTest` cubren encadenamiento de resultados, referencias sin dependencia, pausa para aprobación con entradas resueltas, bloqueo de dependientes y reanudación sin repetir pasos completados. `LocalTaskPlanStepHandlerTest` cubre persistencia de fecha/hora de tareas, rechazo de valores temporales inválidos y confirmación obligatoria antes de escribir.
 
 ## Pruebas de integración pendientes en dispositivo
 
