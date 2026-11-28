@@ -13,7 +13,8 @@ class BundledKnowledgePackInstallerTest {
     @Test fun installsAllBundledPacksIntoPrivateCorpusAndIsIdempotent() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val store = KnowledgeCorpusStore(context)
-        val ingestion = KnowledgeIngestionService(store, now = { 1795800000000L })
+        val reviewQueue = KnowledgeReviewQueueStore(context, store, nowMs = { 1795800000000L })
+        val ingestion = KnowledgeIngestionService(reviewQueue, now = { 1795800000000L })
         val installer = BundledKnowledgePackInstaller(context, ingestion, store, now = { 1795800000000L })
 
         val first = installer.installIfNeeded()
