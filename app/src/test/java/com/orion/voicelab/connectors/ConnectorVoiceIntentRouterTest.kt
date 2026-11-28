@@ -138,6 +138,15 @@ class ConnectorVoiceIntentRouterTest {
         assertEquals("mareas de Tarifa", routed?.action?.arguments?.get("query"))
     }
 
+
+    @Test
+    fun githubRepositoryListSupportsRequestedPage() {
+        val routed = ConnectorVoiceIntentRouter.route("Lista mis repositorios página 3")
+        assertEquals("list_repositories", routed?.action?.operation)
+        assertEquals("3", routed?.action?.arguments?.get("page"))
+        assertEquals("30", routed?.action?.arguments?.get("limit"))
+    }
+
     @Test
     fun unrelatedTextDoesNotTriggerExternalConnector() {
         assertNull(ConnectorVoiceIntentRouter.route("¿Qué tiempo hace hoy?"))
