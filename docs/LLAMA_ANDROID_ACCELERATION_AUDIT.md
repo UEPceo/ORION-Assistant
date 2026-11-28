@@ -62,3 +62,10 @@ Google publica LiteRT-LM con API Kotlin estable, ejecución local y backends CPU
 ## Ajuste CPU incorporado en ORION
 
 Se añadió `LlamaThreadPolicy`, que replica el criterio conservador de selección automática del JNI del wrapper: 1/2/3 hilos para 1/2/3 núcleos; 2 hilos en equipos de 4 núcleos; máximo 4 en equipos con más núcleos. Antes ORION forzaba hasta 4 hilos incluso en un dispositivo de 4 núcleos, anulando la decisión de 2 hilos del propio runtime. La política se aplica al crear modelos y tiene pruebas unitarias. Es una corrección de configuración CPU, no una afirmación de mejora de tokens/s; el rendimiento térmico y la latencia requieren benchmark real.
+
+
+## Diagnóstico CPU visible en la aplicación
+
+El panel de diagnóstico informa del backend CPU, ABI Android, número de procesadores visibles y número de hilos configurados por ORION. La descripción de kernels se mantiene deliberadamente genérica: el wrapper nativo selecciona variantes ARM según las capacidades detectadas, pero no expone a Kotlin qué variante o microkernel se ha usado en una inferencia concreta. Por tanto, la interfaz no afirma que DotProd o I8MM se hayan ejecutado solo por detectar un dispositivo ARM64.
+
+La configuración de hilos es conservadora y evita saturar dispositivos de cuatro núcleos. El dato es configuración, no un benchmark ni una medición de núcleos de alto rendimiento. La cuantización corresponde al artefacto GGUF fijado para el perfil seleccionado (Q4_K_M en Lite/Balanced/Powerful; Q3_K_M en Flagship según el catálogo actual). La velocidad real debe medirse por perfil y dispositivo usando latencia del primer token, tokens/s, RAM y temperatura; no se declarará una mejora hasta comparar ejecuciones equivalentes.
