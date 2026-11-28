@@ -126,7 +126,8 @@ class ComfyUiClient(private val context:Context, private val config:ComfyUiEndpo
             }
         } }
         require(total>0L) { "Archivo multimedia vacío." }
-        download.disconnect()\n        ComfyUiOutput(file,mimeForExtension(ext),filename,subfolder)
+        download.disconnect()
+        ComfyUiOutput(file,mimeForExtension(ext),filename,subfolder)
     }
     suspend fun uploadReference(asset:MediaAsset):String=withContext(Dispatchers.IO) {
         val resolver=context.contentResolver
