@@ -13,6 +13,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.coroutineContext
 
+private val DOWNLOAD_MUTEX = Mutex()
+
 /**
  * Explicit, optional download manager for the multilingual ONNX encoder.
  * The model is never bundled in the APK and is never downloaded silently.
