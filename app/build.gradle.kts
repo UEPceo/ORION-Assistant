@@ -30,7 +30,7 @@ android {
 
     val localDebugKeystore = file("${rootDir}/debug.keystore")
     val ciDebugKeystorePath = System.getenv("ORION_DEBUG_KEYSTORE_PATH")
-    val ciDebugKeystore = ciDebugKeystorePath?.let(::file)
+    val ciDebugKeystore = ciDebugKeystorePath?.let { file(it) }
     val ciDebugStorePassword = System.getenv("ORION_DEBUG_STORE_PASSWORD")
     val ciDebugKeyAlias = System.getenv("ORION_DEBUG_KEY_ALIAS")
     val ciDebugKeyPassword = System.getenv("ORION_DEBUG_KEY_PASSWORD")
