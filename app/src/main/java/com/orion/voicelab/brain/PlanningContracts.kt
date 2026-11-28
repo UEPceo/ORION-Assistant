@@ -54,6 +54,13 @@ object PlanValidator {
                 if (item.connectorId != null || !item.connectorOperation.isNullOrBlank()) errors += "El paso local ${item.id} no puede declarar un conector."
                 if (item.connectorArguments["title"].isNullOrBlank() && item.kind != PlanStepKind.LOCAL_CREATE_NOTE) errors += "El paso local ${item.id} necesita título."
                 if (item.kind == PlanStepKind.LOCAL_CREATE_REMINDER && item.connectorArguments["reminderAtMs"].isNullOrBlank()) errors += "El recordatorio ${item.id} necesita fecha y hora (reminderAtMs)."
+                if (item.kind == PlanStepKind.LOCAL_CREATE_NOTE && item.connectorArguments["content"].isNullOrBlank() && item.connectorArguments["notes"].isNullOrBlank()) errors += "La nota ${item.id} necesita contenido."
+                if (item.kind == PlanStepKind.LOCAL_CREATE_REMINDER) {
+                    val rawReminder = item.connectorArguments["reminderAtMs"].orEmpty()
+                    val timestamp = rawReminder.toLongOrNull()
+                    if (timestamp != null && timestamp <= System.currentTimeMillis()) errors += "El recordatorio ${item.id} debe estar en el futuro."
+                    if (timestamp == null && PlanOutputReferences.find(listOf(rawReminder)).isEmpty()) errors += "El recordatorio ${item.id} tiene una fecha inválida."
+                }
                 val allowed = when (item.kind) {
                     PlanStepKind.LOCAL_CREATE_TASK -> setOf("title", "description", "notes", "category", "priority", "dueDateEpochDay", "dueTimeMinutes")
                     PlanStepKind.LOCAL_CREATE_NOTE -> setOf("title", "content", "notes", "category")
