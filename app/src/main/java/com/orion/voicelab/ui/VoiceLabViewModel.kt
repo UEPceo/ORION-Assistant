@@ -309,8 +309,14 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 recentPhoneCalls = latestPhoneCallRecords,
                 activeTasks = latestTasks
             )
-            val brainContext = withContext(Dispatchers.IO) {
-                brainRuntime.retrieve(userText)
+            val brainPrompt = withContext(Dispatchers.IO) {
+                try {
+                    BrainPromptComposer.compose(brainRuntime.retrieve(userText))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    "CONOCIMIENTO LOCAL NO DISPONIBLE EN ESTE TURNO: continúa la conversación con el contexto disponible, no afirmes haber consultado fuentes y comunica la limitación solo si afecta a la respuesta."
+                }
             }
             val creativeSkill = CreativeSkillRouter.route(userText)
             val mediaStatus = when (creativeSkill) {
@@ -340,12 +346,12 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 systemPrompt = buildString {
                     append(baseContext.systemPrompt)
                     append("\n\n")
-                    append(BrainPromptComposer.compose(brainContext))
-                    append("\\n\\n")
+                    append(brainPrompt)
+                    append("\n\n")
                     append(ModelProfilePromptComposer.compose(LanguageModelProfileCatalog.byId(languageModel.profileId) ?: LanguageModelProfileCatalog.profiles.first()))
                     val planningGuidance = PlanningPromptComposer.compose(userText)
                     if (planningGuidance.isNotBlank()) {
-                        append("\\n\\n")
+                        append("\n\n")
                         append(planningGuidance)
                     }
                     if (creativeContext.isNotBlank()) {
