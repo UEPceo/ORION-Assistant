@@ -33,7 +33,8 @@ interface KnowledgeReviewQueue {
 class KnowledgeReviewQueueStore(
     context: Context,
     private val corpus: KnowledgeRepository,
-    private val nowMs: () -> Long = System::currentTimeMillis
+    private val nowMs: () -> Long = System::currentTimeMillis,
+    private val regressionGate: KnowledgeCorpusRegressionGate = KnowledgeCorpusRegressionGate(corpus, nowMs)
 ) : KnowledgeReviewQueue {
     private val root = context.applicationContext.filesDir
     private val queueFile = AtomicFile(File(root, "orion-knowledge-review.json"))
@@ -107,6 +108,14 @@ class KnowledgeReviewQueueStore(
                     requiresPublishedDate = requiresPublishedDate
                 )
                 if (verification.verdict != KnowledgeVerdict.SUPPORTED) return@withLock false
+            }
+            val regression = regressionGate.evaluate(item.document)
+            if (!regression.passed) {
+                val detail = regression.regressions.take(3).joinToString("; ")
+                    .ifBlank { "la puntuación de recuperación ha empeorado" }
+                throw IllegalStateException(
+                    "Publicación bloqueada por la suite de regresión (${"%.3f".format(java.util.Locale.ROOT, regression.baselineScore)} → ${"%.3f".format(java.util.Locale.ROOT, regression.candidateScore)}): $detail"
+                )
             }
             val previous = corpus.get(id)
             if (previous != null) appendHistory(id, previous)
