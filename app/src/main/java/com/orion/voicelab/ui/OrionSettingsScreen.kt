@@ -538,9 +538,14 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
     var imageWorkflow by remember { mutableStateOf(prefs.getString("image_workflow","").orEmpty()) }
     var imageNode by remember { mutableStateOf(prefs.getString("image_prompt_node","").orEmpty()) }
     var imageNegativeNode by remember { mutableStateOf(prefs.getString("image_negative_node","").orEmpty()) }
+    var imageDimensionNode by remember { mutableStateOf(prefs.getString("image_dimension_node","").orEmpty()) }
     var videoWorkflow by remember { mutableStateOf(prefs.getString("video_workflow","").orEmpty()) }
     var videoNode by remember { mutableStateOf(prefs.getString("video_prompt_node","").orEmpty()) }
     var videoNegativeNode by remember { mutableStateOf(prefs.getString("video_negative_node","").orEmpty()) }
+    var videoDimensionNode by remember { mutableStateOf(prefs.getString("video_dimension_node","").orEmpty()) }
+    var videoDurationNode by remember { mutableStateOf(prefs.getString("video_duration_node","").orEmpty()) }
+    var videoDurationInput by remember { mutableStateOf(prefs.getString("video_duration_input","length").orEmpty()) }
+    var videoFps by remember { mutableStateOf(prefs.getString("video_fps","16").orEmpty()) }
     var message by remember { mutableStateOf("Configura el servidor y carga los workflows exportados en formato API.") }
     val scope=rememberCoroutineScope()
     val imagePicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -566,6 +571,8 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
             OutlinedTextField(imageNegativeNode,onValueChange={imageNegativeNode=it},label={Text("Nodo negativo (opcional)")},modifier=Modifier.weight(1f),singleLine=true)
         }
         Button(onClick={imagePicker.launch(arrayOf("application/json","text/plain"))},modifier=Modifier.fillMaxWidth()) { Text(if(imageWorkflow.isBlank()) "Importar workflow API de imagen" else "Cambiar workflow de imagen") }
+        OutlinedTextField(imageDimensionNode,onValueChange={imageDimensionNode=it},label={Text("Nodo dimensiones (opcional)")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+        Text("Configura el nodo que contiene width y height para que ORION ajuste la relación de aspecto.",style=MaterialTheme.typography.bodySmall)
         Text(if(imageWorkflow.isBlank()) "No se ha importado workflow de imagen." else "Workflow de imagen importado (${imageWorkflow.length} caracteres).",style=MaterialTheme.typography.bodySmall)
         Text("Vídeo · Wan",fontWeight=FontWeight.SemiBold)
         Row(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.fillMaxWidth()) {
@@ -573,16 +580,23 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
             OutlinedTextField(videoNegativeNode,onValueChange={videoNegativeNode=it},label={Text("Nodo negativo (opcional)")},modifier=Modifier.weight(1f),singleLine=true)
         }
         Button(onClick={videoPicker.launch(arrayOf("application/json","text/plain"))},modifier=Modifier.fillMaxWidth()) { Text(if(videoWorkflow.isBlank()) "Importar workflow API de vídeo" else "Cambiar workflow de vídeo") }
+        OutlinedTextField(videoDimensionNode,onValueChange={videoDimensionNode=it},label={Text("Nodo dimensiones (opcional)")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+        OutlinedTextField(videoDurationNode,onValueChange={videoDurationNode=it},label={Text("Nodo duración/frames (opcional)")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+        Row(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.fillMaxWidth()) {
+            OutlinedTextField(videoDurationInput,onValueChange={videoDurationInput=it},label={Text("Input frames")},modifier=Modifier.weight(1f),singleLine=true)
+            OutlinedTextField(videoFps,onValueChange={videoFps=it.filter(Char::isDigit).take(2)},label={Text("FPS")},modifier=Modifier.weight(1f),singleLine=true)
+        }
+        Text("Opcional: asigna el nodo de frames para adaptar la duración solicitada. Sin él, la duración depende del workflow.",style=MaterialTheme.typography.bodySmall)
         Text(if(videoWorkflow.isBlank()) "No se ha importado workflow de vídeo." else "Workflow de vídeo importado (${videoWorkflow.length} caracteres).",style=MaterialTheme.typography.bodySmall)
         Button(onClick={
             runCatching {
                 if(endpoint.isNotBlank()) ComfyUiEndpointConfig(endpoint).normalizedBaseUrl()
-                if(imageWorkflow.isNotBlank()) ComfyUiWorkflowTemplate(imageWorkflow,imageNode,negativePromptNodeId=imageNegativeNode.ifBlank { null }).build(MediaGenerationRequest("ORION validation prompt"))
-                if(videoWorkflow.isNotBlank()) ComfyUiWorkflowTemplate(videoWorkflow,videoNode,negativePromptNodeId=videoNegativeNode.ifBlank { null }).build(MediaGenerationRequest("ORION validation prompt"))
+                if(imageWorkflow.isNotBlank()) ComfyUiWorkflowTemplate(imageWorkflow,imageNode,negativePromptNodeId=imageNegativeNode.ifBlank { null },dimensionNodeId=imageDimensionNode.ifBlank { null }).build(MediaGenerationRequest("ORION validation prompt","", "1:1"))
+                if(videoWorkflow.isNotBlank()) ComfyUiWorkflowTemplate(videoWorkflow,videoNode,negativePromptNodeId=videoNegativeNode.ifBlank { null },dimensionNodeId=videoDimensionNode.ifBlank { null },durationNodeId=videoDurationNode.ifBlank { null },durationInput=videoDurationInput.ifBlank { "length" },framesPerSecond=videoFps.toIntOrNull() ?: 16).build(MediaGenerationRequest("ORION validation prompt","", "16:9",5))
                 prefs.edit().putString("endpoint",endpoint.trim()).putString("image_workflow",imageWorkflow)
-                    .putString("image_prompt_node",imageNode.trim()).putString("image_negative_node",imageNegativeNode.trim())
+                    .putString("image_prompt_node",imageNode.trim()).putString("image_negative_node",imageNegativeNode.trim()).putString("image_dimension_node",imageDimensionNode.trim())
                     .putString("video_workflow",videoWorkflow).putString("video_prompt_node",videoNode.trim())
-                    .putString("video_negative_node",videoNegativeNode.trim()).apply()
+                    .putString("video_negative_node",videoNegativeNode.trim()).putString("video_dimension_node",videoDimensionNode.trim()).putString("video_duration_node",videoDurationNode.trim()).putString("video_duration_input",videoDurationInput.trim()).putString("video_fps",videoFps.trim()).apply()
                 message="Configuración guardada. El endpoint no ejecuta nada hasta que ORION autorice la operación."
             }.onFailure { message="No se guardó: ${it.message ?: "configuración inválida"}" }
         },modifier=Modifier.fillMaxWidth()) { Text("Validar y guardar") }
@@ -675,8 +689,8 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
                         runCatching {
                             val runtime=run {
                                 val client=ComfyUiClient(context,ComfyUiEndpointConfig(endpoint))
-                                val images=if(imageWorkflow.isNotBlank()) listOf(ComfyUiImageGenerationProvider(client,ComfyUiWorkflowTemplate(imageWorkflow,imageNode,negativePromptNodeId=imageNegativeNode.ifBlank { null })) else emptyList()
-                                val videos=if(videoWorkflow.isNotBlank()) listOf(ComfyUiVideoGenerationProvider(client,ComfyUiWorkflowTemplate(videoWorkflow,videoNode,negativePromptNodeId=videoNegativeNode.ifBlank { null })) else emptyList()
+                                val images=if(imageWorkflow.isNotBlank()) listOf(ComfyUiImageGenerationProvider(client,ComfyUiWorkflowTemplate(imageWorkflow,imageNode,negativePromptNodeId=imageNegativeNode.ifBlank { null },dimensionNodeId=imageDimensionNode.ifBlank { null })) else emptyList()
+                                val videos=if(videoWorkflow.isNotBlank()) listOf(ComfyUiVideoGenerationProvider(client,ComfyUiWorkflowTemplate(videoWorkflow,videoNode,negativePromptNodeId=videoNegativeNode.ifBlank { null },dimensionNodeId=videoDimensionNode.ifBlank { null },durationNodeId=videoDurationNode.ifBlank { null },durationInput=videoDurationInput.ifBlank { "length" },framesPerSecond=videoFps.toIntOrNull() ?: 16)) else emptyList()
                                 OrionMediaRuntime(imageProviders=images,videoProviders=videos)
                             }
                             val executor=MediaGenerationConsentExecutor(runtime,consentGate,{true})
