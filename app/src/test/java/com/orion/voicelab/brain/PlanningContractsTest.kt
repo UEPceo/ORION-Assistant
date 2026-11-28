@@ -157,4 +157,40 @@ class PlanningContractsTest {
         assertTrue(validation.errors.any { it.contains("credencial") })
     }
 
+
+    @Test fun resolvesChainedOutputsOnlyFromSucceededDependencies() {
+        val plan = OrionPlan("chain", "read and use output", listOf(
+            PlannedStep("lookup", PlanStepKind.READ, "Lookup", "", PlanRisk.LOW),
+            PlannedStep("create", PlanStepKind.CREATE_DRAFT, "Draft", "", PlanRisk.HIGH,
+                dependsOn = setOf("lookup"), connectorArguments = mapOf("body" to "Found ${lookup.output}"))
+        ))
+        var passed = ""
+        val result = runBlocking {
+            PlanExecutionCoordinator().execute(plan, setOf("create")) { step, _ ->
+                if (step.id == "lookup") StepExecution(StepStatus.SUCCEEDED, "Located item", "ref-123")
+                else {
+                    passed = step.connectorArguments["body"].orEmpty()
+                    StepExecution(StepStatus.SUCCEEDED, "draft done")
+                }
+            }
+        }
+        assertEquals("Found ref-123", passed)
+        assertEquals(PlanStatus.COMPLETED, result.status)
+    }
+
+    @Test fun rejectsOutputReferenceWithoutDependencyAndRequiresApprovalForLocalWrites() {
+        val badChain = OrionPlan("bad-chain", "bad", listOf(
+            PlannedStep("source", PlanStepKind.READ, "Source", "", PlanRisk.LOW),
+            PlannedStep("target", PlanStepKind.READ, "Target", "", PlanRisk.LOW,
+                connectorArguments = mapOf("query" to "${source.output}"))
+        ))
+        assertTrue(PlanValidator.validate(badChain).errors.any { it.contains("dependencia") })
+
+        val local = OrionPlan("local", "save note", listOf(
+            PlannedStep("note", PlanStepKind.LOCAL_CREATE_NOTE, "Note", "", PlanRisk.MEDIUM,
+                requiresApproval = false, connectorArguments = mapOf("content" to "test"))
+        ))
+        assertFalse(PlanValidator.validate(local).valid)
+        assertTrue(PlanValidator.validate(local).errors.any { it.contains("confirmación contextual") })
+    }
 }
