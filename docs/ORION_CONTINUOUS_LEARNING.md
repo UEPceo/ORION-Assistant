@@ -1,6 +1,6 @@
 # ORION — Aprendizaje continuo y mantenimiento del conocimiento
 
-Estado: infraestructura de conocimiento y actualización de packs implementada; ciclo general de revisión, versionado y evaluación todavía incompleto.
+Estado: ingesta en cuarentena, revisión explícita, publicación separada, versionado previo y rollback implementados; evaluación automática de respuestas y UI de revisión todavía pendientes.
 
 ## Qué significa aprender
 
@@ -17,18 +17,19 @@ La memoria personal, el conocimiento general y el contenido de proyectos deben s
 - Embeddings ONNX multilingües opcionales, con instalación condicionada a red, batería y espacio.
 - Contratos de evidencia con editor, URL canónica, autoridad, dominio, fecha de recuperación/publicación, hash y jurisdicción.
 - Verificador de evidencia, detección conservadora de conflictos numéricos y estados de información caducada o no corroborada.
-- Ingesta controlada que rechaza texto generado por el propio modelo como evidencia y exige HTTPS y límites de tamaño.
+- Ingesta controlada que rechaza texto generado por el propio modelo, exige HTTPS y límites de tamaño y envía los candidatos a una bandeja persistente separada del corpus activo.
+- Publicación verificada solo tras aprobación explícita y comprobación de la política de evidencia; los candidatos débiles solo pueden publicarse marcados como no verificados.
+- Rechazo explícito, historial limitado de versiones anteriores y rollback por documento. Los packs incluidos en el APK siguen una ruta separada de instalación prevalidada.
 - Actualizaciones de los packs principales se aplazan hasta que ASR, LLM y TTS estén instalados, para no competir con el primer arranque.
 
 ## Hallazgos y límites actuales
 
 1. La actualización semanal está centrada en los packs declarados en un manifiesto; no es un rastreador universal de Internet ni aprende automáticamente de cada conversación.
 2. El modelo no reentrena sus pesos. El conocimiento nuevo se incorpora al corpus recuperable.
-3. `KnowledgeIngestionService` persiste documentos que reciben `ACCEPT_FOR_REVIEW`; el nombre sugiere una cola de revisión, pero no existe todavía un flujo completo de revisión humana antes de incorporarlos al corpus. Hay que corregir esa semántica.
-4. Las correcciones del usuario sin aprobación se guardan como no verificadas; falta una bandeja de revisión y una UI clara para aprobar, corregir, rechazar o comparar versiones.
-5. El corpus usa hash de contenido y escritura atómica, pero falta un historial completo de versiones por documento, comparación de cambios y rollback explícito.
-6. La detección automática de conflictos es deliberadamente limitada; no demuestra que dos afirmaciones sean equivalentes ni que una fuente sea correcta.
-7. No existe aún una suite de regresión de respuestas que mida precisión, citas, frescura y calidad antes/después de cada actualización.
+3. La bandeja persistente y las operaciones de aprobación/rechazo/publicación no verificada están implementadas en `KnowledgeReviewQueueStore`; la interfaz de revisión todavía no está conectada a Ajustes.
+4. El historial conserva hasta diez versiones previas por documento y permite rollback explícito. No sustituye una auditoría de cambios más amplia ni sincronización entre dispositivos.
+5. La detección automática de conflictos sigue siendo deliberadamente limitada; no demuestra que dos afirmaciones sean equivalentes ni que una fuente sea correcta.
+6. Falta una suite de regresión de respuestas que mida precisión, citas, frescura y calidad antes/después de cada actualización.
 
 ## Ciclo objetivo de aprendizaje
 
@@ -62,4 +63,4 @@ Los resultados de compilación y tests son evidencia del estado de un commit con
 
 ## Criterios de aceptación
 
-El aprendizaje continuo se considerará operativo cuando una fuente nueva pueda pasar por captura, cuarentena, verificación, revisión, publicación y rollback; cuando una corrección quede trazable; y cuando una actualización ejecute una suite de regresión sin ocultar fallos ni convertir evidencia débil en información verificada.
+La captura, cuarentena, aprobación/rechazo, publicación verificada/no verificada y rollback tienen ya contratos e implementación local. El aprendizaje continuo completo no se declara terminado hasta conectar la UI de revisión y ejecutar una suite de regresión sin ocultar fallos ni convertir evidencia débil en información verificada.
