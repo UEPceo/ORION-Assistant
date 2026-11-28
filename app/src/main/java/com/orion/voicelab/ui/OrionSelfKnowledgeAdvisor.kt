@@ -58,6 +58,8 @@ object OrionSelfKnowledgeAdvisor {
             appendLine("- Google Keep: envío de texto mediante compartir; no lectura ni sincronización completa de notas.")
             appendLine("- Google Maps: búsqueda de lugares y apertura de navegación en Maps; no navegación autónoma en segundo plano.")
             appendLine("- PescaIA Surfcasting: consulta pública limitada a páginas públicas; no acceso a cuenta privada ni garantía de previsiones dinámicas.")
+            appendLine("PROGRAMACIÓN DE SOFTWARE:")
+            appendLine("- ORION puede explicar conceptos y preparar ejemplos de código en conversación, pero todavía no dispone de un agente de ingeniería integrado para inspeccionar y modificar repositorios, ejecutar compilaciones/pruebas aisladas o crear pull requests. No afirmes que puede completar esas operaciones hasta que el módulo esté implementado.")
             appendLine("DISEÑO Y MULTIMEDIA:")
             appendLine("- Diseño, copy, ideas y guiones/storyboards: puede preparar contenido en texto.")
             appendLine("- Generación y análisis real de imágenes/vídeo: arquitectura prevista, pero proveedores y pasarela requieren configuración; no afirmar que ya genera o analiza archivos.")
