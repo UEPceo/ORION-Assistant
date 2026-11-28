@@ -11,6 +11,7 @@ class OrionApplication : Application() {
         OrionCrashDiagnostics.install(this)
         OrionCrashDiagnostics.recordHistoricalProcessExits(this)
         com.orion.voicelab.knowledge.KnowledgePackUpdateScheduler.schedule(this)
+        com.orion.voicelab.knowledge.NeuralEmbeddingAutoInstallScheduler.schedule(this)
     }
 
     override fun onTrimMemory(level: Int) {
