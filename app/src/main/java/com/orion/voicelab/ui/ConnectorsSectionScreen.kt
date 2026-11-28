@@ -41,6 +41,7 @@ import com.google.android.gms.auth.api.identity.AuthorizationResult
 import com.google.android.gms.auth.api.identity.RevokeAccessRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.Scope
+import com.google.android.gms.tasks.Tasks
 import com.orion.voicelab.connectors.gmail.GmailCredentialManager
 import com.orion.voicelab.connectors.github.GitHubCredentialManager
 import com.orion.voicelab.connectors.github.GitHubDeviceAuthorizationResult
@@ -56,7 +57,21 @@ fun ConnectorsSectionScreen(
     val credentialStore = remember(context) { AndroidKeystoreConnectorCredentialStore(context) }
     val githubCredentials = remember(credentialStore) { GitHubCredentialManager(credentialStore) }
     val githubAuth = remember { GitHubDeviceFlowAuthenticator() }
-    val gmailCredentials = remember(credentialStore) { GmailCredentialManager(credentialStore) }
+    val gmailCredentials = remember(credentialStore, context) {
+        GmailCredentialManager(credentialStore, silentRefresh = {
+            val request = AuthorizationRequest.builder()
+                .setRequestedScopes(listOf(Scope(GMAIL_READONLY_SCOPE)))
+                .build()
+            val result = Tasks.await(Identity.getAuthorizationClient(context).authorize(request))
+            if (result.hasResolution()) null else {
+                val token = result.accessToken.orEmpty()
+                if (token.isBlank()) null else GmailCredentialManager.RefreshedToken(
+                    token,
+                    result.tokenResponseParams?.getString("expires_in")?.toLongOrNull() ?: 3_600L
+                )
+            }
+        })
+    }
     var gmailConnected by remember { mutableStateOf(false) }
     var gmailBusy by remember { mutableStateOf(false) }
     var gmailStatus by remember { mutableStateOf("No conectado") }
