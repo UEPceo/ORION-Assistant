@@ -13,6 +13,7 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import java.util.concurrent.atomic.AtomicReference
 
 data class RemoteInferenceSettings(
     val enabled: Boolean = false,
@@ -96,6 +97,9 @@ class RemoteInferenceClient(
     private val connectTimeoutMs: Int = 8_000,
     private val readTimeoutMs: Int = 90_000
 ) {
+    private val activeConnection = AtomicReference<HttpURLConnection?>(null)
+    fun cancel() { activeConnection.getAndSet(null)?.disconnect() }
+
     suspend fun generate(systemPrompt: String, history: List<com.orion.voicelab.data.ChatMessage>): LlmGenerationResult =
         withContext(Dispatchers.IO) {
             val normalized = endpoint.trim().trimEnd('/')
@@ -125,6 +129,7 @@ class RemoteInferenceClient(
                 if (apiKey.isNotBlank()) setRequestProperty("Authorization", "Bearer $apiKey")
             }
             val started = System.nanoTime()
+            activeConnection.set(connection)
             try {
                 connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
                 val status = connection.responseCode
@@ -146,6 +151,7 @@ class RemoteInferenceClient(
                 val elapsed = (System.nanoTime() - started) / 1_000_000L
                 LlmGenerationResult(content, elapsed, elapsed, content.split(Regex("\\s+")).size, false)
             } finally {
+                activeConnection.compareAndSet(connection, null)
                 connection.disconnect()
             }
         }
