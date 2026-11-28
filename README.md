@@ -37,7 +37,7 @@
 
 ## Nueva base de conectores — estructura inicial
 
-- Conectores disponibles en esta fase: Gmail y GitHub en lectura; Google Keep mediante envío compartido; Calendario mediante creación revisada por la app de destino; Google Maps mediante búsqueda/navegación por intents; PescaIA mediante consulta limitada de páginas públicas de playas y metodología.
+- Conectores disponibles en esta fase: Gmail en lectura; GitHub permite inspección, creación de ramas, commits atómicos en ramas de trabajo y pull requests draft, con permisos y confirmación; Google Keep mediante envío compartido; Calendario mediante creación revisada por la app de destino; Google Maps mediante búsqueda/navegación por intents; PescaIA mediante consulta limitada de páginas públicas de playas y metodología.
 - Contratos comunes para proveedores, capacidades, estado de conexión, acciones y resultados; registro explícito de adaptadores.
 - Política central para impedir acciones sobre proveedores desconectados y exigir confirmación en operaciones con efectos externos o destructivos.
 - Almacenamiento inicial de credenciales cifradas con AES-256-GCM y clave no exportable protegida por Android Keystore.
@@ -148,15 +148,15 @@ Asistente personal y conversacional de voz en español para Android (`arm64-v8a`
 El núcleo local no requiere claves de proveedores externos ni suscripciones. Las integraciones opcionales acceden a Gmail y GitHub mediante sus APIs oficiales y requieren conexión.
 
 
-## Conectores Gmail y GitHub — primera integración funcional
+## Conectores Gmail y GitHub — integración funcional
 
 - Gmail: búsqueda avanzada, consulta de metadatos/fragmento y lectura del texto plano del correo más reciente o de un mensaje identificado (máximo 3.000 caracteres). No se descargan adjuntos ni se envían mensajes.
-- GitHub: repositorios, incidencias y detalles, commits recientes, listado de archivos/carpetas y estado de ejecuciones de GitHub Actions/CI. Solo lectura.
+- GitHub: repositorios, incidencias, commits, lectura acotada de archivos, estado de CI, creación de ramas, commits atómicos de varios archivos y pull requests draft. Las escrituras requieren confirmación contextual y no apuntan directamente a main/master.
 - El enrutador entiende peticiones en español con varias formulaciones y conserva el último repositorio consultado para preguntas de seguimiento como «¿y los commits?» o «¿cómo va el CI?».
 - Los adaptadores se ejecutan exclusivamente a través de `ConnectorDispatcher`; el LLM no puede inventar ni ejecutar llamadas arbitrarias a APIs.
 - Las acciones externas de escritura quedan bloqueadas hasta una confirmación contextual de un solo uso, ligada a la acción exacta y con caducidad de 60 segundos. Cancelar o cambiar de petición elimina la autorización pendiente.
 - Las credenciales se comparten entre la pantalla de autenticación y los adaptadores de voz mediante Android Keystore. Las peticiones REST tienen timeout y límite de tamaño de respuesta.
-- Los permisos de GitHub deben limitarse a Metadata, Issues, Contents y Actions en lectura, y solo a repositorios seleccionados. Gmail usa `gmail.readonly`.
+- GitHub requiere Metadata en lectura; Contents y Pull requests en lectura/escritura; Issues, Actions y Workflows con los permisos definidos en `docs/CONNECTORS_AUTHENTICATION.md`. La instalación debe incluir todos los repositorios que ORION tenga autorización para gestionar. Gmail usa `gmail.readonly`.
 - Gmail requiere completar la verificación OAuth de Google para distribución pública. GitHub requiere configurar el Client ID de la GitHub App y habilitar Device Flow.
 - Estas integraciones dependen de conexión a Internet y de que los permisos OAuth estén concedidos; el núcleo local de voz sigue funcionando sin conexión.
 
