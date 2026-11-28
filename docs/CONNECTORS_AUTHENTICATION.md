@@ -53,3 +53,11 @@ The debug APK workflow requires:
 - `ORION_DEBUG_STORE_PASSWORD`, `ORION_DEBUG_KEY_ALIAS` and `ORION_DEBUG_KEY_PASSWORD`.
 
 The keystore is used only to sign CI debug APKs. Keep it private in GitHub Actions secrets. The package name and SHA-1 fingerprint must match the Android OAuth client registered in Google Cloud. Release signing remains a separate certificate and needs its own Google Android OAuth client fingerprint if Gmail is enabled in release builds.
+
+## Connector hardening and test coverage
+
+- GitHub repository names and file paths reject traversal segments, encoded separators and ambiguous path components. The action gate no longer marks unimplemented repository/file/PR operations as safe read operations. Repository listing requests explicit owner, collaborator and organization-member affiliations; actual visibility still follows GitHub App installation and granted metadata permissions.
+- GitHub refresh-token rotation is serialized. A transient network failure remains a retryable service failure; only an invalid/expired refresh grant maps to reauthorization.
+- Google Maps navigation uses the documented `https://www.google.com/maps/dir/?api=1` URL and `travelmode=transit` for public transport.
+- PescaIA redirects are followed manually, limited to five hops, HTTPS-only, standard HTTPS port, and exact apex/www host allowlist. The lightweight reader does not execute JavaScript; if static HTML yields almost no text it returns no result instead of inventing content.
+- Automated regression tests cover Gmail silent renewal and metadata-only API results, GitHub refresh concurrency/error classification and repository validation, Maps URL modes and phrase parsing, PescaIA URL allowlisting, and AES-GCM credential persistence/tamper rejection. The Keystore test injects a test AES key to verify the encryption envelope; AndroidKeyStore hardware/provider behavior still requires device-level validation.
