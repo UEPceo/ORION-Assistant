@@ -83,6 +83,7 @@ import com.orion.voicelab.brain.PersistentPlanExecutionService
 import com.orion.voicelab.brain.ConnectorPlanStepRunner
 import com.orion.voicelab.brain.LocalTaskPlanStepHandler
 import com.orion.voicelab.knowledge.BrainPromptComposer
+import com.orion.voicelab.knowledge.BrainTurnContextComposer
 import com.orion.voicelab.memory.ContextPromptBuilder
 import com.orion.voicelab.memory.MemoryCandidateExtractor
 import com.orion.voicelab.model.ModelManager
@@ -342,27 +343,19 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 },
                 context = appContext
             )
+            val modelGuidance = ModelProfilePromptComposer.compose(
+                LanguageModelProfileCatalog.byId(languageModel.profileId) ?: LanguageModelProfileCatalog.profiles.first()
+            )
+            val planningGuidance = PlanningPromptComposer.compose(userText)
             baseContext.copy(
-                systemPrompt = buildString {
-                    append(baseContext.systemPrompt)
-                    append("\n\n")
-                    append(brainPrompt)
-                    append("\n\n")
-                    append(ModelProfilePromptComposer.compose(LanguageModelProfileCatalog.byId(languageModel.profileId) ?: LanguageModelProfileCatalog.profiles.first()))
-                    val planningGuidance = PlanningPromptComposer.compose(userText)
-                    if (planningGuidance.isNotBlank()) {
-                        append("\n\n")
-                        append(planningGuidance)
-                    }
-                    if (creativeContext.isNotBlank()) {
-                        append("\n\n")
-                        append(creativeContext)
-                    }
-                    if (selfKnowledgeContext.isNotBlank()) {
-                        append("\n\n")
-                        append(selfKnowledgeContext)
-                    }
-                }
+                systemPrompt = BrainTurnContextComposer.compose(
+                    basePrompt = baseContext.systemPrompt,
+                    knowledgePrompt = brainPrompt,
+                    modelGuidance = modelGuidance,
+                    planningGuidance = planningGuidance,
+                    creativeContext = creativeContext,
+                    selfKnowledgeContext = selfKnowledgeContext
+                )
             )
         },
         directTurnResponder = { userText ->
