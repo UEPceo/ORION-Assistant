@@ -23,21 +23,27 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
     private val neuralIndex = NeuralEmbeddingIndex(context)
 
     override suspend fun search(query: BrainQuery, limit: Int): List<KnowledgeDocument> =
-        searchInternal(query, limit, additionalDocument = null)
+        searchInternal(query, limit, additionalDocument = null, allowIndexMaintenance = true)
 
     override suspend fun allDocuments(): List<KnowledgeDocument> =
         withContext(Dispatchers.IO) { readAll() }
+
+    override suspend fun searchForRegression(query: BrainQuery, limit: Int): List<KnowledgeDocument> =
+        searchInternal(query, limit, additionalDocument = null, allowIndexMaintenance = false)
 
     override suspend fun searchWithCandidate(
         query: BrainQuery,
         limit: Int,
         candidate: KnowledgeDocument
-    ): List<KnowledgeDocument> = searchInternal(query, limit, candidate)
+    ): List<KnowledgeDocument> = searchInternal(
+        query, limit, candidate, allowIndexMaintenance = false
+    )
 
     private suspend fun searchInternal(
         query: BrainQuery,
         limit: Int,
-        additionalDocument: KnowledgeDocument?
+        additionalDocument: KnowledgeDocument?,
+        allowIndexMaintenance: Boolean
     ): List<KnowledgeDocument> = withContext(Dispatchers.IO) {
             if (limit <= 0) return@withContext emptyList()
             val queryTerms = tokens(query.normalizedText)
@@ -65,13 +71,15 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                 )
             }
             // Candidate overlays are strictly read-only: never add unpublished content to either index.
-            if (additionalDocument == null && documents.any { !semanticIndex.hasDocument(it.evidence.id) }) {
+            if (allowIndexMaintenance && additionalDocument == null &&
+                documents.any { !semanticIndex.hasDocument(it.evidence.id) }
+            ) {
                 semanticIndex.rebuild(documents.map { it.evidence.id to chunksByDocument[it.evidence.id].orEmpty() })
             }
             // Dense vectors are generated only for the active corpus and only when the optional,
             // verified ONNX model is installed. A candidate is scored lexically until publication.
             val neuralQuery = runCatching {
-                if (additionalDocument != null || !neuralIndex.isAvailable()) return@runCatching null
+                if (!allowIndexMaintenance || additionalDocument != null || !neuralIndex.isAvailable()) return@runCatching null
                 val allIndexed = documents.all { document ->
                     val chunks = chunksByDocument[document.evidence.id].orEmpty()
                     neuralIndex.ensureDocument(document.evidence.id, chunks, NeuralEmbeddingIndex.contentFingerprint(chunks))
