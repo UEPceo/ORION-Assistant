@@ -118,7 +118,8 @@ class AnswerGroundingAuditor(
         val factualCount = claimResults.size
         val supportedCount = claimResults.count { it.status == ClaimSupportStatus.SUPPORTED }
         val status = when {
-            factualCount == 0 || supportedCount == 0 -> AnswerGroundingStatus.ABSTAIN
+            factualCount == 0 -> AnswerGroundingStatus.VERIFIED
+            supportedCount == 0 -> AnswerGroundingStatus.ABSTAIN
             supportedCount == factualCount && unsupportedCitations.isEmpty() -> AnswerGroundingStatus.VERIFIED
             else -> AnswerGroundingStatus.PARTIALLY_SUPPORTED
         }

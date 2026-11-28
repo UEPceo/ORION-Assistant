@@ -562,10 +562,10 @@ class ConversationEngine internal constructor(
                 }
 
                 val draftReply = llmResult.text.ifBlank { streamedDisplay.toString().trim() }
-                val verifiedReply = if (draftReply.isBlank()) {
-                    ""
-                } else {
-                    responseVerifier?.invoke(userText, draftReply)?.trim().orEmpty().ifBlank {
+                val verifiedReply = when {
+                    draftReply.isBlank() -> ""
+                    responseVerifier == null -> draftReply
+                    else -> responseVerifier.invoke(userText, draftReply).trim().ifBlank {
                         "No puedo ofrecer esa respuesta como fiable porque no he podido completar su verificación."
                     }
                 }

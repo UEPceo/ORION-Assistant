@@ -41,6 +41,7 @@ class LocalSemanticAnswerEvaluator(
         val parsed = parseAssessment(generated.text, draft, evidence)
             ?: return abstention("El evaluador semántico devolvió un resultado ilegible.")
         assessments.putAll(parsed.second)
+        if (parsed.first.isEmpty() && parsed.third) return draft
         if (parsed.first.isEmpty()) return abstention("No se pudieron identificar afirmaciones verificables.")
         val report = try {
             auditor.audit(parsed.first, evidence)
@@ -77,12 +78,13 @@ class LocalSemanticAnswerEvaluator(
         raw: String,
         draft: String,
         evidence: List<KnowledgeEvidence>
-    ): Pair<List<AtomicAnswerClaim>, Map<String, SemanticJudgeAssessment>>? {
+    ): Triple<List<AtomicAnswerClaim>, Map<String, SemanticJudgeAssessment>, Boolean>? {
         val start = raw.indexOf('{')
         val end = raw.lastIndexOf('}')
         if (start < 0 || end <= start) return null
         val root = runCatching { JSONObject(raw.substring(start, end + 1)) }.getOrNull() ?: return null
         val items = root.optJSONArray("claims") ?: return null
+        val containsFactualClaims = root.optBoolean("containsFactualClaims", true)
         val visibleCitationNumbers = Regex("\\[(\\d{1,2})]").findAll(draft)
             .mapNotNull { it.groupValues.getOrNull(1)?.toIntOrNull() }.toSet()
         val claims = mutableListOf<AtomicAnswerClaim>()
@@ -116,7 +118,7 @@ class LocalSemanticAnswerEvaluator(
                 explanation = item.optString("explanation").take(500)
             )
         }
-        return claims to judgements
+        return Triple(claims, judgements, !containsFactualClaims)
     }
 
     private fun JSONArray?.toIntSet(): Set<Int> {
@@ -155,7 +157,8 @@ class LocalSemanticAnswerEvaluator(
         appendLine("supportingSourceNumbers y contradictingSourceNumbers deben ser números de evidencias anteriores.")
         appendLine("No confundas coincidencia de palabras con implicación semántica. Comprueba sujeto, predicado, cantidades, negación, fechas, ámbito y jurisdicción.")
         appendLine("Si la evidencia no implica la afirmación, usa INSUFFICIENT. Si una evidencia la contradice, usa CONTRADICTED.")
-        appendLine("Devuelve exclusivamente JSON con esta forma: {\"claims\":[{\"id\":\"c1\",\"text\":\"afirmación atómica\",\"factual\":true,\"citationNumbers\":[1],\"status\":\"SUPPORTED|CONTRADICTED|INSUFFICIENT|UNVERIFIABLE\",\"confidence\":0.0,\"supportingSourceNumbers\":[1],\"contradictingSourceNumbers\":[],\"explanation\":\"motivo breve\"}]}")
+        appendLine("Indica containsFactualClaims=false solo si la respuesta no contiene ninguna afirmación factual; no omitas afirmaciones para evitar verificarlas.")
+        appendLine("Devuelve exclusivamente JSON con esta forma: {\"containsFactualClaims\":true,\"claims\":[{\"id\":\"c1\",\"text\":\"afirmación atómica\",\"factual\":true,\"citationNumbers\":[1],\"status\":\"SUPPORTED|CONTRADICTED|INSUFFICIENT|UNVERIFIABLE\",\"confidence\":0.0,\"supportingSourceNumbers\":[1],\"contradictingSourceNumbers\":[],\"explanation\":\"motivo breve\"}]}")
     }
 
     private fun abstention(reason: String): String =
