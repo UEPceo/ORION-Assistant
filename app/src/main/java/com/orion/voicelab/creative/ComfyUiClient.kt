@@ -140,7 +140,15 @@ class ComfyUiClient(private val context:Context, private val config:ComfyUiEndpo
         conn.setRequestProperty("Content-Type","multipart/form-data; boundary=$boundary")
         conn.outputStream.use { out ->
             out.write("--$boundary\r\nContent-Disposition: form-data; name=\"image\"; filename=\"$filename\"\r\nContent-Type: ${asset.mimeType}\r\n\r\n".toByteArray())
-            resolver.openInputStream(asset.uri)?.use { input -> input.copyTo(out) }?:throw IOException("No se pudo leer archivo de referencia.")
+            resolver.openInputStream(asset.uri)?.use { input ->
+                val buffer=ByteArray(8192); var total=0L
+                while(true) {
+                    val count=input.read(buffer); if(count<0) break
+                    total+=count
+                    require(total<=MAX_UPLOAD_BYTES) { "Referencia supera el límite permitido." }
+                    out.write(buffer,0,count)
+                }
+            }?:throw IOException("No se pudo leer archivo de referencia.")
             out.write("\r\n--$boundary\r\nContent-Disposition: form-data; name=\"type\"\r\n\r\ninput\r\n--$boundary--\r\n".toByteArray())
         }
         val result=readResponse(conn)
@@ -150,6 +158,7 @@ class ComfyUiClient(private val context:Context, private val config:ComfyUiEndpo
         val code=conn.responseCode
         val stream=if(code in 200..299) conn.inputStream else conn.errorStream
         val text=stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText().take(2*1024*1024) }.orEmpty()
+        conn.disconnect()
         if(code !in 200..299) throw IOException("ComfyUI HTTP $code: ${text.take(500)}")
         return JSONObject(text)
     }
