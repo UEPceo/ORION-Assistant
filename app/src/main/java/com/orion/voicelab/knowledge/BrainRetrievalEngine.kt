@@ -51,7 +51,10 @@ class BrainRetrievalEngine(
             .map { it.copy(excerpt = it.excerpt.take(maxExcerptChars)) }
         val detectedConflicts = KnowledgeConflictDetector.detect(rankedCandidates)
         val candidates = rankedCandidates.map { document ->
-            val related = detectedConflicts.filter { document.evidence.id in it }.flatMap { it.toList() }.filter { it != document.evidence.id }.toSet()
+            val related = detectedConflicts.asSequence()
+                .filter { (leftId, rightId) -> document.evidence.id == leftId || document.evidence.id == rightId }
+                .map { (leftId, rightId) -> if (leftId == document.evidence.id) rightId else leftId }
+                .toSet()
             document.copy(conflictsWithIds = document.conflictsWithIds + related)
         }
 
