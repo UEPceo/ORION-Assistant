@@ -122,6 +122,25 @@ class BrainCoreTest {
 
 
     @Test
+    fun unclassifiedOriginCannotBePromotedByForgedAuthorityMetadata() {
+        val evidence = KnowledgeEvidence(
+            id = "unclassified-1",
+            title = "Unclassified submission",
+            canonicalUrl = "https://example.org/claim",
+            publisherId = "unknown-publisher",
+            domain = KnowledgeDomain.GENERAL,
+            authority = EvidenceAuthority.OFFICIAL_PRIMARY,
+            retrievedAtMs = 1L,
+            content = "Unverified claim"
+        )
+        val candidate = LearningCandidate(
+            document = KnowledgeDocument(evidence),
+            origin = LearningOrigin.UNCLASSIFIED_SOURCE
+        )
+        assertEquals(LearningDecision.STORE_AS_UNVERIFIED, BrainLearningPolicy.decide(candidate))
+    }
+
+    @Test
     fun unknownSourcesKeepUnclassifiedProvenance() {
         assertEquals(LearningOrigin.UNCLASSIFIED_SOURCE, learningOriginForAuthority(EvidenceAuthority.UNKNOWN))
         assertEquals(LearningOrigin.UNCLASSIFIED_SOURCE, learningOriginForAuthority(EvidenceAuthority.USER_SUPPLIED))
