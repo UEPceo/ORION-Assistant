@@ -189,6 +189,18 @@ class GitHubApiClient(
             }
         }
 
+    suspend fun getBranchHead(repository: String, branch: String): Result<GitHubBranchSummary> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                require(isValidRepository(repository)) { "Repositorio no válido." }
+                require(isSafeBranch(branch)) { "Nombre de rama no válido." }
+                val item = requestObject("/repos/$repository/branches/${encodeBranchPath(branch)}")
+                val sha = item.optJSONObject("commit")?.optString("sha").orEmpty()
+                require(sha.matches(Regex("[a-fA-F0-9]{40}"))) { "GitHub no devolvió el SHA de la rama." }
+                GitHubBranchSummary(item.optString("name", branch), sha)
+            }
+        }
+
     suspend fun getFile(repository: String, path: String, branch: String? = null): Result<GitHubFileContent> =
         withContext(Dispatchers.IO) {
             runCatching {
