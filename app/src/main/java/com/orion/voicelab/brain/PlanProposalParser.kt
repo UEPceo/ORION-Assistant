@@ -96,9 +96,6 @@ object PlanProposalParser {
                         return invalid("Al paso $id le faltan argumentos: ${missingArguments.joinToString()}.")
                     }
                 }
-                if (kind != PlanStepKind.CONNECTOR_READ && kind in connectorKinds) {
-                    return invalid("La generación automática solo admite operaciones de lectura en esta fase.")
-                }
 
                 steps += PlannedStep(
                     id = id,
