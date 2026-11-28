@@ -23,6 +23,7 @@ class CodeEngineeringSessionAuthority(private val nowMs:()->Long=System::current
         return grant
     }
     fun isTaskAuthorized(sessionId:String,task:String):Boolean=runCatching { activeGrant(sessionId).taskDigest==sha256(task.trim()) }.getOrDefault(false)
+    fun isActive(sessionId:String):Boolean=runCatching { activeGrant(sessionId); true }.getOrDefault(false)
     fun approvePatch(sessionId:String,proposal:CodeChangeProposal,expectedHeadSha:String,reviewedDiffDigest:String,userConfirmed:Boolean):Result<CodePatchApproval> = runCatching {
         require(userConfirmed) { "El usuario debe aprobar expresamente el diff." }
         val grant=activeGrant(sessionId)
