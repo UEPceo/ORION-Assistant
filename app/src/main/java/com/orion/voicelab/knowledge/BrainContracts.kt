@@ -31,6 +31,17 @@ interface KnowledgeRepository {
     suspend fun remove(documentId: String)
     suspend fun contains(documentId: String): Boolean
     suspend fun get(documentId: String): KnowledgeDocument? = null
+    suspend fun allDocuments(): List<KnowledgeDocument> = emptyList()
+    suspend fun searchWithCandidate(
+        query: BrainQuery,
+        limit: Int,
+        candidate: KnowledgeDocument
+    ): List<KnowledgeDocument> =
+        (search(query, limit) + candidate.takeIf { it.evidence.domain == query.domain })
+            .filterNotNull()
+            .distinctBy { it.evidence.id }
+            .sortedByDescending { it.relevance }
+            .take(limit.coerceAtLeast(0))
 }
 
 enum class LearningOrigin {
