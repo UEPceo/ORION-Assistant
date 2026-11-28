@@ -3,6 +3,8 @@ package com.orion.voicelab.knowledge
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import java.net.InetAddress
 import org.junit.Test
 
@@ -23,6 +25,25 @@ class SafeWebPageReaderTest {
         assertNull(SafeWebPageReader.resolvePublicAddress("127.0.0.1"))
         assertNull(SafeWebPageReader.resolvePublicAddress("10.0.0.5"))
         assertNotNull(SafeWebPageReader.resolvePublicAddress("8.8.8.8"))
+    }
+
+    @Test
+    fun rejectsIpv6TransitionAndSpecialPurposeAddresses() {
+        listOf(
+            "::1",
+            "fc00::1",
+            "fe80::1",
+            "2001:db8::1",
+            "2001:0:1::1",
+            "2002:7f00:1::1",
+            "64:ff9b::a00:1",
+            "64:ff9b:1::a00:1",
+            "3fff::1"
+        ).forEach { value ->
+            assertTrue("$value must not be accepted as a public destination",
+                SafeWebPageReader.isNonPublicAddress(InetAddress.getByName(value)))
+        }
+        assertFalse(SafeWebPageReader.isNonPublicAddress(InetAddress.getByName("2001:4860:4860::8888")))
     }
 
     @Test
