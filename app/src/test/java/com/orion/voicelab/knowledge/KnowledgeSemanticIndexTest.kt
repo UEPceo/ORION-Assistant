@@ -25,4 +25,12 @@ class KnowledgeSemanticIndexTest {
         restored.remove("security-doc")
         assertFalse(restored.hasDocument("security-doc"))
     }
+    @Test fun associativeGraphImprovesCrossDomainRecall() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val index = KnowledgeSemanticIndex(context)
+        index.upsert("weather-fishing-bridge", listOf("meteorología, viento y oleaje en la costa"))
+        assertTrue(index.score("weather-fishing-bridge", "pesca surfcasting") > 0.0)
+        index.remove("weather-fishing-bridge")
+    }
+
 }
