@@ -41,7 +41,6 @@ class OrionBrainRuntime(
             message = "No se pudo leer la página de forma segura. No se ha incorporado."
         )
         val query = BrainQueryRouter.route(request.topic.ifBlank { page.title })
-        val host = java.net.URI(page.canonicalUrl).host?.lowercase().orEmpty()
         val seed = KnowledgeSourceCatalog.match(page.canonicalUrl, query.domain)
         val authority = seed?.authority ?: EvidenceAuthority.UNKNOWN
         val origin = when (authority) {
