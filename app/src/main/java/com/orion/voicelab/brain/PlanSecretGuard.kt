@@ -11,7 +11,7 @@ object PlanSecretGuard {
         Regex("\\bAIza[0-9A-Za-z_-]{30,}\\b"),
         Regex("\\bsk-[A-Za-z0-9_-]{20,}\\b"),
         Regex("(?i)\\bBearer\\s+[A-Za-z0-9._~+/=-]{12,}"),
-        Regex("-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+        Regex("-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\\s\\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
         Regex("(?i)\\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd)\\s*[:=]\\s*[\"']?[^\\s\"']{8,}")
     )
     private val sensitiveKeyMarkers = listOf(
