@@ -700,7 +700,7 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
             AlertDialog(
                 onDismissRequest={consentGate.cancel(pending.id);pendingGeneration=null},
                 title={Text("Confirmar generación remota")},
-                text={Text("ORION enviará el prompt a ${pending.destination}. Operación: ${if(pending.kind==MediaGenerationKind.IMAGE)"generar imagen" else "generar vídeo"}. Se enviarán también ${pending.references.size} imagen(es) de referencia: ${pending.references.joinToString { it.displayName.orEmpty() }}. ¿Confirmas?")},
+                text={Text("ORION enviará el prompt a ${pending.destination}. Operación: ${if(pending.kind==MediaGenerationKind.IMAGE)"generar imagen" else "generar vídeo"}. Prompt: ${pending.prompt.take(500)}. Se enviarán también ${pending.references.size} imagen(es) de referencia: ${pending.references.joinToString { it.displayName.orEmpty() }}. ¿Confirmas?")},
                 confirmButton={TextButton(onClick={
                     pendingGeneration=null
                     generating=true
