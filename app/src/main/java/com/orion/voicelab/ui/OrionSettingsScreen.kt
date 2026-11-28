@@ -102,10 +102,12 @@ fun OrionSettingsScreen(
     var embeddingDownloading by remember { mutableStateOf(false) }
     var embeddingTesting by remember { mutableStateOf(false) }
     var embeddingProgress by remember { mutableStateOf(0f) }
-    var embeddingStatus by remember { mutableStateOf("El encoder es opcional y no se descarga automáticamente.") }
+    var embeddingStatus by remember { mutableStateOf("Instalación automática por Wi-Fi: activada por defecto.") }
+    var embeddingAutoInstall by remember { mutableStateOf(true) }
     var embeddingError by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(embeddingManager) {
         embeddingInstalled = embeddingManager.isInstalled()
+        embeddingAutoInstall = com.orion.voicelab.knowledge.NeuralEmbeddingAutoInstallScheduler.enabled(context)
     }
     var exactAlarmAllowed by remember { mutableStateOf(AndroidTaskReminderScheduler.canScheduleExactAlarms(context)) }
     val exactAlarmSettingsLauncher = rememberLauncherForActivityResult(
@@ -257,13 +259,24 @@ fun OrionSettingsScreen(
             Text("La generación automática de planes desde la conversación y los ejecutores locales siguen pendientes; esta pantalla no presenta un plan como ejecutado por el mero hecho de guardarlo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        SettingsSection(title = "Búsqueda semántica neuronal", subtitle = "Añade embeddings multilingües ONNX ejecutados localmente para mejorar la recuperación documental.") {
+        SettingsSection(title = "Búsqueda semántica neuronal", subtitle = "Embeddings multilingües ONNX para mejorar la recuperación de conocimiento local.") {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Instalación automática", fontWeight = FontWeight.SemiBold)
+                    Text("Por defecto descarga en Wi-Fi sin batería baja y con espacio suficiente. Después se ejecuta sin conexión.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(checked = embeddingAutoInstall, onCheckedChange = { enabled ->
+                    embeddingAutoInstall = enabled
+                    com.orion.voicelab.knowledge.NeuralEmbeddingAutoInstallScheduler.setEnabled(context, enabled)
+                    embeddingStatus = if (enabled) "Descarga automática programada: solo Wi-Fi, batería y almacenamiento adecuados." else "Descarga automática desactivada; puedes instalar manualmente."
+                })
+            }
             Text(
-                if (embeddingInstalled) "Encoder instalado y verificado. La búsqueda podrá combinar embeddings neuronales con el índice léxico y semántico ligero." else "Encoder opcional no instalado. ORION seguirá usando el recuperador local actual sin perder funciones.",
+                if (embeddingInstalled) "Encoder instalado y verificado. La búsqueda podrá combinar embeddings neuronales con el índice léxico y semántico ligero." else "Encoder pendiente. La recuperación léxica y semántica ligera continúa funcionando mientras se instala.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Text("Modelo DistilUSE multilingüe · ONNX INT8 · ${NeuralEmbeddingModelManager.MODEL_SIZE_LABEL} · licencia ${NeuralEmbeddingModelManager.MODEL_LICENSE}. La descarga requiere conexión; después la inferencia es local.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Modelo DistilUSE multilingüe · ONNX INT8 · ${NeuralEmbeddingModelManager.MODEL_SIZE_LABEL} · licencia ${NeuralEmbeddingModelManager.MODEL_LICENSE}. Se instala automáticamente por defecto en Wi-Fi; la inferencia y los embeddings se ejecutan localmente.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (!embeddingInstalled) {
                 Button(
                     enabled = !embeddingDownloading,
