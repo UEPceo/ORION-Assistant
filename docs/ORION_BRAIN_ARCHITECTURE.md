@@ -69,7 +69,7 @@ Aprender significa actualizar el corpus recuperable, registrar correcciones y me
 ## Líneas prioritarias de evolución (28/11/2026)
 
 - La aceleración GPU/NPU se desarrollará como backend alternativo LiteRT-LM, conservando llama.cpp GGUF CPU como fallback. No se dará por compatible una NPU hasta verificar el SoC concreto y ejecutar una inferencia real. Diseño: `docs/ORION_ACCELERATED_INFERENCE_BACKEND.md`.
-- La capacidad de ingeniería de software será una función básica. El cliente GitHub actual es de solo lectura y todavía no existe un runner aislado de compilación/pruebas. Diseño: `docs/ORION_CODE_ENGINEERING.md`.
+- La ingeniería de software es una capacidad central en construcción: GitHub tiene workspace acotado, generación de parches estructurados, autorización temporal y commits aprobados; GitHub Actions valida ORION en runner efímero. La interfaz de diff, el bucle autónomo de reparación y un runner universal siguen pendientes. Diseño: `docs/ORION_CODE_ENGINEERING.md`.
 - El aprendizaje continuo se organizará como captura, cuarentena, verificación, revisión, publicación, versionado y evaluación de regresiones. No implica autoentrenar pesos del LLM. Estado y brechas: `docs/ORION_CONTINUOUS_LEARNING.md`.
 
 ## Capacidad de programación y autonomía
@@ -224,7 +224,7 @@ La arquitectura está bien separada en recuperación, verificación, memoria, di
 | Autodiagnóstico | Registro local y heurísticas | No captura todos los errores ni analiza automáticamente todo el código |
 | Tareas y recordatorios | Operaciones deterministas | Falta planificación de varios pasos y seguimiento de resultados |
 | Conectores | Integraciones acotadas | Faltan acciones completas de escritura y más proveedores |
-| Programación | Conector GitHub y capacidades del modelo | Falta entorno de ejecución/sandbox y ciclo integrado de pruebas/revisión |
+| Programación | Workspace GitHub, generador JSON y commits aprobados | Falta UI integrada, seguimiento/repair loop y runner universal de proyectos |
 | Diseño y estrategia creativa | Router y prompts | No hay motores multimedia conectados |
 | Comprensión/generación de imagen y vídeo | Contratos y consentimiento | Sin proveedores operativos en el runtime |
 | Memoria personal | Local y separada del corpus | Falta mejor extracción, consolidación y control de caducidad |
@@ -299,8 +299,8 @@ Esta actualización incorpora las primeras implementaciones de los seis frentes 
 - La selección multi-modelo, cuantizaciones alternativas y evaluación de calidad/rendimiento en dispositivo siguen pendientes.
 
 ### 5. Herramientas y multimedia
-- Catálogo de capacidades y limitaciones para Gmail, GitHub, Maps, PescaIA, Calendar, archivos, navegador y sandbox de programación.
-- Se explicita que GitHub no equivale a compilar código, que el lector web no es navegador completo y que el sandbox no existe aún.
+- Catálogo de capacidades y limitaciones para Gmail, GitHub (lectura y escritura de ingeniería), Maps, PescaIA, Calendar, archivos, navegador y sandbox de programación.
+- Se explicita que las escrituras GitHub no equivalen a ejecución de código; Actions valida el propio ORION y el sandbox universal sigue sin estar implementado.
 - Los contratos multimedia y la puerta de consentimiento de un solo uso siguen preparados, pero no se han conectado proveedores ComfyUI ni una interfaz de progreso/resultado. Generación y análisis de imagen/vídeo siguen sin estar operativos.
 
 ### 6. Evaluación continua
