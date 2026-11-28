@@ -39,7 +39,7 @@ class GitHubApiClient(
     private val authenticator: GitHubDeviceFlowAuthenticator,
     private val requestOverride: (suspend (path: String) -> Any)? = null
 ) {
-    suspend fun listRepositories(page: Int = 1, perPage: Int = 20): Result<List<GitHubRepositorySummary>> =
+    suspend fun listRepositories(page: Int = 1, perPage: Int = 30): Result<List<GitHubRepositorySummary>> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val safePage = page.coerceIn(1, MAX_PAGE)
@@ -218,7 +218,7 @@ class GitHubApiClient(
         const val API_BASE = "https://api.github.com"
         const val API_VERSION = "2022-11-28"
         const val MAX_PAGE = 100
-        const val MAX_PER_PAGE = 30
+        const val MAX_PER_PAGE = 100
         const val MAX_RESPONSE_BYTES = 1_000_000
         const val MAX_DESCRIPTION_LENGTH = 500
         const val MAX_TITLE_LENGTH = 300
