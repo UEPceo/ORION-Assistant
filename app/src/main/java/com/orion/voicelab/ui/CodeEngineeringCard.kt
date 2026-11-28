@@ -20,6 +20,7 @@ fun CodeEngineeringCard(
     onStartSession: (String,String,String,String,Boolean)->Unit,
     onPrepare: (CodeEngineeringSession,String,List<String>)->Unit,
     onCommit: (CodeEngineeringSession,String,Boolean)->Unit,
+    onCreatePullRequest: (CodeEngineeringSession,String,String,Boolean)->Unit,
     onRevoke: (CodeEngineeringSession)->Unit
 ) {
     var repository by remember { mutableStateOf("") }
@@ -27,7 +28,7 @@ fun CodeEngineeringCard(
     var workBranch by remember { mutableStateOf("orion/task") }
     var task by remember { mutableStateOf("") }
     var selectedPaths by remember { mutableStateOf("") }
-    var sessionConfirmed by remember { mutableStateOf(false) }
+    var sessionConfirmed by remember(state.session?.grant?.id) { mutableStateOf(false) }
     var diffConfirmed by remember(state.preparedChange?.diffDigest) { mutableStateOf(false) }
     val session=state.session
     val prepared=state.preparedChange
@@ -36,12 +37,12 @@ fun CodeEngineeringCard(
         Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             Text("Programación de repositorios",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
             Text("ORION inspecciona archivos seleccionados, genera un parche con el modelo local/híbrido y solo escribe tras revisar y aprobar el diff. El código se valida en CI; nunca se ejecuta dentro del proceso Android.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedTextField(repository,{repository=it},label={Text("Repositorio propietario/nombre")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+            OutlinedTextField(repository,{repository=it},label={Text("Repositorio propietario/nombre")},modifier=Modifier.fillMaxWidth(),singleLine=true,enabled=session==null)
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(baseBranch,{baseBranch=it},label={Text("Rama base")},modifier=Modifier.weight(1f),singleLine=true)
-                OutlinedTextField(workBranch,{workBranch=it},label={Text("Rama de trabajo")},modifier=Modifier.weight(1f),singleLine=true)
+                OutlinedTextField(baseBranch,{baseBranch=it},label={Text("Rama base")},modifier=Modifier.weight(1f),singleLine=true,enabled=session==null)
+                OutlinedTextField(workBranch,{workBranch=it},label={Text("Rama de trabajo")},modifier=Modifier.weight(1f),singleLine=true,enabled=session==null)
             }
-            OutlinedTextField(task,{task=it},label={Text("Qué debe programar o corregir ORION")},modifier=Modifier.fillMaxWidth(),minLines=2)
+            OutlinedTextField(task,{task=it},label={Text("Qué debe programar o corregir ORION")},modifier=Modifier.fillMaxWidth(),minLines=2,enabled=session==null)
             if(session==null) {
                 Row(verticalAlignment=Alignment.CenterVertically) {
                     Checkbox(sessionConfirmed,{sessionConfirmed=it})
@@ -61,6 +62,21 @@ fun CodeEngineeringCard(
             if(state.isWorking) Text("ORION está trabajando…",style=MaterialTheme.typography.bodySmall)
             state.error?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
             state.lastCommitSha?.let { Text("Commit creado: $it",color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.bodySmall) }
+            state.pullRequestUrl?.let { Text("Pull request draft creado: $it",color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.bodySmall) }
+            if (session != null && state.lastCommitSha != null && state.pullRequestUrl == null) {
+                Button(
+                    onClick = {
+                        onCreatePullRequest(
+                            session,
+                            task.trim().take(256).ifBlank { "Cambios ORION" },
+                            "Cambios preparados por ORION para la tarea:\\n$task\\n\\nCommit: ${state.lastCommitSha}",
+                            true
+                        )
+                    },
+                    enabled = !state.isWorking,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Crear pull request draft y ejecutar CI") }
+            }
             if(prepared!=null&&session!=null) {
                 Text("Propuesta para revisión",style=MaterialTheme.typography.titleSmall,fontWeight=FontWeight.SemiBold)
                 Text(prepared.proposal.title,style=MaterialTheme.typography.bodyMedium,fontWeight=FontWeight.SemiBold)
