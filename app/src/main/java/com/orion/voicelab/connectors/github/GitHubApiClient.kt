@@ -582,7 +582,9 @@ class GitHubApiClient(
         const val API_VERSION = "2022-11-28"
         const val MAX_PAGE = 100
         const val MAX_PER_PAGE = 100
-        const val MAX_RESPONSE_BYTES = 1_000_000\n        const val MAX_WORKFLOW_JOBS = 100\n        const val MAX_WORKFLOW_STEPS = 100
+        const val MAX_RESPONSE_BYTES = 1_000_000
+        const val MAX_WORKFLOW_JOBS = 100
+        const val MAX_WORKFLOW_STEPS = 100
         const val MAX_FILE_CONTENT_BYTES = 512 * 1024
         const val MAX_FILE_CONTENT_BASE64 = MAX_FILE_CONTENT_BYTES * 2
         const val MAX_DESCRIPTION_LENGTH = 500
