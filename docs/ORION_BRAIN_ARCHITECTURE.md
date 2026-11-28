@@ -224,7 +224,7 @@ La arquitectura está bien separada en recuperación, verificación, memoria, di
 | Autodiagnóstico | Registro local y heurísticas | No captura todos los errores ni analiza automáticamente todo el código |
 | Tareas y recordatorios | Operaciones deterministas | Falta planificación de varios pasos y seguimiento de resultados |
 | Conectores | Integraciones acotadas | Faltan acciones completas de escritura y más proveedores |
-| Programación | Workspace GitHub, generador JSON y commits aprobados | Falta UI integrada, seguimiento/repair loop y runner universal de proyectos |
+| Programación | Workspace, generador JSON, diff UI, autorización y commits aprobados | Falta seguimiento CI/repair loop y runner universal de proyectos |
 | Diseño y estrategia creativa | Router y prompts | No hay motores multimedia conectados |
 | Comprensión/generación de imagen y vídeo | Contratos y consentimiento | Sin proveedores operativos en el runtime |
 | Memoria personal | Local y separada del corpus | Falta mejor extracción, consolidación y control de caducidad |
