@@ -26,7 +26,8 @@ data class GmailMessageSummary(
  * both list size and response size. Sending and modifying mail are intentionally absent.
  */
 class GmailApiClient(
-    private val credentials: GmailCredentialManager
+    private val credentials: GmailCredentialManager,
+    private val requestOverride: ((url: String, token: String) -> JSONObject)? = null
 ) {
     suspend fun searchMessages(query: String, maxResults: Int = 10): Result<List<GmailMessageSummary>> =
         withContext(Dispatchers.IO) {
@@ -93,6 +94,7 @@ class GmailApiClient(
     }
 
     private fun requestJson(url: String, token: String): JSONObject {
+        requestOverride?.let { return it(url, token) }
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = TIMEOUT_MS
