@@ -1,6 +1,6 @@
 # ORION — Aprendizaje continuo y mantenimiento del conocimiento
 
-Estado: ingesta en cuarentena, revisión explícita, publicación verificada/no verificada, versionado previo, rollback y evaluador determinista de regresión implementados. La ejecución sobre consultas reales y el umbral de bloqueo aún deben conectarse al pipeline de recuperación/respuesta.
+Estado: ingesta explícita desde URL, clasificación conservadora de fuentes, cuarentena, revisión, publicación verificada/no verificada, versionado, rollback y evaluador determinista implementados. La suite de regresión aún no bloquea publicaciones.
 
 ## Qué significa aprender
 No reentrena automáticamente pesos del LLM. Mejora el corpus recuperable, mantiene correcciones, fuentes, versiones y pruebas. Memoria personal, conocimiento general y datos de proyectos permanecen separados.
@@ -9,15 +9,16 @@ No reentrena automáticamente pesos del LLM. Mejora el corpus recuperable, manti
 - Packs locales por ámbitos, actualización semanal bajo red/batería adecuados, manifiestos allowlist y SHA-256.
 - Corpus local, fragmentación, búsqueda léxica y semántica, embeddings ONNX opcionales.
 - Evidencia con URL, publisher, autoridad, dominio, fecha, hash y jurisdicción.
-- Cuarentena persistente; candidatos generados por modelo rechazados como evidencia.
+- Cuarentena persistente; candidatos generados por modelo rechazados como evidencia. Comando explícito «aprende de esta fuente <URL>» para leer páginas HTTPS con límites, rechazar destinos privados/redirecciones inseguras y enviar el contenido a cuarentena. Los dominios allowlisted solo reciben autoridad oficial/técnica si coinciden exactamente o como subdominio real y el ámbito consultado está autorizado; el resto queda UNKNOWN y no verificado.
 - Revisión explícita: aprobar verificado, publicar no verificado, rechazar; historial limitado y rollback.
 - Evaluador `KnowledgeRegressionEvaluator`: evidencia esperada recuperada, citas no recuperadas, frescura, dominio, evidencia primaria requerida y respuesta vacía. Resultado reproducible y score por conjunto; pruebas cubren éxito y regresiones.
-- No se incorpora automáticamente correo, conversaciones ni información privada.
+- No se incorpora automáticamente correo, conversaciones ni información privada. Pegar un enlace o hacer una pregunta no activa el aprendizaje: exige una orden explícita.
 
 ## Límites
 - El manifiesto de packs no es crawler universal.
 - No hay entrenamiento de pesos.
 - La suite tiene API y tests; falta corpus de casos de referencia por dominio, conexión a consultas reales e invocación tras actualización/antes de publicar desde UI. Actualmente no bloquea publicaciones.
+- La lectura de una URL no convierte su contenido en verdad: páginas no incluidas en el catálogo oficial/técnico se guardan como no verificadas y requieren revisión; las páginas con autoridad reconocida también permanecen en cuarentena hasta aprobación.
 - La evaluación mide condiciones objetivas, no la verdad semántica de la respuesta.
 
 ## Ciclo objetivo
