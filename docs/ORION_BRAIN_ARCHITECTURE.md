@@ -381,3 +381,13 @@ La configuración de ORION define cuatro perfiles offline: Ligero, Equilibrado, 
 - Flagship: Qwen3.5-9B o modelos 7–8B Q4; ~5–6 GB; 12–16 GB de RAM.
 
 Estado de integración: el catálogo, selector manual/automático y fallback seguro están implementados. Solo Ligero está marcado como operativo porque es el único artefacto GGUF actualmente descargable, verificado e integrado en llama.cpp. Los otros perfiles son candidatos y no se activan ni se presentan como instalados hasta incorporar archivos GGUF concretos, URLs/versiones inmutables, hashes, licencias, parámetros de contexto/hilos y pruebas de memoria/latencia. Si el perfil recomendado o solicitado aún no está operativo, el motor permanece en Ligero.
+
+
+### Protección de memoria del motor LLM — 28/11/2026
+
+- Antes de inicializar llama.cpp se consulta la RAM física total y la RAM disponible real mediante `ActivityManager.MemoryInfo`; la RAM total por sí sola ya no autoriza la carga.
+- `ModelMemoryPolicy` estima el footprint a partir del tamaño GGUF, contexto, margen de buffers nativos y reserva para Android/voz. La carga se bloquea si no hay margen libre suficiente o si la medición es incoherente.
+- Si el motor nativo lanza `OutOfMemoryError` durante la inicialización, ORION convierte el fallo en un error operativo controlado y evita continuar con una sesión marcada como cargada. Esto no puede interceptar un cierre forzado del sistema por OOM nativo; por eso la comprobación previa es la defensa principal.
+- Pruebas unitarias: límites de RAM disponible, snapshots imposibles, crecimiento de footprint con modelos/contextos mayores y reducción escalonada de contexto. El contexto no se amplía por encima de lo solicitado.
+- La política se aplica al motor LLM que usa actualmente el runtime. Los artefactos superiores aún no se declaran operativos: antes de activarlos se deben fijar sus archivos GGUF concretos, revisión, tamaño exacto, SHA-256, licencia y compatibilidad real con la versión de llama.cpp. No se sustituye una verificación criptográfica por una simple cabecera GGUF.
+- La última compilación inspeccionada fallaba por tres errores de Kotlin ajenos a este bloque (interpolación literal de referencias de pasos, tratamiento de pares de conflictos y mutex compartido no declarado); los tres se han corregido y quedan pendientes los nuevos resultados CI.
