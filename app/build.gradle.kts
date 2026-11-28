@@ -14,6 +14,7 @@ android {
         targetSdk = 36
         versionCode = 13
         versionName = "0.8.1"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         val githubClientId = providers.gradleProperty("ORION_GITHUB_CLIENT_ID").orNull
             ?: System.getenv("ORION_GITHUB_CLIENT_ID").orEmpty()
@@ -149,4 +150,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
 }
