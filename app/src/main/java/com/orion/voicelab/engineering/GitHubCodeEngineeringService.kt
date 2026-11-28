@@ -4,6 +4,8 @@ import com.orion.voicelab.connectors.github.GitHubApiClient
 import com.orion.voicelab.connectors.github.GitHubBranchSummary
 import com.orion.voicelab.connectors.github.GitHubCommitResult
 import com.orion.voicelab.connectors.github.GitHubPullRequestSummary
+import com.orion.voicelab.connectors.github.GitHubWorkflowRunSummary
+import kotlinx.coroutines.CancellationException
 
 data class CodeEngineeringSession(
     val grant: CodeEngineeringGrant,
@@ -115,24 +117,30 @@ class GitHubCodeEngineeringService(
         repository: String,
         branch: String,
         expectedHeadSha: String
-    ): Result<CodeEngineeringCiInspection> = runCatching {
-        require(repository.matches(Regex("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}"))) {
-            "Repositorio no válido."
+    ): Result<CodeEngineeringCiInspection> {
+        return try {
+            require(repository.matches(Regex("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}"))) {
+                "Repositorio no válido."
+            }
+            require(branch.isNotBlank() && branch.length <= 120) { "Rama no válida." }
+            require(expectedHeadSha.matches(Regex("[a-fA-F0-9]{40}"))) { "SHA esperado no válido." }
+            val run = api.listWorkflowRuns(repository).getOrThrow()
+                .filter { it.branch == branch && it.headSha.equals(expectedHeadSha, true) }
+                .maxByOrNull { it.runId }
+            if (run == null) return Result.success(CodeEngineeringCiInspection(null, emptyList(), null))
+            val jobs = if (run.runId > 0L) api.listWorkflowRunJobs(repository, run.runId).getOrThrow() else emptyList()
+            val logs = if (run.status == "completed" && run.conclusion == "failure") {
+                api.downloadWorkflowRunLogs(repository, run.runId).getOrNull()
+            } else null
+            val logError = if (run.status == "completed" && run.conclusion == "failure" && logs == null) {
+                "La ejecución ha fallado, pero ORION no ha podido recuperar sus logs."
+            } else null
+            Result.success(CodeEngineeringCiInspection(run, jobs, logs, logError))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            Result.failure(error)
         }
-        require(branch.isNotBlank() && branch.length <= 120) { "Rama no válida." }
-        require(expectedHeadSha.matches(Regex("[a-fA-F0-9]{40}"))) { "SHA esperado no válido." }
-        val run = api.listWorkflowRuns(repository).getOrThrow()
-            .filter { it.branch == branch && it.headSha.equals(expectedHeadSha, true) }
-            .maxByOrNull { it.runId }
-            ?: return@runCatching CodeEngineeringCiInspection(null, emptyList(), null)
-        val jobs = if (run.runId > 0L) api.listWorkflowRunJobs(repository, run.runId).getOrThrow() else emptyList()
-        val logs = if (run.status == "completed" && run.conclusion == "failure") {
-            api.downloadWorkflowRunLogs(repository, run.runId).getOrNull()
-        } else null
-        val logError = if (run.status == "completed" && run.conclusion == "failure" && logs == null) {
-            "La ejecución ha fallado, pero ORION no ha podido recuperar sus logs."
-        } else null
-        CodeEngineeringCiInspection(run, jobs, logs, logError)
     }
 
     suspend fun createDraftPullRequest(
