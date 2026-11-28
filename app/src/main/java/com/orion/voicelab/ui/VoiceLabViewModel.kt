@@ -127,8 +127,34 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             val client=ComfyUiClient(appContext,ComfyUiEndpointConfig(endpoint))
             val imageWorkflow=mediaPrefs.getString("image_workflow","").orEmpty()
             val videoWorkflow=mediaPrefs.getString("video_workflow","").orEmpty()
-            val images=if(imageWorkflow.isNotBlank()) listOf(ComfyUiImageGenerationProvider(client,ComfyUiWorkflowTemplate(imageWorkflow,mediaPrefs.getString("image_prompt_node","").orEmpty(),negativePromptNodeId=mediaPrefs.getString("image_negative_node","").orEmpty().ifBlank { null })) else emptyList()
-            val videos=if(videoWorkflow.isNotBlank()) listOf(ComfyUiVideoGenerationProvider(client,ComfyUiWorkflowTemplate(videoWorkflow,mediaPrefs.getString("video_prompt_node","").orEmpty(),negativePromptNodeId=mediaPrefs.getString("video_negative_node","").orEmpty().ifBlank { null })) else emptyList()
+            val images = if (imageWorkflow.isNotBlank()) {
+                listOf(
+                    ComfyUiImageGenerationProvider(
+                        client = client,
+                        template = ComfyUiWorkflowTemplate(
+                            workflowJson = imageWorkflow,
+                            positivePromptNodeId = mediaPrefs.getString("image_prompt_node", "").orEmpty(),
+                            negativePromptNodeId = mediaPrefs.getString("image_negative_node", "").orEmpty().ifBlank { null }
+                        )
+                    )
+                )
+            } else {
+                emptyList()
+            }
+            val videos = if (videoWorkflow.isNotBlank()) {
+                listOf(
+                    ComfyUiVideoGenerationProvider(
+                        client = client,
+                        template = ComfyUiWorkflowTemplate(
+                            workflowJson = videoWorkflow,
+                            positivePromptNodeId = mediaPrefs.getString("video_prompt_node", "").orEmpty(),
+                            negativePromptNodeId = mediaPrefs.getString("video_negative_node", "").orEmpty().ifBlank { null }
+                        )
+                    )
+                )
+            } else {
+                emptyList()
+            }
             OrionMediaRuntime(imageProviders=images,videoProviders=videos)
         }.getOrElse { OrionMediaRuntime() }
     }
