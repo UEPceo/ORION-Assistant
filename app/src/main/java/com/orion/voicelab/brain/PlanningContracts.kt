@@ -39,6 +39,15 @@ object PlanValidator {
         if (duplicateIds.isNotEmpty()) errors += "Hay identificadores de paso duplicados."
         val ids = plan.steps.map { it.id }.toSet()
         if (plan.steps.any { it.id.isBlank() || it.title.isBlank() }) errors += "Cada paso necesita ID y título."
+        if (PlanSecretGuard.containsSecret(plan.goal)) errors += "El objetivo contiene material que parece una credencial; no se guardará."
+        if (plan.steps.any { step ->
+                PlanSecretGuard.containsSecret(step.title) ||
+                    PlanSecretGuard.containsSecret(step.rationale) ||
+                    PlanSecretGuard.containsSecret(step.inputSummary) ||
+                    step.connectorArguments.any { (key, value) ->
+                        PlanSecretGuard.isSensitiveKey(key) || PlanSecretGuard.containsSecret(value)
+                    }
+            }) errors += "Un paso contiene credenciales o secretos en texto; elimínalos antes de guardar el plan."
         if (plan.steps.any {
                 it.id.length > 80 || it.title.length > 180 || it.rationale.length > 1_200 ||
                     it.inputSummary.length > 1_200 || it.connectorArguments.size > 30 ||
