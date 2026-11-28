@@ -51,7 +51,7 @@ object ConnectorActionGate {
                 } else ConnectorAuthorizationDecision.DENY
             }
             ConnectorRisk.EXTERNAL_SIDE_EFFECT,
-            ConnectorRisk.DESTRUCTIVE -> ConnectorAuthorizationDecision.DENY
+            ConnectorRisk.DESTRUCTIVE -> ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION
         }
     }
 
