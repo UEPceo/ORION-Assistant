@@ -234,7 +234,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     private val languageModel = run {
         val preferences = appContext.getSharedPreferences("orion_model_settings", 0)
         val automatic = preferences.getBoolean("auto_profile", true)
-        val activityManager = appContext.getSystemService(Application.ACTIVITY_SERVICE) as ActivityManager
+        val activityManager = appContext.getSystemService(android.content.Context.ACTIVITY_SERVICE) as ActivityManager
         val memoryInfo = ActivityManager.MemoryInfo()
         activityManager.getMemoryInfo(memoryInfo)
         val requestedId = if (automatic) {
