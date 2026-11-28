@@ -175,6 +175,53 @@ fun OrionSettingsScreen(
         }
 
 
+        val remoteSettings = remember(context) { com.orion.voicelab.llm.RemoteInferenceSettings.read(context) }
+        var remoteEnabled by remember { mutableStateOf(remoteSettings.enabled) }
+        var remoteMode by remember { mutableStateOf(remoteSettings.mode) }
+        var remoteEndpoint by remember { mutableStateOf(remoteSettings.endpoint) }
+        var remoteModel by remember { mutableStateOf(remoteSettings.model) }
+        var remoteApiKey by remember { mutableStateOf("") }
+        var remoteShareContext by remember { mutableStateOf(remoteSettings.shareContext) }
+        var remoteSaved by remember { mutableStateOf(false) }
+        SettingsSection(title = "Motor neuronal híbrido", subtitle = "Inferencia avanzada en un servidor gratuito y autoalojado, sin cargar modelos grandes en la RAM del móvil") {
+            Text("ORION mantiene el modelo local como opción privada y de respaldo. Puedes conectar un servidor propio compatible con OpenAI (por ejemplo, llama.cpp server o vLLM). El software es gratuito; el hardware/hosting y la electricidad del servidor pueden tener coste.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Permitir motor remoto", modifier = Modifier.weight(1f))
+                Switch(checked = remoteEnabled, onCheckedChange = { remoteEnabled = it })
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = remoteMode == com.orion.voicelab.llm.RemoteInferenceSettings.MODE_AUTO, onClick = { remoteMode = com.orion.voicelab.llm.RemoteInferenceSettings.MODE_AUTO }, label = { Text("Automático") })
+                FilterChip(selected = remoteMode == com.orion.voicelab.llm.RemoteInferenceSettings.MODE_LOCAL, onClick = { remoteMode = com.orion.voicelab.llm.RemoteInferenceSettings.MODE_LOCAL }, label = { Text("Solo local") })
+                FilterChip(selected = remoteMode == com.orion.voicelab.llm.RemoteInferenceSettings.MODE_REMOTE_ONLY, onClick = { remoteMode = com.orion.voicelab.llm.RemoteInferenceSettings.MODE_REMOTE_ONLY }, label = { Text("Solo remoto") })
+            }
+            OutlinedTextField(value = remoteEndpoint, onValueChange = { remoteEndpoint = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Endpoint del servidor") }, placeholder = { Text("https://servidor:puerto/v1") }, singleLine = true)
+            OutlinedTextField(value = remoteModel, onValueChange = { remoteModel = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Identificador del modelo") }, placeholder = { Text("qwen2.5-14b-instruct") }, singleLine = true)
+            OutlinedTextField(value = remoteApiKey, onValueChange = { remoteApiKey = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Clave API (opcional)") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = remoteShareContext, onCheckedChange = { remoteShareContext = it })
+                Text("Autorizo enviar al servidor el mensaje y el contexto de sistema necesario para responder. No se envía la memoria completa ni el historial íntegro.")
+            }
+            Button(onClick = {
+                com.orion.voicelab.llm.RemoteInferenceSettings.save(
+                    context,
+                    com.orion.voicelab.llm.RemoteInferenceSettings(
+                        enabled = remoteEnabled,
+                        mode = remoteMode,
+                        endpoint = remoteEndpoint,
+                        model = remoteModel,
+                        encryptedApiKey = remoteSettings.encryptedApiKey,
+                        shareContext = remoteShareContext
+                    ),
+                    apiKey = remoteApiKey.takeIf { it.isNotBlank() }
+                )
+                remoteSaved = true
+                remoteApiKey = ""
+            }, modifier = Modifier.fillMaxWidth()) { Text("Guardar configuración remota") }
+            if (remoteSaved) Text("Configuración guardada. El modo remoto solo se activa con endpoint, modelo y autorización válidos.", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+            Text("Automático: delega consultas complejas al servidor y mantiene las sencillas en local. Solo local: nunca transmite conversaciones. Solo remoto: evita cargar el LLM local; si el servidor falla, ORION no envía la petición a otro motor.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Seguridad: la clave API se cifra con Android Keystore. Usa HTTPS en servidores externos; HTTP solo se admite para localhost o redes privadas.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
         val modelPreferences = remember(context) { context.getSharedPreferences("orion_model_settings", 0) }
         val totalDeviceRamMb = remember(context) {
             val info = ActivityManager.MemoryInfo()
