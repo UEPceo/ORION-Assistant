@@ -48,6 +48,7 @@ object CreativeBrainPromptComposer {
      MediaCapabilityStatus.REQUIRES_NETWORK -> append(" El proveedor remoto necesita conexión; no envíes nada si no está disponible.")
      MediaCapabilityStatus.REQUIRES_MODEL -> append(" Falta preparar el modelo local; no afirmes haber procesado el archivo.")
      MediaCapabilityStatus.REQUIRES_CONFIGURATION -> append(" No hay motor configurado; ofrece brief o prompt, no simules resultados.")
+     MediaCapabilityStatus.REQUIRES_PROVIDER_VALIDATION -> append(" El proveedor está configurado, pero no ha superado la comprobación de conexión y workflow; no lo presentes como operativo.")
      MediaCapabilityStatus.UNSUPPORTED -> append(" El formato no está admitido; explica la limitación.")
      MediaCapabilityStatus.AVAILABLE -> Unit
     }
