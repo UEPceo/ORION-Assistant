@@ -212,7 +212,7 @@ class GitHubApiClient(
     class ReauthorizationRequiredException : IllegalStateException("La autorización de GitHub ha caducado. Vuelve a conectar la cuenta.")
     class GitHubApiException(status: Int) : IllegalStateException("GitHub no pudo completar la consulta (HTTP $status).")
 
-    private companion object {
+    internal companion object {
         const val API_BASE = "https://api.github.com"
         const val API_VERSION = "2022-11-28"
         const val MAX_PAGE = 100
