@@ -86,6 +86,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.orion.voicelab.creative.ComfyUiEndpointConfig
+import com.orion.voicelab.creative.ComfyUiCredentialStore
 import com.orion.voicelab.creative.ComfyUiWorkflowTemplate
 import com.orion.voicelab.creative.MediaGenerationRequest
 import com.orion.voicelab.knowledge.NeuralEmbeddingModelManager
@@ -786,8 +787,9 @@ private fun SettingsSection(
 @Composable
 private fun ComfyUiConfigurationSection(context: android.content.Context) {
     val prefs=context.getSharedPreferences("orion_media_settings",0)
+    val storedBearerToken = remember(context) { ComfyUiCredentialStore.read(context) }
     var endpoint by remember { mutableStateOf(prefs.getString("endpoint","").orEmpty()) }
-    var bearerToken by remember { mutableStateOf(prefs.getString("bearer_token","").orEmpty()) }
+    var bearerToken by remember { mutableStateOf(storedBearerToken.getOrDefault("")) }
     var imageWorkflow by remember { mutableStateOf(prefs.getString("image_workflow","").orEmpty()) }
     var imageModelLabel by remember { mutableStateOf(prefs.getString("image_model_label","FLUX.1-schnell").orEmpty()) }
     var imageNode by remember { mutableStateOf(prefs.getString("image_prompt_node","").orEmpty()) }
@@ -803,7 +805,12 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
     var videoDurationNode by remember { mutableStateOf(prefs.getString("video_duration_node","").orEmpty()) }
     var videoDurationInput by remember { mutableStateOf(prefs.getString("video_duration_input","length").orEmpty()) }
     var videoFps by remember { mutableStateOf(prefs.getString("video_fps","16").orEmpty()) }
-    var message by remember { mutableStateOf("Configura el servidor y carga los workflows exportados en formato API.") }
+    var message by remember {
+        mutableStateOf(
+            if (storedBearerToken.isFailure) "No se pudo descifrar el token guardado. Reintroduce el token; no se generará una clave nueva automáticamente."
+            else "Configura el servidor y carga los workflows exportados en formato API."
+        )
+    }
     val scope=rememberCoroutineScope()
     val imagePicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if(uri!=null) scope.launch {
@@ -822,7 +829,7 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
     SettingsSection(title="Motores multimedia autoalojados",subtitle="Conecta ComfyUI en un PC/servidor GPU. No se descargan modelos al teléfono.") {
         OutlinedTextField(endpoint,onValueChange={endpoint=it},label={Text("URL de ComfyUI")},placeholder={Text("https://… o http://192.168.1.x:8188")},modifier=Modifier.fillMaxWidth(),singleLine=true)
         OutlinedTextField(bearerToken,onValueChange={bearerToken=it},label={Text("Token Bearer (opcional)")},modifier=Modifier.fillMaxWidth(),singleLine=true,visualTransformation=PasswordVisualTransformation())
-        Text("Solo HTTPS para hosts públicos. HTTP se admite en localhost/LAN privada. El token se guarda localmente en preferencias privadas.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Solo HTTPS para hosts públicos. HTTP se admite en localhost/LAN privada. El token se cifra con Android Keystore; no se guarda en claro en preferencias.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         Text("Imagen · FLUX / SD",fontWeight=FontWeight.SemiBold)
         OutlinedTextField(imageModelLabel,onValueChange={imageModelLabel=it},label={Text("Nombre del modelo (etiqueta)")},modifier=Modifier.fillMaxWidth(),singleLine=true)
         Row(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.fillMaxWidth()) {
@@ -855,13 +862,14 @@ private fun ComfyUiConfigurationSection(context: android.content.Context) {
                 if(endpoint.isNotBlank()) ComfyUiEndpointConfig(endpoint).normalizedBaseUrl()
                 if(imageWorkflow.isNotBlank()) ComfyUiWorkflowTemplate(imageWorkflow,imageNode,negativePromptNodeId=imageNegativeNode.ifBlank { null },dimensionNodeId=imageDimensionNode.ifBlank { null },referenceImageNodeIds=imageReferenceNodes.split(",").map { it.trim() }.filter { it.isNotBlank() }).build(MediaGenerationRequest("ORION validation prompt","", "1:1"))
                 if(videoWorkflow.isNotBlank()) ComfyUiWorkflowTemplate(videoWorkflow,videoNode,negativePromptNodeId=videoNegativeNode.ifBlank { null },dimensionNodeId=videoDimensionNode.ifBlank { null },referenceImageNodeIds=videoReferenceNodes.split(",").map { it.trim() }.filter { it.isNotBlank() },durationNodeId=videoDurationNode.ifBlank { null },durationInput=videoDurationInput.ifBlank { "length" },framesPerSecond=videoFps.toIntOrNull() ?: 16).build(MediaGenerationRequest("ORION validation prompt","", "16:9",5))
-                prefs.edit().putString("endpoint",endpoint.trim()).putString("bearer_token",bearerToken.trim()) .putString("image_workflow",imageWorkflow).putString("image_model_label",imageModelLabel.trim())
+                ComfyUiCredentialStore.save(context, bearerToken.trim()).getOrThrow()
+                prefs.edit().putString("endpoint",endpoint.trim()).remove("bearer_token").putString("image_workflow",imageWorkflow).putString("image_model_label",imageModelLabel.trim())
                     .putString("image_prompt_node",imageNode.trim()).putString("image_negative_node",imageNegativeNode.trim()).putString("image_dimension_node",imageDimensionNode.trim()).putString("image_reference_nodes",imageReferenceNodes.trim())
                     .putString("video_workflow",videoWorkflow).putString("video_model_label",videoModelLabel.trim()).putString("video_prompt_node",videoNode.trim())
                     .putString("video_negative_node",videoNegativeNode.trim()).putString("video_dimension_node",videoDimensionNode.trim()).putString("video_reference_nodes",videoReferenceNodes.trim()).putString("video_duration_node",videoDurationNode.trim()).putString("video_duration_input",videoDurationInput.trim()).putString("video_fps",videoFps.trim()).apply()
-                message="Configuración guardada. El endpoint no ejecuta nada hasta que ORION autorice la operación."
+                message="Configuración guardada. La conexión y el workflow se comprobarán en el servidor después de tu autorización y antes de generar."
             }.onFailure { message="No se guardó: ${it.message ?: "configuración inválida"}" }
-        },modifier=Modifier.fillMaxWidth()) { Text("Validar y guardar") }
+        },modifier=Modifier.fillMaxWidth()) { Text("Validar estructura y guardar") }
         Text(message,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
 
         // Direct generation UI: explicit consent, actual workflow execution, and export.
