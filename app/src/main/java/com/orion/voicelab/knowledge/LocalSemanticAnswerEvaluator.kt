@@ -30,6 +30,15 @@ class LocalSemanticAnswerEvaluator(
             ?: return abstention("El evaluador semántico devolvió un resultado ilegible.")
         if (parsed.first.isEmpty() && parsed.third && isClearlyNonFactual(draft)) return draft
         if (parsed.first.isEmpty()) return abstention("No se pudieron identificar afirmaciones verificables.")
+        val coverage = AnswerClaimCoverageGuard.check(draft, parsed.first)
+        if (!coverage.passed) {
+            val detail = if (coverage.invalidClaimIds.isNotEmpty()) {
+                "El evaluador citó fragmentos que no aparecen exactamente en la respuesta."
+            } else {
+                "El evaluador omitió partes de la respuesta al descomponer sus afirmaciones."
+            }
+            return abstention(detail)
+        }
         val instructionRiskIds = evidence.filter {
             EvidenceInstructionRiskDetector.isPotentiallyMalicious(it.content)
         }.map { it.id }.toSet()
@@ -102,15 +111,19 @@ class LocalSemanticAnswerEvaluator(
         for (index in 0 until items.length().coerceAtMost(MAX_CLAIMS)) {
             val item = items.optJSONObject(index) ?: return null
             val id = item.optString("id", "claim-${index + 1}").take(40)
-            val text = item.optString("text").trim().take(700)
-            if (id.isBlank() || text.isBlank() || judgements.containsKey(id)) return null
+            val text = item.optString("text").trim()
+            val sourceSpan = item.optString("draftSpan").takeIf { it.isNotBlank() && it != "null" }
+            if (id.isBlank() || text.isBlank() || text.length > 700 ||
+                (item.optBoolean("factual", true) && sourceSpan.isNullOrBlank()) ||
+                (sourceSpan != null && sourceSpan.length > 700) || judgements.containsKey(id)
+            ) return null
             val factual = item.optBoolean("factual", true)
             val citedNumbers = item.optJSONArray("citationNumbers").toIntSet()
                 .filter { it in visibleCitationNumbers }
             val citedIds = citedNumbers.map { number ->
                 evidence.getOrNull(number - 1)?.id ?: "unresolved-citation-number:$number"
             }.toSet()
-            val claim = AtomicAnswerClaim(id, text, citedIds, factual)
+            val claim = AtomicAnswerClaim(id, text, citedIds, factual, sourceSpan)
             claims += claim
             val supportNumbers = item.optJSONArray("supportingSourceNumbers").toIntSet()
             val contradictionNumbers = item.optJSONArray("contradictingSourceNumbers").toIntSet()
@@ -177,7 +190,8 @@ class LocalSemanticAnswerEvaluator(
         appendLine("No confundas coincidencia de palabras con implicación semántica. Comprueba sujeto, predicado, cantidades, negación, fechas, ámbito y jurisdicción.")
         appendLine("Si la evidencia no implica la afirmación, usa INSUFFICIENT. Si una evidencia la contradice, usa CONTRADICTED.")
         appendLine("Indica containsFactualClaims=false solo si la respuesta no contiene ninguna afirmación factual; no omitas afirmaciones para evitar verificarlas.")
-        appendLine("Devuelve exclusivamente JSON con esta forma: {\"containsFactualClaims\":true,\"claims\":[{\"id\":\"c1\",\"text\":\"afirmación atómica\",\"factual\":true,\"citationNumbers\":[1],\"status\":\"SUPPORTED|CONTRADICTED|INSUFFICIENT|UNVERIFIABLE\",\"confidence\":0.0,\"supportingSourceNumbers\":[1],\"contradictingSourceNumbers\":[],\"explanation\":\"motivo breve\"}]}")
+        appendLine("Cada afirmación factual debe incluir draftSpan, un fragmento literal y continuo copiado exactamente de la respuesta original que contiene esa afirmación. No inventes ni parafrasees draftSpan. La unión de los draftSpan debe cubrir todas las afirmaciones de la respuesta; si una frase contiene varias afirmaciones, devuelve varios spans que cubran cada parte factual.")
+        appendLine("Devuelve exclusivamente JSON con esta forma: {\"containsFactualClaims\":true,\"claims\":[{\"id\":\"c1\",\"text\":\"afirmación atómica\",\"draftSpan\":\"fragmento literal de la respuesta\",\"factual\":true,\"citationNumbers\":[1],\"status\":\"SUPPORTED|CONTRADICTED|INSUFFICIENT|UNVERIFIABLE\",\"confidence\":0.0,\"supportingSourceNumbers\":[1],\"contradictingSourceNumbers\":[],\"explanation\":\"motivo breve\"}]}")
     }
 
     private fun isClearlyNonFactual(text: String): Boolean {
