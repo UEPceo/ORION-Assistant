@@ -31,14 +31,17 @@ class GoogleMapsOrionConnector(private val context: Context) : OrionConnector {
         val destination = action.arguments["destination"]?.trim().orEmpty()
         if (destination.isBlank()) return ConnectorResult.NeedsUserInput("¿Qué lugar o dirección quieres buscar?")
         val uri = when (action.operation) {
-            "search_place" -> Uri.parse("geo:0,0?q=" + Uri.encode(destination))
+            "search_place" -> Uri.parse("https://www.google.com/maps/search/?api=1&query=" + Uri.encode(destination))
             "navigate" -> {
                 val mode = when (action.arguments["mode"]?.lowercase()) {
-                    "walking", "a pie", "andar" -> "w"
-                    "transit", "transporte", "transporte público" -> "r"
-                    else -> "d"
+                    "walking", "a pie", "andar" -> "walking"
+                    "transit", "transporte", "transporte público" -> "transit"
+                    else -> "driving"
                 }
-                Uri.parse("google.navigation:q=" + Uri.encode(destination) + "&mode=" + mode)
+                Uri.parse(
+                    "https://www.google.com/maps/dir/?api=1&destination=" + Uri.encode(destination) +
+                        "&travelmode=" + mode
+                )
             }
             else -> return ConnectorResult.Failure("Operación de Maps no disponible.", false)
         }
