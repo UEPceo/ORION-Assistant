@@ -1,11 +1,11 @@
 # ORION — Arquitectura de conectores
 
-Estado: Gmail y GitHub disponen de integración de lectura; los cuatro conectores prioritarios siguientes están especificados en docs/PRIORITY_CONNECTORS.md.
+Estado: Gmail dispone de integración de lectura; GitHub dispone de lectura y escrituras de ingeniería controladas. Los cuatro conectores prioritarios siguientes están especificados en docs/PRIORITY_CONNECTORS.md.
 
 ## Proveedores
 
 - Gmail: Google Identity y Gmail API, scope gmail.readonly, búsqueda y lectura limitada.
-- GitHub: GitHub App Device Flow y REST API, repositorios, incidencias, commits, archivos y Actions en lectura.
+- GitHub: GitHub App Device Flow y REST API; repositorios, incidencias, commits, archivos y Actions en lectura; ramas, commits multiarchivo y pull requests draft en escritura, con SHA optimista, validador de rutas y aprobación contextual. El workspace inspecciona archivos seleccionados; Actions valida el proyecto ORION, no código arbitrario.
 - Notas del móvil: biblioteca local ORION, importación por Android Sharesheet/SAF y creación mediante intents compatibles. Android no permite leer de forma universal las notas privadas de otras aplicaciones.
 - Calendario: Android Calendar Provider (CalendarContract), permisos de lectura/escritura solicitados por separado y fallback a intents del calendario.
 - Google Maps: intents y URI oficiales para búsqueda, ubicación y navegación. Places API avanzada queda opcional y no se incrustan claves privadas en el APK.
