@@ -16,10 +16,13 @@ object ConnectorCatalog {
         ConnectorDescriptor(
             id = ConnectorId.GITHUB,
             displayName = "GitHub",
-            description = "Consultar repositorios, archivos, incidencias, commits y estado de GitHub Actions (solo lectura).",
+            description = "Inspeccionar repositorios, crear ramas, aplicar cambios de código y abrir pull requests con confirmación.",
             capabilities = setOf(
                 ConnectorCapability.SEARCH,
-                ConnectorCapability.READ
+                ConnectorCapability.READ,
+                ConnectorCapability.CREATE,
+                ConnectorCapability.UPDATE,
+                ConnectorCapability.COMMENT
             ),
             isImplemented = true
         ),
