@@ -9,9 +9,9 @@ import java.util.concurrent.ConcurrentHashMap
  * Records the cryptographic identity of files extracted from an archive whose
  * SHA-256 was checked against a pinned upstream digest.
  *
- * Small ASR/TTS payloads are re-hashed on every readiness check. Large single
- * file LLM payloads use the recorded size/mtime as a fast-path and are re-hashed
- * whenever either metadata value changes.
+ * ASR/TTS payloads are re-hashed on readiness checks. The large LLM file is
+ * re-hashed against its pinned digest once per process; only subsequent checks
+ * in that process may reuse the verified size/mtime snapshot.
  */
 internal object ModelIntegrityManifest {
     private const val FILE_NAME = ".orion-integrity-v1"
