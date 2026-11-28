@@ -33,6 +33,7 @@ data class GitHubIssueDetail(val number: Int, val title: String, val state: Stri
 data class GitHubCommitSummary(val sha: String, val message: String, val author: String, val committedAt: String, val htmlUrl: String)
 data class GitHubWorkflowRunSummary(val name: String, val status: String, val conclusion: String, val branch: String, val htmlUrl: String, val updatedAt: String)
 data class GitHubFileSummary(val name: String, val path: String, val type: String, val htmlUrl: String)
+data class GitHubFileContent(val name: String, val path: String, val content: String, val sha: String, val sizeBytes: Int, val htmlUrl: String)
 data class GitHubBranchSummary(val name: String, val sha: String)
 data class GitHubCommitResult(val commitSha: String, val branch: String)
 data class GitHubPullRequestSummary(val number: Int, val title: String, val url: String, val draft: Boolean)
@@ -185,6 +186,38 @@ class GitHubApiClient(
                         ))
                     }
                 }
+            }
+        }
+
+    suspend fun getFile(repository: String, path: String, branch: String? = null): Result<GitHubFileContent> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                require(isValidRepository(repository)) { "Repositorio no válido." }
+                require(CodeChangeValidator.isSafePath(path)) { "Ruta de archivo no válida." }
+                val encodedPath = path.split('/').joinToString("/") { encodePathSegment(it) }
+                val ref = branch?.takeIf { it.isNotBlank() }?.let {
+                    require(isSafeBranch(it)) { "Rama no válida." }
+                    "?ref=${encodePathSegment(it)}"
+                }.orEmpty()
+                val item = requestObject("/repos/$repository/contents/$encodedPath$ref")
+                require(item.optString("type") == "file") { "La ruta seleccionada no es un archivo." }
+                require(item.optString("encoding") == "base64") { "GitHub no devolvió el archivo en formato Base64." }
+                val encoded = item.optString("content").replace(Regex("\\s+"), "")
+                require(encoded.isNotBlank() && encoded.length <= MAX_FILE_CONTENT_BASE64) {
+                    "El archivo está vacío o supera el límite de lectura de ORION."
+                }
+                val decoded = Base64.decode(encoded, Base64.DEFAULT)
+                require(decoded.size <= MAX_FILE_CONTENT_BYTES) { "El archivo supera el límite de lectura de ORION." }
+                val text = String(decoded, Charsets.UTF_8)
+                require(!text.contains('\u0000')) { "El archivo parece binario y no se mostrará como código." }
+                GitHubFileContent(
+                    name = item.optString("name").take(200),
+                    path = item.optString("path").take(500),
+                    content = text,
+                    sha = item.optString("sha"),
+                    sizeBytes = decoded.size,
+                    htmlUrl = item.optString("html_url")
+                )
             }
         }
 
@@ -425,6 +458,8 @@ class GitHubApiClient(
         const val MAX_PAGE = 100
         const val MAX_PER_PAGE = 100
         const val MAX_RESPONSE_BYTES = 1_000_000
+        const val MAX_FILE_CONTENT_BYTES = 512 * 1024
+        const val MAX_FILE_CONTENT_BASE64 = MAX_FILE_CONTENT_BYTES * 2
         const val MAX_DESCRIPTION_LENGTH = 500
         const val MAX_TITLE_LENGTH = 300
         const val TIMEOUT_MS = 15_000
