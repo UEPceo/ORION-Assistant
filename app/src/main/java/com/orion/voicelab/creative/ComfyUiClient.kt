@@ -182,13 +182,29 @@ class ComfyUiClient(private val context:Context, private val config:ComfyUiEndpo
         result.optString("name").takeIf(String::isNotBlank)?:throw IOException("ComfyUI no confirmó la subida de referencia.")
     }
     private fun readResponse(conn:HttpURLConnection):JSONObject {
-        val code=conn.responseCode
-        if(code in 300..399) { conn.disconnect(); throw IOException("ComfyUI redirect bloqueado por seguridad.") }
-        val stream=if(code in 200..299) conn.inputStream else conn.errorStream
-        val text=stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText().take(2*1024*1024) }.orEmpty()
-        conn.disconnect()
-        if(code !in 200..299) throw IOException("ComfyUI HTTP $code: ${text.take(500)}")
-        return JSONObject(text)
+        try {
+            val code=conn.responseCode
+            if(code in 300..399) throw IOException("ComfyUI redirect bloqueado por seguridad.")
+            val stream=if(code in 200..299) conn.inputStream else conn.errorStream
+            val bytes=stream?.let { readBounded(it, 2*1024*1024) } ?: ByteArray(0)
+            val text=String(bytes,Charsets.UTF_8)
+            if(code !in 200..299) throw IOException("ComfyUI HTTP $code: ${text.take(500)}")
+            return JSONObject(text)
+        } finally { conn.disconnect() }
+    }
+    private fun readBounded(stream:java.io.InputStream,maxBytes:Int):ByteArray {
+        stream.use { input ->
+            val out=java.io.ByteArrayOutputStream()
+            val buffer=ByteArray(4096)
+            var total=0
+            while(true) {
+                val count=input.read(buffer); if(count<0) break
+                total+=count
+                if(total>maxBytes) throw IOException("Respuesta ComfyUI supera el límite permitido.")
+                out.write(buffer,0,count)
+            }
+            return out.toByteArray()
+        }
     }
     private fun extractOutput(outputs:JSONObject?):JSONObject? {
         if(outputs==null)return null
