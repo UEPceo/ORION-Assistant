@@ -305,7 +305,7 @@ class GitHubApiClient(
                     }
                     if (bytes.size() > 0) {
                         output.append("\n--- ").append(entry.name.substringAfterLast('/').take(120)).append(" ---\n")
-                        output.append(PlanSecretGuard.redact(String(bytes.toByteArray(), Charsets.UTF_8))).append('\n')
+                        output.append(PlanSecretGuard.redact(String(bytes.toByteArray(), Charsets.UTF_8), MAX_WORKFLOW_LOG_OUTPUT_CHARS)).append('\n')
                     }
                 }
                 zip.closeEntry()
