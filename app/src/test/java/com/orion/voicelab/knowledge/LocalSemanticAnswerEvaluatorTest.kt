@@ -149,6 +149,17 @@ class LocalSemanticAnswerEvaluatorTest {
         assertTrue(AnswerClaimCoverageGuard.check(draft, claims).passed)
     }
 
+    @Test fun oneClaimCannotCoverRepeatedFactualSentenceTwice() {
+        val draft = "The documented limit is 25. The documented limit is 25. [1]"
+        val claims = listOf(
+            AtomicAnswerClaim(
+                "c1", "The documented limit is 25.", setOf("source-1"),
+                sourceSpan = "The documented limit is 25."
+            )
+        )
+        assertFalse(AnswerClaimCoverageGuard.check(draft, claims).passed)
+    }
+
     @Test fun omittedSecondFactualSentenceFailsClosed() = runBlocking {
         val draft = "The documented limit is 25. The device supports 8 GB of memory. [1]"
         val result = evaluator(payload()).verify("What is the limit and memory?", draft, context())
