@@ -340,6 +340,9 @@ fun ConnectorsSectionScreen(
                 onCommit = { session, digest, confirmed ->
                     viewModel.commitApprovedCodeEngineeringChange(session, digest, confirmed)
                 },
+                onCreatePullRequest = { session, title, body, confirmed ->
+                    viewModel.createCodeEngineeringPullRequest(session, title, body, confirmed)
+                },
                 onRevoke = { session -> viewModel.revokeCodeEngineeringSession(session) }
             )
         }
