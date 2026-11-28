@@ -50,6 +50,8 @@ class DeviceRuntimeValidationTest {
         try {
             val installed = index.ensureDocument("device-validation-madrid", listOf(madrid), NeuralEmbeddingIndex.contentFingerprint(listOf(madrid)))
             assertTrue("ONNX document embedding failed", installed)
+            val unrelatedInstalled = index.ensureDocument("device-validation-unrelated", listOf(unrelated), NeuralEmbeddingIndex.contentFingerprint(listOf(unrelated)))
+            assertTrue("ONNX distractor embedding failed", unrelatedInstalled)
             val query = index.embedQuery("What is the capital of Spain?")
             assertNotNull("ONNX query embedding failed", query)
             val vector = query!!
@@ -57,13 +59,13 @@ class DeviceRuntimeValidationTest {
             val norm = kotlin.math.sqrt(vector.sumOf { it.toDouble() * it.toDouble() })
             assertTrue("Embedding is not normalized", kotlin.math.abs(norm - 1.0) < 0.02)
 
-            val unrelatedVector = index.embedQuery(unrelated)
-            assertNotNull(unrelatedVector)
             val relevantScore = index.score("device-validation-madrid", vector)
-            assertTrue("Relevant passage should have a positive similarity", relevantScore > 0.0)
+            val unrelatedScore = index.score("device-validation-unrelated", vector)
+            assertTrue("Relevant passage should outrank unrelated content", relevantScore > unrelatedScore)
             assertTrue("Embedding query should not collapse to a zero vector", vector.any { kotlin.math.abs(it) > 0f })
         } finally {
             index.remove("device-validation-madrid")
+            index.remove("device-validation-unrelated")
         }
     }
 
