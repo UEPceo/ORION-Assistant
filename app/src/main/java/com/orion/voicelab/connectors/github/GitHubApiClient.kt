@@ -35,6 +35,7 @@ data class GitHubWorkflowRunSummary(val name: String, val status: String, val co
 data class GitHubFileSummary(val name: String, val path: String, val type: String, val htmlUrl: String)
 data class GitHubFileContent(val name: String, val path: String, val content: String, val sha: String, val sizeBytes: Int, val htmlUrl: String)
 data class GitHubBranchSummary(val name: String, val sha: String)
+data class GitHubTreeEntry(val path: String, val type: String, val mode: String, val sha: String)
 data class GitHubCommitResult(val commitSha: String, val branch: String)
 data class GitHubPullRequestSummary(val number: Int, val title: String, val url: String, val draft: Boolean)
 
@@ -201,6 +202,38 @@ class GitHubApiClient(
                 GitHubBranchSummary(item.optString("name", branch), sha)
             }
         }
+
+    suspend fun getFileTreeMetadata(
+        repository: String,
+        branch: String,
+        selectedPaths: List<String>
+    ): Result<Map<String, GitHubTreeEntry>> = withContext(Dispatchers.IO) {
+        runCatching {
+            require(isValidRepository(repository) && isSafeBranch(branch)) { "Repositorio o rama no válidos." }
+            require(selectedPaths.isNotEmpty() && selectedPaths.size <= CodeChangeValidator.MAX_FILES) {
+                "La selección de archivos no es válida."
+            }
+            selectedPaths.forEach { require(CodeChangeValidator.isSafePath(it)) { "Ruta no permitida." } }
+            val head = getBranchHead(repository, branch).getOrThrow()
+            val commit = requestObject("/repos/$repository/git/commits/${head.sha}")
+            val treeSha = commit.optJSONObject("tree")?.optString("sha").orEmpty()
+            require(treeSha.matches(Regex("[a-fA-F0-9]{40}"))) { "GitHub no devolvió el árbol de la rama." }
+            val tree = requestObject("/repos/$repository/git/trees/$treeSha?recursive=1")
+            require(!tree.optBoolean("truncated", false)) { "El árbol del repositorio está truncado; no se puede validar con seguridad." }
+            val requested = selectedPaths.toSet()
+            val entries = linkedMapOf<String, GitHubTreeEntry>()
+            val items = tree.optJSONArray("tree") ?: JSONArray()
+            for (index in 0 until items.length()) {
+                val item = items.optJSONObject(index) ?: continue
+                val path = item.optString("path")
+                if (path in requested) {
+                    entries[path] = GitHubTreeEntry(path, item.optString("type"), item.optString("mode"), item.optString("sha"))
+                }
+            }
+            require(entries.keys.containsAll(requested)) { "Uno o varios archivos no existen en la rama seleccionada." }
+            entries
+        }
+    }
 
     suspend fun getFile(repository: String, path: String, branch: String? = null): Result<GitHubFileContent> =
         withContext(Dispatchers.IO) {
