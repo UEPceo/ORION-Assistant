@@ -97,9 +97,10 @@ class LocalTaskPlanStepHandlerTest {
 
     @Test fun postponingCompletedTaskDoesNotReactivateReminder() = runBlocking {
         val dueDay = LocalDate.of(2027, 3, 10).toEpochDay()
+        val originalReminderAt = System.currentTimeMillis() + 3_600_000L
         val created = tasks.createTask(
             title = "Tarea completada",
-            reminderAtMs = System.currentTimeMillis() + 3_600_000L,
+            reminderAtMs = originalReminderAt,
             reminderActive = true
         )
         tasks.completeTask(created.id)
@@ -114,7 +115,7 @@ class LocalTaskPlanStepHandlerTest {
         assertNotNull(result)
         assertEquals(TaskStatus.COMPLETED, result?.status)
         assertEquals(false, result?.reminderActive)
-        assertEquals(null, result?.reminderAtMs)
+        assertEquals(originalReminderAt, result?.reminderAtMs)
     }
 
     @Test fun validatorRejectsMalformedDateAndTimeInsteadOfSilentlyIgnoringThem() {
