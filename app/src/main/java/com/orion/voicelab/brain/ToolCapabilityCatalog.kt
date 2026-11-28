@@ -11,7 +11,10 @@ object ToolCapabilityCatalog {
   ToolCapability("calendar","Calendario Android",setOf("read_events","create_event"),ToolRisk.REVERSIBLE_WRITE,ToolAvailability.PARTIAL,"Lectura y alta revisada por el usuario; no modifica ni elimina eventos."),
   ToolCapability("local-files","Archivos locales",setOf("read","create_draft"),ToolRisk.REVERSIBLE_WRITE,ToolAvailability.REQUIRES_CONFIGURATION,"Falta flujo general de documentos con selector y permisos."),
   ToolCapability("code-sandbox","Entorno de programación aislado",setOf("inspect","edit","build","test"),ToolRisk.REVERSIBLE_WRITE,ToolAvailability.NOT_IMPLEMENTED,"No hay sandbox de ejecución integrado en Android."),
-  ToolCapability("browser","Navegador de investigación",setOf("search","open","extract","cite"),ToolRisk.READ_ONLY,ToolAvailability.PARTIAL,"Recuperación web HTML acotada; no es navegador completo ni procesa bien contenido dinámico/PDF.")
+  ToolCapability("browser","Navegador de investigación",setOf("search","open","extract","cite"),ToolRisk.READ_ONLY,ToolAvailability.PARTIAL,"Recuperación web HTML acotada; no es navegador completo ni procesa bien contenido dinámico/PDF."),
+  ToolCapability("media-generation","Generación multimedia",setOf("generate_image","generate_video"),ToolRisk.EXTERNAL_SIDE_EFFECT,ToolAvailability.REQUIRES_CONFIGURATION,"Adaptadores ComfyUI disponibles en código, pero no hay endpoint/workflow registrado por defecto; exige prueba de conexión, workflow válido y consentimiento antes de transmitir prompts o archivos."),
+  ToolCapability("knowledge-learning","Captura y revisión de conocimiento",setOf("capture_source","quarantine_candidate","review_candidate","publish_candidate"),ToolRisk.REVERSIBLE_WRITE,ToolAvailability.PARTIAL,"Solo mediante orden explícita; cuarentena y revisión humana; publicación condicionada por regresión. No reentrena pesos ni aprende automáticamente de conversaciones."),
+  ToolCapability("autonomous-self-modification","Auto-modificación autónoma",setOf("train_model_weights","modify_own_source","change_safety_policy","self_publish"),ToolRisk.DESTRUCTIVE,ToolAvailability.NOT_IMPLEMENTED,"No implementado. ORION no se reprograma, reentrena ni cambia sus políticas por iniciativa propia.")
  )
  fun find(id:String):ToolCapability?=tools.firstOrNull{it.id==id}
 }
