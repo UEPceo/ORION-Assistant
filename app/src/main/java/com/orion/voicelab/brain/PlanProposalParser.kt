@@ -69,13 +69,15 @@ object PlanProposalParser {
                         ?: return invalid("Conector no reconocido en el paso $id.")
                 }
                 val operation = item.optString("connectorOperation").takeUnless { it.isBlank() || it == "null" }?.take(100)
-                if (kind != PlanStepKind.CONNECTOR_READ) {
-                    return invalid("Esta fase solo admite pasos CONNECTOR_READ.")
-                }
-                if (connectorId == null || operation.isNullOrBlank()) {
-                    return invalid("El paso externo $id necesita conector y operación explícitos.")
-                }
-                if (connectorId != null && operation != null) {
+                val localKinds = setOf(
+                    PlanStepKind.LOCAL_CREATE_TASK,
+                    PlanStepKind.LOCAL_CREATE_NOTE,
+                    PlanStepKind.LOCAL_CREATE_REMINDER
+                )
+                if (kind == PlanStepKind.CONNECTOR_READ) {
+                    if (connectorId == null || operation.isNullOrBlank()) {
+                        return invalid("El paso externo $id necesita conector y operación explícitos.")
+                    }
                     if (operation !in supportedReadOperations[connectorId].orEmpty()) {
                         return invalid("La operación $operation no está implementada para $connectorId.")
                     }
@@ -92,9 +94,17 @@ object PlanProposalParser {
                         else -> emptySet()
                     }
                     val missingArguments = requiredArguments - arguments.keys
-                    if (missingArguments.isNotEmpty()) {
-                        return invalid("Al paso $id le faltan argumentos: ${missingArguments.joinToString()}.")
+                    if (missingArguments.isNotEmpty()) return invalid("Al paso $id le faltan argumentos: ${missingArguments.joinToString()}.")
+                } else if (kind in localKinds) {
+                    if (connectorId != null || operation != null) return invalid("Los pasos locales no admiten conectores.")
+                    if (kind != PlanStepKind.LOCAL_CREATE_NOTE && arguments["title"].isNullOrBlank()) return invalid("El paso local $id necesita título.")
+                    if (kind == PlanStepKind.LOCAL_CREATE_NOTE && arguments["content"].isNullOrBlank() && arguments["notes"].isNullOrBlank()) return invalid("La nota $id necesita contenido.")
+                    if (kind == PlanStepKind.LOCAL_CREATE_REMINDER) {
+                        val reminderAt = arguments["reminderAtMs"]?.toLongOrNull() ?: return invalid("El recordatorio $id necesita reminderAtMs válido.")
+                        if (reminderAt <= System.currentTimeMillis()) return invalid("El recordatorio $id debe estar en el futuro.")
                     }
+                } else {
+                    return invalid("Tipo de paso no ejecutable en esta fase: $kind.")
                 }
 
                 steps += PlannedStep(
