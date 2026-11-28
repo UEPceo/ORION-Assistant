@@ -112,7 +112,7 @@ class GitHubCodeEngineeringService(
         val diagnostics = CodeRepairBudget.summarizeLogs(inspection.failureLogs.orEmpty())
         require(diagnostics.isNotBlank()) { "Los logs no contienen diagnósticos utilizables." }
         val proposal = generator.generateRepair(
-            task = session.grant.task,
+            task = session.task,
             snapshot = snapshot,
             baseBranch = session.baseBranch,
             diagnosticContext = diagnostics,
@@ -135,7 +135,7 @@ class GitHubCodeEngineeringService(
             }
         }
         PreparedCodeChange(
-            session.grant.task,
+            session.task,
             snapshot,
             proposal,
             CodeEngineeringSessionAuthority.proposalDigest(proposal),
