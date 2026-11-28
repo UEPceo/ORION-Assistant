@@ -42,7 +42,10 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
             if (limit <= 0) return@withContext emptyList()
             val queryTerms = tokens(query.normalizedText)
             if (queryTerms.isEmpty()) return@withContext emptyList()
-            val documents = (readAll() + listOfNotNull(additionalDocument))
+            val activeDocuments = readAll().filterNot { existing ->
+                additionalDocument?.evidence?.id == existing.evidence.id
+            }
+            val documents = (activeDocuments + listOfNotNull(additionalDocument))
                 .distinctBy { it.evidence.id }
                 .filter {
                 it.evidence.domain == query.domain &&
