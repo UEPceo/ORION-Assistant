@@ -61,12 +61,14 @@ class KnowledgeCorpusStore(context: Context) : KnowledgeSource, KnowledgeReposit
                     chunksByDocument[document.evidence.id].orEmpty().map(::tokens).flatten()
                 )
             }
-            if (documents.any { !semanticIndex.hasDocument(it.evidence.id) }) {
+            // Candidate overlays are strictly read-only: never add unpublished content to either index.
+            if (additionalDocument == null && documents.any { !semanticIndex.hasDocument(it.evidence.id) }) {
                 semanticIndex.rebuild(documents.map { it.evidence.id to chunksByDocument[it.evidence.id].orEmpty() })
             }
-            // Dense vectors are generated only when the optional, verified ONNX model is installed.
+            // Dense vectors are generated only for the active corpus and only when the optional,
+            // verified ONNX model is installed. A candidate is scored lexically until publication.
             val neuralQuery = runCatching {
-                if (!neuralIndex.isAvailable()) return@runCatching null
+                if (additionalDocument != null || !neuralIndex.isAvailable()) return@runCatching null
                 val allIndexed = documents.all { document ->
                     val chunks = chunksByDocument[document.evidence.id].orEmpty()
                     neuralIndex.ensureDocument(document.evidence.id, chunks, NeuralEmbeddingIndex.contentFingerprint(chunks))
