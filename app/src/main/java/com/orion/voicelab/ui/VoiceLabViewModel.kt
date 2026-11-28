@@ -228,7 +228,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         modelDirectory = ModelManager.asrDirectory(appContext.filesDir)
     )
     private val languageModel = LlamaCppLanguageModel(
-        contentResolver = appContext.contentResolver,
+        context = appContext,
         modelFile = ModelManager.llmModelFile(appContext.filesDir)
     )
     private val speechSynthesizer = SherpaOnnxSpeechSynthesizer(
