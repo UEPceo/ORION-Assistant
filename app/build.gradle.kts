@@ -29,6 +29,11 @@ android {
     }
 
     val localDebugKeystore = file("${rootDir}/debug.keystore")
+    val ciDebugKeystorePath = System.getenv("ORION_DEBUG_KEYSTORE_PATH")
+    val ciDebugKeystore = ciDebugKeystorePath?.let(::file)
+    val ciDebugStorePassword = System.getenv("ORION_DEBUG_STORE_PASSWORD")
+    val ciDebugKeyAlias = System.getenv("ORION_DEBUG_KEY_ALIAS")
+    val ciDebugKeyPassword = System.getenv("ORION_DEBUG_KEY_PASSWORD")
     val releaseStoreFilePath = providers.gradleProperty("ORION_RELEASE_STORE_FILE").orNull
         ?: System.getenv("ORION_RELEASE_STORE_FILE")
     val releaseStorePassword = providers.gradleProperty("ORION_RELEASE_STORE_PASSWORD").orNull
@@ -45,8 +50,17 @@ android {
         !releaseKeyPassword.isNullOrBlank()
 
     signingConfigs {
-        if (localDebugKeystore.isFile) {
-            getByName("debug") {
+        getByName("debug") {
+            if (ciDebugKeystore?.isFile == true &&
+                !ciDebugStorePassword.isNullOrBlank() &&
+                !ciDebugKeyAlias.isNullOrBlank() &&
+                !ciDebugKeyPassword.isNullOrBlank()
+            ) {
+                storeFile = ciDebugKeystore
+                storePassword = ciDebugStorePassword
+                keyAlias = ciDebugKeyAlias
+                keyPassword = ciDebugKeyPassword
+            } else if (localDebugKeystore.isFile) {
                 storeFile = localDebugKeystore
                 storePassword = "android"
                 keyAlias = "androiddebugkey"
