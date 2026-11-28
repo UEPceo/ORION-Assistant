@@ -384,12 +384,14 @@ object ModelManager {
     const val LLM_SHA256 = "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e"
     private const val LLM_REQUIRED_FREE_BYTES = 1_250L * 1024L * 1024L
 
-    // 3. TTS: VITS Piper es_ES Sharvard Medium INT8 (MIT / CC-BY 3.0) — sin checksum.txt oficial en tag tts-models
+    // 3. TTS: VITS Piper es_ES Sharvard Medium INT8; digest fijado desde metadatos de release de sherpa-onnx
     const val TTS_DIR_NAME = "vits-piper-es_ES-sharvard-medium-int8"
     const val TTS_ARCHIVE_NAME = "$TTS_DIR_NAME.tar.bz2"
     const val TTS_MODEL_FILE = "es_ES-sharvard-medium.onnx"
     const val TTS_MODEL_URL =
         "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$TTS_ARCHIVE_NAME"
+    const val TTS_ARCHIVE_BYTES = 23_477_120L
+    const val TTS_ARCHIVE_SHA256 = "bf5507cbdedea650365bd6175b3164a8ecca5847533ddf97afcba9d76ea599d1"
     private const val TTS_MIN_ONNX_BYTES = 5_000_000L
     private const val TTS_REQUIRED_FREE_BYTES = 120L * 1024L * 1024L
 
@@ -529,7 +531,8 @@ object ModelManager {
         val espeak = File(directory, "espeak-ng-data")
         return model.isFile && model.length() >= TTS_MIN_ONNX_BYTES &&
             tokens.isFile && tokens.length() > 100L && espeak.isDirectory &&
-            (espeak.listFiles()?.isNotEmpty() == true)
+            (espeak.listFiles()?.isNotEmpty() == true) &&
+            ModelIntegrityManifest.verifyDirectory(directory)
     }
 
     fun ttsModelFile(filesDir: File): File = File(ttsDirectory(filesDir), TTS_MODEL_FILE)
@@ -546,9 +549,18 @@ object ModelManager {
         val targetFile = llmModelFile(filesDir)
         recoverFileBackupIfNeeded(targetFile, llmBackupFile(filesDir))
         recoverFileBackupIfNeeded(targetFile, File(llmDirectory(filesDir), "$LLM_FILE_NAME.new"))
-        return targetFile.isFile &&
-            targetFile.length() == expectedExactBytes &&
-            hasGgufMagicHeader(targetFile)
+        if (!targetFile.isFile || targetFile.length() != expectedExactBytes || !hasGgufMagicHeader(targetFile)) return false
+        val integrityRoot = llmDirectory(filesDir)
+        val manifest = File(integrityRoot, ".orion-integrity-v1")
+        if (!manifest.isFile) {
+            val actual = runCatching { ResumableHttpDownloader.sha256Hex(targetFile) }.getOrNull() ?: return false
+            if (!actual.equals(LLM_SHA256, ignoreCase = true)) return false
+            return runCatching {
+                ModelIntegrityManifest.createSingleFileManifest(integrityRoot, targetFile, LLM_SHA256)
+                ModelIntegrityManifest.verifySingleLargeFile(integrityRoot)
+            }.getOrDefault(false)
+        }
+        return ModelIntegrityManifest.verifySingleLargeFile(integrityRoot)
     }
 
     fun isTtsInstalled(filesDir: File): Boolean {
@@ -626,6 +638,14 @@ object ModelManager {
                 if (hadTarget && backupFile.exists()) backupFile.renameTo(targetFile)
                 error("No se pudo activar el modelo LLM descargado")
             }
+            try {
+                ModelIntegrityManifest.createSingleFileManifest(targetDir, targetFile, expectedSha256 ?: LLM_SHA256)
+                check(ModelIntegrityManifest.verifySingleLargeFile(targetDir)) { "La verificación del LLM instalado ha fallado." }
+            } catch (error: Exception) {
+                targetFile.delete()
+                if (hadTarget && backupFile.exists()) backupFile.renameTo(targetFile)
+                throw error
+            }
             backupFile.delete()
         }
     }
@@ -651,8 +671,8 @@ object ModelManager {
                         url = url,
                         destinationPartFile = partArchive,
                         minRequiredFreeBytes = requiredFreeBytes,
-                        expectedExactBytes = expectedExactBytes,
-                        expectedSha256 = expectedSha256,
+                        expectedExactBytes = expectedExactBytes ?: TTS_ARCHIVE_BYTES,
+                        expectedSha256 = expectedSha256 ?: TTS_ARCHIVE_SHA256,
                         connectTimeoutMs = 20_000,
                         readTimeoutMs = 60_000,
                         shouldCancel = shouldCancel
@@ -792,6 +812,7 @@ object ModelManager {
             check(espeakDir.isDirectory && (espeakDir.listFiles()?.isNotEmpty() == true)) {
                 "Falta directorio espeak-ng-data"
             }
+            ModelIntegrityManifest.createDirectoryManifest(tempDir)
 
             val hadTarget = targetDir.exists()
             if (hadTarget) {
