@@ -88,8 +88,8 @@ object ChatPromptFormatter {
         return value.take(head) + marker + value.takeLast(remaining - head)
     }
 
-    private const val SYSTEM_OVERHEAD_CHARS = 32
-    private const val MESSAGE_OVERHEAD_CHARS = 32
+    private const val SYSTEM_OVERHEAD_CHARS = 56
+    private const val MESSAGE_OVERHEAD_CHARS = 40
 
     fun cleanAssistantText(raw: String): String {
         var cleaned = raw
