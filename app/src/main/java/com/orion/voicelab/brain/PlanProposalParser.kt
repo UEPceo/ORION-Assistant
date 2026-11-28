@@ -30,6 +30,7 @@ object PlanProposalParser {
             val stepsJson = root.optJSONArray("steps") ?: return invalid("La propuesta no contiene un array de pasos.")
             if (stepsJson.length() !in 1..MAX_STEPS) return invalid("El plan debe contener entre 1 y $MAX_STEPS pasos.")
 
+            require(!root.has("budget") || root.optJSONObject("budget") != null) { "El presupuesto debe ser un objeto JSON." }
             val budgetJson = root.optJSONObject("budget") ?: JSONObject()
             val budget = ExecutionBudget(
                 maxSteps = readInt(budgetJson, "maxSteps", MAX_STEPS).also { require(it in 1..MAX_STEPS) },
@@ -43,12 +44,15 @@ object PlanProposalParser {
                 val title = readText(item, "title", 180).trim()
                 val rationale = readText(item, "rationale", MAX_TEXT_FIELD).trim()
                 require(id.isNotBlank() && title.isNotBlank()) { "Cada paso necesita identificador y título." }
-                val kind = runCatching { PlanStepKind.valueOf(item.optString("kind").uppercase(Locale.ROOT)) }.getOrNull()
+                val kindText = readText(item, "kind", 40)
+                val riskText = readText(item, "risk", 40)
+                val kind = runCatching { PlanStepKind.valueOf(kindText.uppercase(Locale.ROOT)) }.getOrNull()
                     ?: return invalid("Tipo de paso desconocido en la posición ${index + 1}.")
-                val risk = runCatching { PlanRisk.valueOf(item.optString("risk").uppercase(Locale.ROOT)) }.getOrNull()
+                val risk = runCatching { PlanRisk.valueOf(riskText.uppercase(Locale.ROOT)) }.getOrNull()
                     ?: return invalid("Riesgo desconocido en la posición ${index + 1}.")
 
                 val dependencies = mutableSetOf<String>()
+                require(!item.has("dependsOn") || item.optJSONArray("dependsOn") != null) { "dependsOn debe ser un array JSON." }
                 val dependenciesJson = item.optJSONArray("dependsOn")
                 if (dependenciesJson != null) {
                     for (i in 0 until dependenciesJson.length()) {
@@ -61,6 +65,7 @@ object PlanProposalParser {
                 }
 
                 val arguments = linkedMapOf<String, String>()
+                require(!item.has("connectorArguments") || item.optJSONObject("connectorArguments") != null) { "connectorArguments debe ser un objeto JSON." }
                 val argumentsJson = item.optJSONObject("connectorArguments") ?: JSONObject()
                 val keys = argumentsJson.keys()
                 while (keys.hasNext()) {
