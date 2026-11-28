@@ -325,15 +325,6 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                     null
                 }
             }
-            val promptBundle = turnBrainContext?.let { context ->
-                BrainPromptComposer.composeBundle(
-                    context,
-                    maxChars = com.orion.voicelab.llm.ContextWindowBudgetPolicy.evidenceChars(languageModel.contextWindowTokens)
-                )
-            }
-            latestTurnBrainContext = promptBundle?.evidenceContext
-            val brainPrompt = promptBundle?.prompt
-                ?: "CONOCIMIENTO LOCAL NO DISPONIBLE EN ESTE TURNO: continúa la conversación con el contexto disponible, no afirmes haber consultado fuentes y comunica la limitación solo si afecta a la respuesta."
             val creativeSkill = CreativeSkillRouter.route(userText)
             val mediaStatus = when (creativeSkill) {
                 CreativeSkill.IMAGE_GENERATION -> configuredMediaRuntime().imageGenerationStatus()
@@ -362,6 +353,20 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 LanguageModelProfileCatalog.byId(languageModel.profileId) ?: LanguageModelProfileCatalog.profiles.first()
             )
             val planningGuidance = PlanningPromptComposer.compose(userText)
+            val fixedPromptChars = baseContext.systemPrompt.length + modelGuidance.length +
+                planningGuidance.length + creativeContext.length + selfKnowledgeContext.length + 120
+            val historyChars = recentHistory.sumOf { it.content.length + 32 }
+            val evidenceBudget = com.orion.voicelab.llm.ContextWindowBudgetPolicy.evidenceChars(
+                languageModel.contextWindowTokens,
+                fixedPromptChars,
+                historyChars
+            )
+            val promptBundle = turnBrainContext?.let { context ->
+                BrainPromptComposer.composeBundle(context, maxChars = evidenceBudget)
+            }
+            latestTurnBrainContext = promptBundle?.evidenceContext
+            val brainPrompt = promptBundle?.prompt
+                ?: "CONOCIMIENTO LOCAL NO DISPONIBLE EN ESTE TURNO: continúa la conversación con el contexto disponible, no afirmes haber consultado fuentes y comunica la limitación solo si afecta a la respuesta."
             baseContext.copy(
                 systemPrompt = BrainTurnContextComposer.compose(
                     basePrompt = baseContext.systemPrompt,
