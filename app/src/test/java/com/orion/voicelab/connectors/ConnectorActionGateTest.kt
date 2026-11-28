@@ -88,6 +88,21 @@ class ConnectorActionGateTest {
         }
     }
 
+
+    @Test
+    fun unimplementedGithubOperationsAreNotWhitelisted() {
+        listOf("get_repository", "get_file", "list_pull_requests", "get_pull_request").forEach { operation ->
+            assertEquals(
+                ConnectorAuthorizationDecision.REQUIRE_CONFIRMATION,
+                ConnectorActionGate.evaluate(
+                    ConnectorAction(ConnectorId.GITHUB, operation),
+                    userRequestedExactAction = true,
+                    connectorConnected = true
+                )
+            )
+        }
+    }
+
     @Test
     fun externalSideEffectsAlwaysRequireConfirmation() {
         val action = ConnectorAction(
