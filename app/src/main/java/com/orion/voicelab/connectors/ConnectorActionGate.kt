@@ -12,19 +12,14 @@ enum class ConnectorAuthorizationDecision {
  * write operation safe merely by labelling its risk READ_ONLY.
  */
 object ConnectorActionGate {
-    private val readOnlyOperations = setOf(
-        "search_messages",
-        "search_public",
-        "search_place",
-        "navigate",
-        "get_message",
-        "read_latest_message",
-        "list_repositories",
-        "list_issues",
-        "get_issue",
-        "list_commits",
-        "list_workflow_runs",
-        "list_files"
+    private val readOnlyOperationsByConnector = mapOf(
+        ConnectorId.GMAIL to setOf("search_messages", "get_message", "read_latest_message"),
+        ConnectorId.GITHUB to setOf(
+            "list_repositories", "list_issues", "get_issue",
+            "list_commits", "list_workflow_runs", "list_files"
+        ),
+        ConnectorId.GOOGLE_MAPS to setOf("search_place", "navigate"),
+        ConnectorId.PESCAIA to setOf("search_public")
     )
 
     fun evaluate(
@@ -36,7 +31,7 @@ object ConnectorActionGate {
 
         return when (action.risk) {
             ConnectorRisk.READ_ONLY -> {
-                if (!isReadOnlyOperation(action.operation)) {
+                if (!isReadOnlyOperation(action.connectorId, action.operation)) {
                     ConnectorAuthorizationDecision.DENY
                 } else if (userRequestedExactAction) {
                     ConnectorAuthorizationDecision.ALLOW
@@ -52,8 +47,8 @@ object ConnectorActionGate {
         }
     }
 
-    private fun isReadOnlyOperation(operation: String): Boolean {
+    private fun isReadOnlyOperation(connectorId: ConnectorId, operation: String): Boolean {
         val normalized = operation.trim().lowercase()
-        return normalized in readOnlyOperations
+        return normalized in readOnlyOperationsByConnector[connectorId].orEmpty()
     }
 }
