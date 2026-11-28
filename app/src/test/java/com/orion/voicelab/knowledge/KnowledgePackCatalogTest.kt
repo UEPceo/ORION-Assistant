@@ -7,8 +7,8 @@ class KnowledgePackCatalogTest {
   assertTrue(KnowledgePackCatalog.packs.all { it.state == KnowledgePackState.READY_TO_INSTALL })
  }
  @Test fun allFifteenOfflinePacksAreRegistered() {
-  assertEquals(15, KnowledgePackCatalog.packs.size)
-  assertEquals(15, KnowledgePackCatalog.packs.map { it.id }.toSet().size)
+  assertEquals(16, KnowledgePackCatalog.packs.size)
+  assertEquals(16, KnowledgePackCatalog.packs.map { it.id }.toSet().size)
   assertTrue(KnowledgePackCatalog.packs.all { it.state == KnowledgePackState.READY_TO_INSTALL })
  }
  @Test fun runtimeStateReflectsActuallyInstalledPackIds() {
@@ -22,7 +22,7 @@ class KnowledgePackCatalogTest {
  }
  @Test fun allRequestedDisciplinesHaveDedicatedPacks() {
   val ids=KnowledgePackCatalog.packs.map { it.id }.toSet()
-  assertTrue(ids.containsAll(setOf("computer-science","mathematics","science","engineering","finance","business","communication","creativity","general-knowledge")))
+  assertTrue(ids.containsAll(setOf("computer-science","mathematics","science","engineering","finance","business","communication","creativity","general-knowledge","calendar-productivity")))
   assertTrue(KnowledgePackCatalog.packs.any { KnowledgeDomain.MATHEMATICS in it.domains })
   assertTrue(KnowledgePackCatalog.packs.any { KnowledgeDomain.SCIENCE in it.domains })
   assertTrue(KnowledgePackCatalog.packs.any { KnowledgeDomain.ENGINEERING in it.domains })
