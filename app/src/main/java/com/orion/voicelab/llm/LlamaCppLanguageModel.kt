@@ -34,18 +34,36 @@ object ChatPromptFormatter {
     fun formatChatMl(
         systemPrompt: String,
         history: List<ChatMessage>,
-        maxTurns: Int = 10
+        maxTurns: Int = 10,
+        maxContextTokens: Int = 2048
     ): String {
-        val recent = if (history.size > maxTurns) {
-            history.takeLast(maxTurns)
-        } else {
-            history
+        val promptBudget = ContextWindowBudgetPolicy.promptChars(maxContextTokens)
+        val safeSystem = systemPrompt.trim()
+        require(safeSystem.length + SYSTEM_OVERHEAD_CHARS <= promptBudget) {
+            "El prompt de sistema supera el presupuesto del contexto efectivo; reduce contexto antes de generar."
+        }
+        val selected = mutableListOf<ChatMessage>()
+        var usedChars = safeSystem.length + SYSTEM_OVERHEAD_CHARS
+        for (message in history.takeLast(maxTurns).asReversed()) {
+            val overhead = MESSAGE_OVERHEAD_CHARS
+            val available = promptBudget - usedChars - overhead
+            if (available <= 0) break
+            val content = if (message.content.length <= available) {
+                message.content
+            } else if (selected.isEmpty()) {
+                truncateMiddle(message.content, available)
+            } else {
+                break
+            }
+            selected += message.copy(content = content)
+            usedChars += content.length + overhead
+            if (content.length < message.content.length) break
         }
         return buildString {
-            append("<|im_start|>system\n")
-            append(systemPrompt.trim())
-            append("<|im_end|>\n")
-            for (msg in recent) {
+            append("<|im_start|>system\\n")
+            append(safeSystem)
+            append("<|im_end|>\\n")
+            for (msg in selected.asReversed()) {
                 val roleTag = when (msg.role) {
                     ChatRole.SYSTEM -> "system"
                     ChatRole.USER -> "user"
@@ -53,13 +71,25 @@ object ChatPromptFormatter {
                 }
                 append("<|im_start|>")
                 append(roleTag)
-                append('\n')
+                append('\\n')
                 append(msg.content.trim())
-                append("<|im_end|>\n")
+                append("<|im_end|>\\n")
             }
-            append("<|im_start|>assistant\n")
+            append("<|im_start|>assistant\\n")
         }
     }
+
+    private fun truncateMiddle(value: String, maxChars: Int): String {
+        if (value.length <= maxChars) return value
+        if (maxChars <= 32) return value.take(maxChars)
+        val marker = "\\n[CONTENIDO RECORTADO]\\n"
+        val remaining = maxChars - marker.length
+        val head = (remaining * 0.65).toInt()
+        return value.take(head) + marker + value.takeLast(remaining - head)
+    }
+
+    private const val SYSTEM_OVERHEAD_CHARS = 32
+    private const val MESSAGE_OVERHEAD_CHARS = 32
 
     fun cleanAssistantText(raw: String): String {
         var cleaned = raw
@@ -329,7 +359,7 @@ class LlamaCppLanguageModel internal constructor(
                     cancelled.set(false)
                     generating.set(true)
 
-                    val prompt = ChatPromptFormatter.formatChatMl(systemPrompt, history)
+                    val prompt = ChatPromptFormatter.formatChatMl(systemPrompt, history, maxContextTokens = contextWindowTokens)
                     val startMs = clockMs()
                     var firstTokenMs = -1L
                     val tokenCounter = AtomicInteger(0)
