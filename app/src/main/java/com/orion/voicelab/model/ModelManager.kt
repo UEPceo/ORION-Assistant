@@ -576,7 +576,8 @@ object ModelManager {
             tokens.isFile &&
             tokens.length() > 100L &&
             espeak.isDirectory &&
-            (espeak.listFiles()?.isNotEmpty() == true)
+            (espeak.listFiles()?.isNotEmpty() == true) &&
+            ModelIntegrityManifest.verifyDirectory(ttsDirectory(filesDir))
     }
 
     fun asrSizeMb(filesDir: File): Long = MoonshineModelManager.modelSizeMb(filesDir)
