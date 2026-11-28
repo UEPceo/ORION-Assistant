@@ -31,8 +31,13 @@ class GitHubCodeEngineeringService(
         userConfirmed: Boolean
     ): Result<CodeEngineeringSession> = runCatching {
         require(userConfirmed) { "Confirma la sesión de ingeniería antes de crear la rama." }
-        val branch = api.createBranch(repository, workBranch, baseBranch).getOrThrow()
         val grant = authority.grant(repository, task, workBranch, userConfirmed = true)
+        val branch = try {
+            api.createBranch(repository, workBranch, baseBranch).getOrThrow()
+        } catch (error: Throwable) {
+            authority.revoke(grant.id)
+            throw error
+        }
         CodeEngineeringSession(grant, branch)
     }
 
@@ -41,6 +46,9 @@ class GitHubCodeEngineeringService(
         task: String,
         selectedPaths: List<String>
     ): Result<PreparedCodeChange> = runCatching {
+        require(authority.isTaskAuthorized(session.grant.id, task)) {
+            "La tarea no coincide con la autorización de esta sesión."
+        }
         val snapshot = workspace.open(session.grant.repository, session.grant.workBranch, selectedPaths).getOrThrow()
         val proposal = generator.generate(task, snapshot).getOrThrow()
         val validation = CodeChangeValidator.validate(proposal)
