@@ -7,6 +7,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.security.MessageDigest
 
 @RunWith(RobolectricTestRunner::class)
 class KnowledgeReviewQueueStoreTest {
@@ -21,7 +22,7 @@ class KnowledgeReviewQueueStoreTest {
 
     private fun document(content:String,authority:EvidenceAuthority=EvidenceAuthority.OFFICIAL_PRIMARY)=KnowledgeDocument(
         KnowledgeEvidence("doc-1","Test document","https://example.org/doc","example",
-            KnowledgeDomain.PROGRAMMING,authority,1_000L,content=content,contentHash=null)
+            KnowledgeDomain.PROGRAMMING,authority,1_000L,content=content,contentHash=MessageDigest.getInstance("SHA-256").digest(content.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) })
     )
 
     @Test fun candidateStaysQuarantinedUntilExplicitApprovalAndCanRollback()=runBlocking {
