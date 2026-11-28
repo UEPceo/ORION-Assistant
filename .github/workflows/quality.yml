@@ -44,7 +44,9 @@ jobs:
         timeout-minutes: 10
         env:
           CI: true
-        run: ./gradlew --no-daemon --stacktrace --max-workers=2 compileDebugAndroidTestKotlin
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --stacktrace --max-workers=2 compileDebugAndroidTestKotlin
       - name: Run unit tests and Robolectric
         timeout-minutes: 50
         env:
