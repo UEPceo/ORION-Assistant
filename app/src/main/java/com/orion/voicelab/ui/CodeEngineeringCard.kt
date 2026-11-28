@@ -19,7 +19,7 @@ import com.orion.voicelab.engineering.CodeRepairBudget
 fun CodeEngineeringCard(
     state: CodeEngineeringUiState,
     onStartSession: (String,String,String,String,Boolean)->Unit,
-    onPrepare: (CodeEngineeringSession,String,List<String>)->Unit,
+    onPrepare: (CodeEngineeringSession,String,List<String>,Boolean)->Unit,
     onCommit: (CodeEngineeringSession,String,Boolean)->Unit,
     onCreatePullRequest: (CodeEngineeringSession,String,String,Boolean)->Unit,
     onInspectCi: (CodeEngineeringSession)->Unit,
@@ -62,7 +62,7 @@ fun CodeEngineeringCard(
                     Checkbox(sourceContextConfirmed,{sourceContextConfirmed=it})
                     Text("Autorizo usar estos archivos como contexto del modelo. Si la inferencia remota está activa, el contenido podrá enviarse al proveedor autorizado.",style=MaterialTheme.typography.bodySmall)
                 }
-                Button(onClick={onPrepare(session,task.trim(),selectedPaths.split(',', '\n').map{it.trim()}.filter{it.isNotBlank()})},enabled=!state.isWorking&&task.isNotBlank()&&selectedPaths.isNotBlank()&&sourceContextConfirmed,modifier=Modifier.fillMaxWidth()) {
+                Button(onClick={onPrepare(session,task.trim(),selectedPaths.split(',', '\n').map{it.trim()}.filter{it.isNotBlank()},sourceContextConfirmed)},enabled=!state.isWorking&&task.isNotBlank()&&selectedPaths.isNotBlank()&&sourceContextConfirmed,modifier=Modifier.fillMaxWidth()) {
                     Text("Inspeccionar y preparar propuesta")
                 }
                 OutlinedButton(onClick={onRevoke(session)},enabled=!state.isWorking,modifier=Modifier.fillMaxWidth()) { Text("Revocar sesión") }
