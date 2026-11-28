@@ -104,6 +104,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -905,6 +906,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     }
 
     private suspend fun installAsrSuspend(throwOnError: Boolean) {
+        val downloadJob = currentCoroutineContext()[Job]
         asrDownloadMutex.withLock {
             if (ModelManager.isAsrInstalled(appContext.filesDir)) {
                 refreshModelState()
@@ -920,7 +922,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
                 MoonshineModelManager.downloadAndInstall(
                     filesDir = appContext.filesDir,
                     cacheDir = appContext.cacheDir,
-                    shouldCancel = { !viewModelScope.isActive },
+                    shouldCancel = { downloadJob?.isActive != true },
                     onProgress = { percent ->
                         _uiState.update {
                             it.copy(modelState = ModelInstallState.Downloading(percent))
@@ -963,6 +965,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     }
 
     private suspend fun installLlmSuspend(throwOnError: Boolean) {
+        val downloadJob = currentCoroutineContext()[Job]
         llmDownloadMutex.withLock {
             if (ModelManager.isLlmInstalled(appContext.filesDir)) {
                 refreshModelState()
@@ -1023,6 +1026,7 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
     }
 
     private suspend fun installTtsSuspend(throwOnError: Boolean) {
+        val downloadJob = currentCoroutineContext()[Job]
         ttsDownloadMutex.withLock {
             if (ModelManager.isTtsInstalled(appContext.filesDir)) {
                 refreshModelState()
