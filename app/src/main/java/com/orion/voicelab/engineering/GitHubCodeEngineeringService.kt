@@ -11,6 +11,18 @@ data class CodeEngineeringSession(
     val branch: GitHubBranchSummary
 )
 
+data class CodeEngineeringCiInspection(
+    val run: GitHubWorkflowRunSummary?,
+    val jobs: List<com.orion.voicelab.connectors.github.GitHubWorkflowJobSummary>,
+    val failureLogs: String?,
+    val logRetrievalError: String? = null
+) {
+    val completedSuccessfully: Boolean
+        get() = run?.status == "completed" && run.conclusion == "success"
+    val failed: Boolean
+        get() = run?.status == "completed" && run.conclusion == "failure"
+}
+
 data class PreparedCodeChange(
     val task: String,
     val snapshot: CodeWorkspaceSnapshot,
@@ -93,6 +105,34 @@ class GitHubCodeEngineeringService(
             "La aprobación del diff ha caducado, se ha consumido o no coincide."
         }
         api.commitChanges(prepared.proposal, prepared.snapshot.headSha).getOrThrow()
+    }
+
+    /**
+     * Correlates CI strictly to the exact reviewed branch head. Stale runs from previous
+     * commits are never treated as validation of the current proposal.
+     */
+    suspend fun inspectCiForCurrentHead(
+        repository: String,
+        branch: String,
+        expectedHeadSha: String
+    ): Result<CodeEngineeringCiInspection> = runCatching {
+        require(repository.matches(Regex("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}"))) {
+            "Repositorio no válido."
+        }
+        require(branch.isNotBlank() && branch.length <= 120) { "Rama no válida." }
+        require(expectedHeadSha.matches(Regex("[a-fA-F0-9]{40}"))) { "SHA esperado no válido." }
+        val run = api.listWorkflowRuns(repository).getOrThrow()
+            .filter { it.branch == branch && it.headSha.equals(expectedHeadSha, true) }
+            .maxByOrNull { it.runId }
+            ?: return@runCatching CodeEngineeringCiInspection(null, emptyList(), null)
+        val jobs = if (run.runId > 0L) api.listWorkflowRunJobs(repository, run.runId).getOrThrow() else emptyList()
+        val logs = if (run.status == "completed" && run.conclusion == "failure") {
+            api.downloadWorkflowRunLogs(repository, run.runId).getOrNull()
+        } else null
+        val logError = if (run.status == "completed" && run.conclusion == "failure" && logs == null) {
+            "La ejecución ha fallado, pero ORION no ha podido recuperar sus logs."
+        } else null
+        CodeEngineeringCiInspection(run, jobs, logs, logError)
     }
 
     suspend fun createDraftPullRequest(
