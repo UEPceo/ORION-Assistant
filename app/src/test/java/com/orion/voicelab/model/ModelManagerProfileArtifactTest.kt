@@ -1,7 +1,6 @@
 package com.orion.voicelab.model
 
 import org.junit.Assert.*
-import java.io.File
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.junit.Test
