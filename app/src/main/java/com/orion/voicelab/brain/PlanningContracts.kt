@@ -197,7 +197,7 @@ class PlanExecutionCoordinator {
                     observer.onProgress(PlanStatus.RUNNING, results.toMap(), null)
                     continue
                 }
-                val retryAllowed = item.kind in setOf(PlanStepKind.THINK, PlanStepKind.SEARCH, PlanStepKind.READ, PlanStepKind.CALCULATE, PlanStepKind.CONNECTOR_READ) || !item.idempotencyKey.isNullOrBlank()
+                val retryAllowed = item.kind in setOf(PlanStepKind.THINK, PlanStepKind.SEARCH, PlanStepKind.READ, PlanStepKind.CALCULATE, PlanStepKind.CONNECTOR_READ)
                 var attempt = 0
                 var execution: StepExecution
                 activeStepId = id
