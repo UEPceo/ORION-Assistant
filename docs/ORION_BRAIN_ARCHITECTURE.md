@@ -461,3 +461,10 @@ La ruta remota continúa siendo opcional. No se requiere proveedor comercial: pu
 ## Pruebas de minimización del payload remoto
 
 Se ha extraído la construcción del JSON remoto a `RemoteInferencePayload`. Las pruebas unitarias cubren el máximo de 12 mensajes recientes, los límites de 24.000 caracteres para el prompt de sistema y 8.000 por mensaje, y el mapeo de roles OpenAI. La prueba confirma el contrato del payload; no demuestra por sí sola el comportamiento de un servidor externo ni la seguridad de red extremo a extremo.
+
+
+## Backend LLM Android — verificación de código nativo
+
+El wrapper `llamacpp-kotlin 0.4.0` integrado en ORION selecciona bibliotecas CPU ARM64 según las features del procesador (incluye variantes DotProd/I8MM). Su JNI informa `gpu=false` y `reasonNoGPU=Currently not supported`; el CMake declara `LM_GGML_USE_CPU` y no compila OpenCL/Vulkan/Hexagon. Por tanto, ORION dispone de dispatch CPU optimizado, no de aceleración GPU/NPU en el motor local actual.
+
+El paquete comunitario Android de llama.cpp con Hexagon/OpenCL es CLI/servidor, no un AAR JNI. Su digest de release permite fijar un artefacto para investigación, pero no demuestra seguridad de cadena de suministro ni compatibilidad con el runtime actual. La integración debe realizarse como un backend experimental independiente o un port del CMake/JNI; mantener el motor CPU como fallback y no alterar el modelo predeterminado hasta completar tests y benchmarks.
