@@ -2144,6 +2144,21 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
             handleVoiceCallCommand(userText)?.let { return it }
         }
 
+        com.orion.voicelab.knowledge.ExplicitKnowledgeLearningIntent.route(userText)?.let { request ->
+            val result = try {
+                withContext(Dispatchers.IO) { brainRuntime.learnFromExplicitSource(request) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                return "No se pudo incorporar la fuente: ${error.message?.take(180) ?: "error de lectura"}."
+            }
+            _knowledgeReviews.value = withContext(Dispatchers.IO) {
+                runCatching { brainRuntime.pendingKnowledgeReviews() }.getOrDefault(emptyList())
+            }
+            _knowledgeReviewMessage.value = result.message
+            return "Fuente: ${result.title.ifBlank { request.url }}. Autoridad detectada: ${result.authority.name}. ${result.message}"
+        }
+
         ConnectorVoiceIntentRouter.route(userText, lastConnectorRepository)?.let { routed ->
             val repository = routed.action.arguments["repository"]
             if (!repository.isNullOrBlank()) lastConnectorRepository = repository
