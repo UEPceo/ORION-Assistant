@@ -60,7 +60,7 @@ class CodeChangeValidatorTest {
 
     @Test fun blocksCredentialFilesAndPrivateKeyMaterialByPath() {
         listOf(
-            ".env", ".env.production", "config/local.properties", ".npmrc",
+            ".env", ".env.production", "config/.env.production", "config/local.properties", ".npmrc", "secrets/config.json",
             ".ssh/id_rsa", ".aws/credentials", "secrets.json",
             "config/service-account-prod.json", "signing/release.p12", "certs/private.pem"
         ).forEach { path ->

@@ -135,9 +135,9 @@ object CodeChangeValidator {
 
     private fun isSensitivePath(path: String, segments: List<String>): Boolean {
         val normalized = path.lowercase()
-        if (normalized.matches(Regex("""(^|/)\.env(?:\.[^/]*)?$"""))) return true
+        if (Regex("""(^|/)\.env(?:\.[^/]*)?$""").containsMatchIn(normalized)) return true
         val sensitiveNames = setOf(
-            "local.properties", ".npmrc", ".pypirc", ".aws", ".ssh",
+            "local.properties", ".npmrc", ".pypirc", ".aws", ".ssh", "secrets", "secret", "credentials", "credential",
             "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"
         )
         if (segments.any { it.lowercase() in sensitiveNames }) return true
