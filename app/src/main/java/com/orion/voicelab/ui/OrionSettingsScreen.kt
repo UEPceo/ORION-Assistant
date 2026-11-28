@@ -1,6 +1,9 @@
 package com.orion.voicelab.ui
 
 import android.os.Build
+import android.app.ActivityManager
+import com.orion.voicelab.llm.LanguageModelProfileCatalog
+import com.orion.voicelab.llm.ModelTier
 import com.orion.voicelab.creative.ComfyUiVideoGenerationProvider
 import com.orion.voicelab.creative.ComfyUiImageGenerationProvider
 import com.orion.voicelab.creative.ComfyUiClient
@@ -170,6 +173,67 @@ fun OrionSettingsScreen(
             )
         }
 
+
+        val modelPreferences = remember(context) { context.getSharedPreferences("orion_model_settings", 0) }
+        val totalDeviceRamMb = remember(context) {
+            val info = ActivityManager.MemoryInfo()
+            (context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(info)
+            info.totalMem / (1024L * 1024L)
+        }
+        var automaticModelProfile by remember { mutableStateOf(modelPreferences.getBoolean("auto_profile", true)) }
+        var selectedModelProfileId by remember { mutableStateOf(modelPreferences.getString("selected_profile", "lite") ?: "lite") }
+        val recommendedModelProfile = remember(totalDeviceRamMb) { LanguageModelProfileCatalog.recommendForDevice(totalDeviceRamMb) }
+        val selectedModelProfile = remember(selectedModelProfileId) { LanguageModelProfileCatalog.byId(selectedModelProfileId) ?: LanguageModelProfileCatalog.profiles.first() }
+        val effectiveModelProfile = remember(selectedModelProfileId, totalDeviceRamMb) {
+            LanguageModelProfileCatalog.effectiveProfile(selectedModelProfileId, totalDeviceRamMb)
+        }
+        SettingsSection(title = "Perfiles del modelo neuronal", subtitle = "Selección manual o recomendación automática según la RAM física del dispositivo") {
+            Text("RAM total detectada: ${totalDeviceRamMb / 1024} GB", style = MaterialTheme.typography.bodyMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Selección automática", modifier = Modifier.weight(1f))
+                Switch(checked = automaticModelProfile, onCheckedChange = {
+                    automaticModelProfile = it
+                    modelPreferences.edit().putBoolean("auto_profile", it).apply()
+                    if (it) {
+                        selectedModelProfileId = recommendedModelProfile.id
+                        modelPreferences.edit().putString("selected_profile", recommendedModelProfile.id).apply()
+                    }
+                })
+            }
+            if (automaticModelProfile) {
+                Text("Perfil recomendado para este dispositivo: ${recommendedModelProfile.displayName}.", style = MaterialTheme.typography.bodyMedium)
+            } else {
+                Text("Perfil solicitado: ${selectedModelProfile.displayName}.", style = MaterialTheme.typography.bodyMedium)
+            }
+            LanguageModelProfileCatalog.profiles.forEach { profile ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = if ((if (automaticModelProfile) recommendedModelProfile.id else selectedModelProfileId) == profile.id) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(profile.displayName, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                            if (profile.id == recommendedModelProfile.id) Text("Recomendado", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Text("Modelos: ${profile.recommendedModels.joinToString(" · ")}", style = MaterialTheme.typography.bodySmall)
+                        Text("Descarga aproximada: ${profile.approximateDownloadMb} MB · RAM: ${profile.minimumDeviceRamGb}–${profile.recommendedDeviceRamGb} GB · Contexto objetivo: ${profile.contextTokens} tokens", style = MaterialTheme.typography.bodySmall)
+                        Text(profile.configurationNote, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (!automaticModelProfile) {
+                            TextButton(onClick = {
+                                selectedModelProfileId = profile.id
+                                modelPreferences.edit().putString("selected_profile", profile.id).apply()
+                            }) { Text(if (selectedModelProfileId == profile.id) "Seleccionado" else "Elegir perfil") }
+                        }
+                    }
+                }
+            }
+            Text(
+                if (effectiveModelProfile.id == "lite") "Motor activo: Qwen2.5-1.5B Q4_K_M. Los perfiles superiores quedan registrados como preferencia, pero no se activarán hasta integrar sus archivos GGUF, licencias, verificaciones y pruebas de memoria. ORION no simula que están instalados."
+                else "El perfil solicitado todavía no está operativo. El motor seguirá usando Ligero hasta que el modelo correspondiente esté instalado y validado.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         SettingsSection(title = "Planes y ejecuciones guardadas", subtitle = "Historial local, checkpoints y reanudación controlada. Las autorizaciones externas se solicitan de nuevo en cada ejecución.") {
             if (planExecutions.isEmpty()) {
