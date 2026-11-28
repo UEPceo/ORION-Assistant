@@ -83,6 +83,7 @@ import com.orion.voicelab.tts.SynthesisResult
 import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -90,6 +91,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
@@ -632,7 +634,7 @@ class VoiceLabUnitTest {
                 ): Map<String, Any> {
                     completionStarted.complete(Unit)
                     tokenCallback?.invoke("Hola ")
-                    allowCompletionFinish.await()
+                    allowCompletionFinish.awaitWithTimeout()
                     return mapOf("text" to "Hola", "tokens_predicted" to 1)
                 }
 
@@ -686,9 +688,9 @@ class VoiceLabUnitTest {
                     tokensSeen.add(tok)
                 }
             }
-            completionStarted.await()
+            completionStarted.awaitWithTimeout()
             llm.cancelGeneration()
-            val result = genJob.await()
+            val result = genJob.awaitWithTimeout()
             assertTrue(result.cancelled)
             assertEquals(listOf("Hola "), tokensSeen.toList())
             assertTrue(stopCalls.get() >= 1)
@@ -803,7 +805,7 @@ class VoiceLabUnitTest {
 
         gateLlm.complete(Unit)
         assertTrue(telemetryLatch.await(4, TimeUnit.SECONDS))
-        turn1ReturnedToListening.await()
+        turn1ReturnedToListening.awaitWithTimeout()
         assertEquals(1, fakeAsr.transcribeCalls.get())
         assertTrue(turnsSeen.last().size == 2)
 
@@ -820,7 +822,7 @@ class VoiceLabUnitTest {
         fakeLlm.setNextGate(blockedGate, secondGenStarted)
         fakeVad.enqueueSegment(FloatArray(8_000) { 0.2f })
         fakeInput.emitFrame(FloatArray(512) { 0.2f }, 0.3f)
-        secondGenStarted.await()
+        secondGenStarted.awaitWithTimeout()
         engine.interruptSpeaking()
         blockedGate.complete(Unit)
 
@@ -1295,7 +1297,7 @@ class VoiceLabUnitTest {
             override suspend fun load(): Long {
                 if (callCount.incrementAndGet() == 1) {
                     firstLoadStarted.complete(Unit)
-                    gateFirstLoad.await()
+                    gateFirstLoad.awaitWithTimeout()
                 }
                 loaded = true
                 return 10L
@@ -1332,8 +1334,9 @@ class VoiceLabUnitTest {
         )
 
         // Start call #1 -> blocks in ASR load; user hangs up -> immediately starts call #2
-        engine.startCall()
-        firstLoadStarted.await()
+        try {
+            engine.startCall()
+            firstLoadStarted.awaitWithTimeout()
         engine.endCall()
         assertFalse(engine.isCallActive())
 
@@ -1353,12 +1356,15 @@ class VoiceLabUnitTest {
 
         engine.startCall()
         gateFirstLoad.complete(Unit) // Unblock aborted first session AFTER call #2 began!
-        secondListening.await()
+        secondListening.awaitWithTimeout()
         delay(50)
 
         assertTrue("Call #2 must remain active without being clobbered by aborted call #1", engine.isCallActive())
         assertEquals("Only call #2 may start microphone capture", 1, inputStarts.get())
-        engine.shutdown()
+        } finally {
+            gateFirstLoad.complete(Unit)
+            engine.shutdown()
+        }
     }
 
     @Test
@@ -1377,7 +1383,7 @@ class VoiceLabUnitTest {
                     mapOf("contextId" to 33)
                 override suspend fun launchCompletion(contextId: Int, params: Map<String, Any>): Map<String, Any> {
                     completionStarted.complete(Unit)
-                    allowFinish.await()
+                    allowFinish.awaitWithTimeout()
                     return mapOf("text" to "", "tokens_predicted" to 0)
                 }
                 override suspend fun stopCompletion(contextId: Int) {
@@ -1399,12 +1405,12 @@ class VoiceLabUnitTest {
             val gen = async {
                 llm.generateReply("Eres ORION", listOf(ChatMessage(ChatRole.USER, "Hola"))) {}
             }
-            completionStarted.await()
+            completionStarted.awaitWithTimeout()
 
             // Calling shutdown mid-generation must invoke stopCompletion and release once
             llm.shutdown()
             llm.shutdown()
-            val cancelledResult = gen.await()
+            val cancelledResult = gen.awaitWithTimeout()
             assertTrue(cancelledResult.cancelled)
             delay(150)
             assertEquals(1, stopCalls.get())
@@ -1630,7 +1636,7 @@ class VoiceLabUnitTest {
             generateCount.incrementAndGet()
             cancelled = false
             startedSignal?.complete(Unit)
-            generationGate.await()
+            generationGate.awaitWithTimeout()
             if (cancelled) {
                 return LlmGenerationResult("", 0L, 10L, 0, true)
             }
@@ -2493,7 +2499,7 @@ class VoiceLabUnitTest {
         // Turn 1: directTurnResponder handles it -> LLM must NOT be invoked
         fakeVad.enqueueSegment(FloatArray(8_000) { 0.2f })
         fakeInput.emitFrame(FloatArray(512) { 0.2f }, 0.3f)
-        assertEquals("Voy a confirmar antes de llamar.", firstCommitted.await())
+        assertEquals("Voy a confirmar antes de llamar.", firstCommitted.awaitWithTimeout())
         assertEquals(0, fakeLlm.generateCount.get())
 
         // Wait past ECHO_COOLDOWN_MS, disable bypass, run Turn 2 -> LLM runs normally
@@ -2502,7 +2508,7 @@ class VoiceLabUnitTest {
         bypassEnabled = false
         fakeVad.enqueueSegment(FloatArray(8_000) { 0.2f })
         fakeInput.emitFrame(FloatArray(512) { 0.2f }, 0.3f)
-        assertTrue(secondCommitted.await().contains("listo para ayudarte"))
+        assertTrue(secondCommitted.awaitWithTimeout().contains("listo para ayudarte"))
         assertEquals(1, fakeLlm.generateCount.get())
 
         engine.shutdown()
@@ -2603,7 +2609,7 @@ class VoiceLabUnitTest {
         fakeVad.enqueueSegment(FloatArray(8_000) { 0.2f })
         fakeInput.emitFrame(FloatArray(512) { 0.2f }, 0.3f)
 
-        assertEquals("Primera frase. Cola final sin punto", assistantCommitted.await())
+        assertEquals("Primera frase. Cola final sin punto", assistantCommitted.awaitWithTimeout())
         val joinedTts = spokenChunks.joinToString(" ")
         assertTrue("Expected first sentence in TTS output, got: $spokenChunks", joinedTts.contains("Primera frase"))
         assertTrue("Expected trailing unpunctuated clause to flush to TTS, got: $spokenChunks", joinedTts.contains("Cola final sin punto"))
@@ -2723,3 +2729,7 @@ class VoiceLabUnitTest {
         }
     }
 }
+
+
+private suspend fun <T> Deferred<T>.awaitWithTimeout(timeoutMs: Long = 5_000L): T =
+    withTimeout(timeoutMs) { await() }

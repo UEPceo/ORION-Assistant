@@ -98,6 +98,7 @@ import com.orion.voicelab.persistence.OrionDatabase
 import com.orion.voicelab.phone.CallDispatchResult
 import com.orion.voicelab.phone.CallIntentRouter
 import com.orion.voicelab.phone.PhoneCallManager
+import com.orion.voicelab.phone.PendingCallConsumptionGate
 import com.orion.voicelab.phone.PhoneContactMatcher
 import com.orion.voicelab.phone.PhoneRepository
 import com.orion.voicelab.tasks.AndroidTaskReminderScheduler
@@ -1870,11 +1871,10 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
 
     private fun takePendingCallIfMatches(expectedRequestId: String? = null): PendingCallRequest? =
         synchronized(pendingCallLock) {
-            val current = pendingRequestSnapshot ?: return null
-            if (expectedRequestId != null && current.requestId != expectedRequestId) return null
-            pendingRequestSnapshot = null
-            _uiState.update { it.copy(pendingCallRequest = null) }
-            current
+            PendingCallConsumptionGate.consume(pendingRequestSnapshot, expectedRequestId) {
+                pendingRequestSnapshot = null
+                _uiState.update { it.copy(pendingCallRequest = null) }
+            }
         }
 
     private fun cancelDelayedVoiceConfirmJob(clearPending: Boolean = false) {
