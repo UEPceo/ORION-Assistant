@@ -13,26 +13,18 @@ enum class ConnectorAuthorizationDecision {
  */
 object ConnectorActionGate {
     private val readOnlyOperations = setOf(
-        "search",
-        "read",
-        "list",
-        "get",
-        "fetch",
-        "inspect",
-        "profile",
-        "status",
         "search_messages",
         "search_public",
         "search_place",
-        "list_messages",
+        "navigate",
         "get_message",
         "read_latest_message",
         "list_repositories",
         "list_issues",
+        "get_issue",
         "list_commits",
         "list_workflow_runs",
-        "list_files",
-        "get_issue",
+        "list_files"
     )
 
     fun evaluate(
