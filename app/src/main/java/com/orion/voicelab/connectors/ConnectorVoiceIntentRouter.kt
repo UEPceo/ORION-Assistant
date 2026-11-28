@@ -103,8 +103,10 @@ object ConnectorVoiceIntentRouter {
         }
 
         if (containsAny(normalized, "mis repositorios", "repositorios de github", "repos de github", "lista mis repos")) {
+            val page = Regex("""(?:página|pagina)\s+(\d+)""", RegexOption.IGNORE_CASE)
+                .find(text)?.groupValues?.get(1)?.toIntOrNull()?.coerceIn(1, 100) ?: 1
             return RoutedAction(ConnectorAction(
-                ConnectorId.GITHUB, "list_repositories", mapOf("limit" to "10")
+                ConnectorId.GITHUB, "list_repositories", mapOf("limit" to "30", "page" to page.toString())
             ))
         }
 
