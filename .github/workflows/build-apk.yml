@@ -35,23 +35,34 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Configure stable connector credentials and CI signing
+      - name: Configure optional connector credentials and stable CI signing
         shell: bash
         run: |
           set -euo pipefail
           if [[ -z "$ORION_GITHUB_CLIENT_ID" ]]; then
-            echo "::error::Configure ORION_GITHUB_CLIENT_ID as a repository secret or variable."
-            exit 1
+            echo "::warning::ORION_GITHUB_CLIENT_ID is not configured; the APK will build, but GitHub authorization will remain unavailable until the public GitHub App client ID is configured."
+          else
+            echo "GitHub Device Flow client ID is configured."
           fi
-          if [[ -z "$ORION_DEBUG_KEYSTORE_BASE64" || -z "$ORION_DEBUG_STORE_PASSWORD" || -z "$ORION_DEBUG_KEY_ALIAS" || -z "$ORION_DEBUG_KEY_PASSWORD" ]]; then
-            echo "::error::Configure the four ORION_DEBUG_* signing secrets. CI must use a stable certificate for Google's Android OAuth client."
+
+          signing_values=("$ORION_DEBUG_KEYSTORE_BASE64" "$ORION_DEBUG_STORE_PASSWORD" "$ORION_DEBUG_KEY_ALIAS" "$ORION_DEBUG_KEY_PASSWORD")
+          configured_count=0
+          for value in "${signing_values[@]}"; do
+            [[ -n "$value" ]] && configured_count=$((configured_count + 1))
+          done
+
+          if [[ "$configured_count" -eq 0 ]]; then
+            echo "::warning::Stable CI debug signing is not configured. Gradle will use its generated debug key; Gmail OAuth will not work in this CI APK until its signing certificate SHA-1 is registered with Google."
+          elif [[ "$configured_count" -ne 4 ]]; then
+            echo "::error::Configure all four ORION_DEBUG_* signing secrets together, or leave all four empty."
             exit 1
+          else
+            KEYSTORE_PATH="$RUNNER_TEMP/orion-ci-debug.keystore"
+            printf '%s' "$ORION_DEBUG_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+            test -s "$KEYSTORE_PATH"
+            keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$ORION_DEBUG_STORE_PASSWORD" -alias "$ORION_DEBUG_KEY_ALIAS" | grep -E "Alias name:|SHA1:"
+            echo "ORION_DEBUG_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
           fi
-          KEYSTORE_PATH="$RUNNER_TEMP/orion-ci-debug.keystore"
-          printf '%s' "$ORION_DEBUG_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
-          test -s "$KEYSTORE_PATH"
-          keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$ORION_DEBUG_STORE_PASSWORD" -alias "$ORION_DEBUG_KEY_ALIAS" | grep -E "Alias name:|SHA1:"
-          echo "ORION_DEBUG_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
 
       - name: Configure Android SDK
         run: |
