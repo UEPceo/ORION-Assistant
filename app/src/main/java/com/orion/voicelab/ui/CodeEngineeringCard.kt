@@ -69,7 +69,10 @@ fun CodeEngineeringCard(
                         onCreatePullRequest(
                             session,
                             task.trim().take(256).ifBlank { "Cambios ORION" },
-                            "Cambios preparados por ORION para la tarea:\\n$task\\n\\nCommit: ${state.lastCommitSha}",
+                            """Cambios preparados por ORION para la tarea:
+$task
+
+Commit: ${state.lastCommitSha}""",
                             true
                         )
                     },
