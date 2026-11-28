@@ -2,6 +2,7 @@ package com.orion.voicelab.engine
 
 import com.orion.voicelab.model.DownloadSpec
 import com.orion.voicelab.model.ModelManager
+import com.orion.voicelab.model.ModelIntegrityManifest
 import com.orion.voicelab.model.ResumableHttpDownloader
 import kotlinx.coroutines.CancellationException
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
@@ -16,6 +17,8 @@ object MoonshineModelManager {
     private const val MODEL_URL =
         "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/$MODEL_ARCHIVE"
     private const val ASR_REQUIRED_FREE_BYTES = 320L * 1024L * 1024L
+    private const val ARCHIVE_BYTES = 50_846_902L
+    private const val ARCHIVE_SHA256 = "850c3dcc5dfccc8b1feb10bb221b11d6039b6f5c626241729f46863771016383"
 
     private val allowedFiles = setOf(
         "encoder_model.ort",
@@ -35,7 +38,8 @@ object MoonshineModelManager {
         val dir = modelDirectory(filesDir)
         return File(dir, "encoder_model.ort").let { it.isFile && it.length() > 1_000_000L } &&
             File(dir, "decoder_model_merged.ort").let { it.isFile && it.length() > 1_000_000L } &&
-            File(dir, "tokens.txt").let { it.isFile && it.length() > 1_000L }
+            File(dir, "tokens.txt").let { it.isFile && it.length() > 1_000L } &&
+            ModelIntegrityManifest.verifyDirectory(dir)
     }
 
     fun modelSizeMb(filesDir: File): Long {
@@ -69,8 +73,8 @@ object MoonshineModelManager {
                         url = url,
                         destinationPartFile = partArchive,
                         minRequiredFreeBytes = requiredFreeBytes,
-                        expectedExactBytes = expectedExactBytes,
-                        expectedSha256 = expectedSha256,
+                        expectedExactBytes = expectedExactBytes ?: ARCHIVE_BYTES,
+                        expectedSha256 = expectedSha256 ?: ARCHIVE_SHA256,
                         connectTimeoutMs = 20_000,
                         readTimeoutMs = 60_000,
                         shouldCancel = shouldCancel
@@ -132,6 +136,7 @@ object MoonshineModelManager {
             check(File(tempDir, "encoder_model.ort").length() > 1_000_000) { "Falta encoder_model.ort" }
             check(File(tempDir, "decoder_model_merged.ort").length() > 1_000_000) { "Falta decoder_model_merged.ort" }
             check(File(tempDir, "tokens.txt").length() > 1_000) { "Falta tokens.txt" }
+            ModelIntegrityManifest.createDirectoryManifest(tempDir)
 
             val hadTarget = targetDir.exists()
             if (hadTarget) {
