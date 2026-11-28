@@ -89,8 +89,10 @@ class GitHubCodeEngineeringService(
         session: CodeEngineeringSession,
         inspection: CodeEngineeringCiInspection,
         attempt: Int,
-        selectedPaths: List<String>
+        selectedPaths: List<String>,
+        userConfirmedSourceContext: Boolean
     ): Result<PreparedCodeChange> = runCatching {
+        require(userConfirmedSourceContext) { "Confirma el uso de estos archivos como contexto para la reparación." }
         require(CodeRepairBudget.canPrepareRepair(attempt - 1, inspection)) {
             "La reparación requiere una ejecución fallida del SHA actual, logs disponibles y presupuesto de intentos."
         }
