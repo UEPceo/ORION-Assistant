@@ -73,6 +73,12 @@ class CodeChangeValidatorTest {
         assertFalse(CodeChangeValidator.isSafePath("src/Main.kt\tInjected"))
     }
 
+    @Test fun secretScannerCanProtectWorkspaceContext() {
+        assertTrue(CodeChangeValidator.containsPotentialSecret("api_key = \"sk-abcdefghijklmnopqrstuvwxyz123456\""))
+        assertTrue(CodeChangeValidator.containsPotentialSecret("Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345"))
+        assertFalse(CodeChangeValidator.containsPotentialSecret("fun calculateTotal(items: List<Int>) = items.sum()"))
+    }
+
     @Test fun rejectsOversizedPatch() {
         val huge = "x".repeat(CodeChangeValidator.MAX_FILE_BYTES + 1)
         val result = CodeChangeValidator.validate(
