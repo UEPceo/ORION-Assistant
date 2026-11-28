@@ -183,7 +183,7 @@ fun OrionSettingsScreen(
         var remoteApiKey by remember { mutableStateOf("") }
         var remoteShareContext by remember { mutableStateOf(remoteSettings.shareContext) }
         var remoteSaved by remember { mutableStateOf(false) }
-        SettingsSection(title = "Motor neuronal híbrido", subtitle = "Inferencia avanzada en un servidor gratuito y autoalojado, sin cargar modelos grandes en la RAM del móvil") {
+        SettingsSection(title = "Motor neuronal híbrido", subtitle = "Inferencia avanzada en un servidor autoalojado con software libre, sin cargar modelos grandes en la RAM del móvil") {
             Text("ORION mantiene el modelo local como opción privada y de respaldo. Puedes conectar un servidor propio compatible con OpenAI (por ejemplo, llama.cpp server o vLLM). El software es gratuito; el hardware/hosting y la electricidad del servidor pueden tener coste.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Permitir motor remoto", modifier = Modifier.weight(1f))
