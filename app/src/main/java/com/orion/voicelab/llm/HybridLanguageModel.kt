@@ -35,8 +35,10 @@ class HybridLanguageModel(
     ): LlmGenerationResult {
         val config = settings()
         val remoteAllowed = config.isConfigured && config.mode != RemoteInferenceSettings.MODE_LOCAL
-        val remotePreferred = config.mode == RemoteInferenceSettings.MODE_REMOTE_ONLY ||
-            (config.mode == RemoteInferenceSettings.MODE_AUTO && isComplexRequest(history.lastOrNull()?.content.orEmpty()))
+        val remotePreferred = HybridRoutingPolicy.shouldUseRemote(
+            mode = config.mode,
+            request = history.lastOrNull()?.content.orEmpty()
+        )
         if (remoteAllowed && remotePreferred) {
             try {
                 val result = RemoteInferenceClient(
@@ -60,14 +62,4 @@ class HybridLanguageModel(
         return local.generateReply(systemPrompt, history, onToken)
     }
 
-    private fun isComplexRequest(text: String): Boolean {
-        val normalized = text.lowercase()
-        val complexitySignals = listOf(
-            "programa", "programar", "código", "codigo", "arquitectura", "auditoría", "auditoria",
-            "analiza", "compara", "investiga", "planifica", "estrategia", "razona", "depura",
-            "implementa", "diseña", "diseño", "matemática", "matematicas", "finanzas",
-            "paso a paso", "varios pasos", "informe", "documentación", "documentacion"
-        )
-        return text.length >= 900 || complexitySignals.any(normalized::contains)
-    }
 }
