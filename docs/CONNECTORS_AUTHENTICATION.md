@@ -12,7 +12,22 @@ Setup required outside the repository:
 4. For GitHub Actions, set repository variable or secret `ORION_GITHUB_CLIENT_ID`; `build-apk.yml` passes it into Gradle when present. A missing ID no longer blocks compilation, but the GitHub connector reports that it is not configured and cannot authorize users until the value is supplied.
 5. Build and install the app.
 
-Configure fine-grained GitHub App repository permissions and select only the repositories ORION should access during installation. The read-only integration requires repository metadata read, Issues read, Contents read and Actions read (for CI/workflow status). The Device Flow requests `offline_access` only to receive expiring user access and refresh tokens; GitHub App permissions, not OAuth scopes, determine repository access. Do not grant write permissions in this phase.
+Configure the GitHub App with the following permissions for ORION's software-engineering capability:
+
+| Permission | Access | Purpose |
+|---|---|---|
+| Metadata | Read-only | Resolve repositories and refs |
+| Contents | Read and write | Read source, create blobs/trees and commit code |
+| Pull requests | Read and write | Open and update pull requests |
+| Issues | Read and write | Read issues and later create engineering issue comments when explicitly requested |
+| Actions | Read and write | Inspect CI runs and request/re-run permitted workflow runs |
+| Workflows | Read and write | Modify workflow files when the user explicitly authorizes that change |
+
+Do not grant Administration, Secrets, Environments, Organization administration, Members, or account-level permissions. Repository secrets are never read by ORION. Actions runners must receive only the permissions configured in their workflow; ORION must not enumerate or retrieve secret values.
+
+During installation, choose **All repositories** if ORION should work across all repositories owned by that account, or **Only select repositories** and add each repository ORION may access. Organization repositories can require an organization owner to approve the app and its permissions. A repository not selected for the installation remains inaccessible even if the app has write permission types.
+
+The Device Flow requests `offline_access` only to receive expiring user access and refresh tokens; GitHub App installation permissions determine actual repository access. After changing App permissions, save the changes and approve/update the existing installation when GitHub requests it. ORION may need to be disconnected and authorized again to obtain a token reflecting the updated installation permissions.
 
 The authenticator requests a short-lived device code, displays a user code/verification URL to the app layer, polls using GitHub's server-provided interval, handles pending/slow-down/denial/expiry, and returns an access token only after approval. Device codes must remain in memory. The credential manager writes the token through the Android Keystore-backed credential store.
 
@@ -38,7 +53,9 @@ Gmail API integration supports bounded message search and metadata-only lookup (
 - No access token, device code, authorization header, email body or private repository content in logs, prompts, crash reports or diagnostics.
 - The LLM never receives credentials or Gmail message bodies/snippets. It may receive only bounded metadata results needed to answer the user.
 - Read operations are executed only after a clear user request; follow-up requests may reuse the repository selected in the immediately preceding connector interaction.
-- GitHub read-only operations include repositories, issues and issue details, commits, repository file listings and Actions workflow runs.
+- GitHub read operations include repositories, issues and issue details, commits, repository file listings and Actions workflow runs.
+- GitHub write operations include creating a work branch, applying a validated multi-file patch as one Git commit, and opening a draft pull request. Every write is classified as a reversible write and requires a one-shot confirmation bound to the exact operation. The default branch is never a target for direct commits.
+- Multi-file commits use the Git Data API. ORION checks the branch head SHA and each existing file blob SHA against the reviewed proposal before creating the tree and commit; it updates the branch ref only after the commit is complete. A changed branch or file invalidates the proposal and requires a fresh review.
 - Gmail read-only operations include advanced message search and metadata lookup; email bodies and snippets are not passed into the assistant conversation.
 - Sending email, creating or modifying remote resources, publishing comments, and deleting content require a contextual, one-shot confirmation bound to the exact action and expiring after 60 seconds. A refusal or unrelated next request clears the pending confirmation.
 - Connector failures must not stop ASR, local LLM, TTS, memory, tasks or phone functions.
@@ -56,7 +73,7 @@ The keystore is used only to sign CI debug APKs. Keep it private in GitHub Actio
 
 ## Connector hardening and test coverage
 
-- GitHub repository names and file paths reject traversal segments, encoded separators and ambiguous path components. The action gate uses an exact allowlist per provider and denies unsupported operations, including unimplemented repository/file/PR actions; generic placeholders such as `get` or `fetch` are not trusted. Repository listing requests explicit owner, collaborator and organization-member affiliations; actual visibility still follows GitHub App installation and granted metadata permissions.
+- GitHub repository names and file paths reject traversal segments, encoded separators and ambiguous path components. The action gate uses separate read and write allowlists; code writes cannot be labelled read-only to bypass confirmation. Generic placeholders such as `get` or `fetch` are not trusted. Repository listing requests explicit owner, collaborator and organization-member affiliations; actual visibility still follows GitHub App installation and granted metadata permissions.
 - GitHub refresh-token rotation is serialized. A transient network failure remains a retryable service failure; only an invalid/expired refresh grant maps to reauthorization.
 - Google Maps navigation uses the documented `https://www.google.com/maps/dir/?api=1` URL and `travelmode=transit` for public transport.
 - PescaIA redirects are followed manually, limited to five hops, HTTPS-only, standard HTTPS port, and exact apex/www host allowlist. The lightweight reader does not execute JavaScript; if static HTML yields almost no text it returns no result instead of inventing content.
