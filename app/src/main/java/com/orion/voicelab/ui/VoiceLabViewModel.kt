@@ -557,6 +557,34 @@ class VoiceLabViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
+    fun inspectCodeEngineeringCi(session: CodeEngineeringSession): Job = viewModelScope.launch(Dispatchers.IO) {
+        val expectedHeadSha = _codeEngineeringState.value.lastCommitSha
+        if (expectedHeadSha.isNullOrBlank()) {
+            _codeEngineeringState.value = _codeEngineeringState.value.copy(ciError = "No hay un commit de esta sesión que validar.")
+            return@launch
+        }
+        _codeEngineeringState.value = _codeEngineeringState.value.copy(isWorking = true, ciError = null)
+        codeEngineeringService.inspectCiForCurrentHead(
+            repository = session.grant.repository,
+            branch = session.grant.workBranch,
+            expectedHeadSha = expectedHeadSha
+        ).fold(
+            onSuccess = { inspection ->
+                _codeEngineeringState.value = _codeEngineeringState.value.copy(
+                    isWorking = false,
+                    ciInspection = inspection,
+                    ciError = inspection.logRetrievalError
+                )
+            },
+            onFailure = { error ->
+                _codeEngineeringState.value = _codeEngineeringState.value.copy(
+                    isWorking = false,
+                    ciError = error.message ?: "No se pudo consultar CI."
+                )
+            }
+        )
+    }
+
     fun revokeCodeEngineeringSession(session: CodeEngineeringSession) {
         codeEngineeringService.revoke(session)
         _codeEngineeringState.value = CodeEngineeringUiState()
