@@ -348,7 +348,7 @@ object ContextPromptBuilder {
                 )
                 val contactTag = task.contactName?.takeIf { it.isNotBlank() }?.let { " · Contacto: $it" }.orEmpty()
                 val line = "\n- ${task.title} (${task.priority.label}, $whenStr)$overdueTag$contactTag"
-                if (usedChars > 0 && usedChars + line.length > 320) break
+                if (usedChars > 0 && usedChars + line.length > 640) break
                 append(line)
                 usedChars += line.length
             }
@@ -368,18 +368,21 @@ object ContextPromptBuilder {
         val pending = tasks.filter { it.status == TaskStatus.PENDING }
         if (pending.isEmpty()) return emptyList()
         val nowMs = System.currentTimeMillis()
+        val normalizedQuery = MemoryTextSimilarity.normalize(query)
+        val broadAgendaQuery = listOf("agenda", "calendario", "tarea", "pendiente", "recordatorio", "hoy", "manana", "esta semana")
+            .any(normalizedQuery::contains)
         val queryTokens = MemoryTextSimilarity.tokenizeSignificant(query)
         return pending.sortedWith(
             compareByDescending<TaskItem> { task ->
                 val textTokens = MemoryTextSimilarity.tokenizeSignificant(
-                    "${task.title} ${task.category} ${task.contactName.orEmpty()}"
+                    "${task.title} ${task.category} ${task.contactName.orEmpty()} ${task.description} ${task.notes}"
                 )
                 queryTokens.intersect(textTokens).size
             }
                 .thenByDescending { if (it.isOverdue(nowMs)) 1 else 0 }
-                .thenByDescending { it.priority.sortRank }
                 .thenBy { it.dueDateEpochDay ?: Long.MAX_VALUE }
-        ).take(4)
+                .thenByDescending { it.priority.sortRank }
+        ).take(if (broadAgendaQuery) 6 else 4)
     }
 
     private fun selectRelevantCalls(
