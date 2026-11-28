@@ -31,7 +31,7 @@ class ComfyUiWorkflowTemplateTest {
   val result=template.build(MediaGenerationRequest("motion","", "9:16",5))
   assertEquals(432,result.getJSONObject("2").getJSONObject("inputs").getInt("width"))
   assertEquals(768,result.getJSONObject("2").getJSONObject("inputs").getInt("height"))
-  assertEquals(80,result.getJSONObject("3").getJSONObject("inputs").getInt("length"))
+  assertEquals(81,result.getJSONObject("3").getJSONObject("inputs").getInt("length"))
  }
  @Test fun ignoresAspectAndDurationMappingsWhenNotConfigured() {
   val workflow="""{"1":{"inputs":{"text":"prompt"}},"2":{"inputs":{"width":512,"height":512}}}"""
